@@ -492,6 +492,8 @@ new MutationObserver(retheme).observe(document.documentElement, { attributes: tr
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', retheme);
 
 const charts = {};
+// Gleitzahl über Ca nur bis Ca max: nach dem Abriss fällt Ca wieder, die Kurve liefe sonst als zweiter Ast zurück
+const preStall = pts => { let i = 0; pts.forEach((q, j) => { if (q.cl > pts[i].cl) i = j; }); return pts.slice(0, i + 1); };
 
 // ---------- Profile ----------
 function selectProfile(id) { ui.sel = id; }
@@ -868,7 +870,7 @@ function renderLab() {
     const band = (axis) => ({ axis, from: lab.cl0, to: lab.cl1, color: css('--accent-soft') });
     const cdMin = Math.min(...curves.flatMap(c => c.points.map(q => q.cd)));
     liveChart('lCLCD', 'Cw', 'Ca', curves.map(c => ds(c, q => ({ x: q.cd, y: q.cl }))), Number.isFinite(cdMin) ? { x: { min: 0, max: Math.max(0.03, Math.ceil(cdMin * 4 * 200) / 200) } } : {}, band('y'));
-    liveChart('lLD', 'Ca', 'Ca/Cw', curves.map(c => ds(c, q => ({ x: q.cl, y: q.cl / q.cd }))), { x: { min: 0 }, y: { min: 0 } }, band('x'));
+    liveChart('lLD', 'Ca', 'Ca/Cw', curves.map(c => ds({ ...c, points: preStall(c.points) }, q => ({ x: q.cl, y: q.cl / q.cd }))), { x: { min: 0 }, y: { min: 0 } }, band('x'));
     liveChart('lCLA', 'α [°]', 'Ca', curves.map(c => ds(c, q => ({ x: q.alpha, y: q.cl }))), {}, band('y'));
     liveChart('lCM', 'α [°]', 'Cm', curves.map(c => ds(c, q => ({ x: q.alpha, y: q.cm }))));
   }
@@ -1067,7 +1069,7 @@ function renderPolars() {
   const cdMin = Math.min(...vis.map(p => p.summary.cdMin));
   chart('chCLCD', 'Cw', 'Ca', clcd, Number.isFinite(cdMin) ? { x: { min: 0, max: Math.max(0.03, Math.ceil(cdMin * 5 * 200) / 200) } } : {});
   chart('chCLA', 'α [°]', 'Ca', vis.map(p => ds(p, q => ({ x: q.alpha, y: q.cl }))));
-  chart('chLD', 'Ca', 'Ca/Cw', vis.map(p => ds(p, q => ({ x: q.cl, y: q.cl / q.cd }))), { y: { min: 0 }, x: { min: 0 } });
+  chart('chLD', 'Ca', 'Ca/Cw', vis.map(p => { const d = ds(p, q => ({ x: q.cl, y: q.cl / q.cd })), n = preStall(p.points).length; d.data = d.data.slice(0, n); d.pointStyle = d.pointStyle.slice(0, n); return d; }), { y: { min: 0 }, x: { min: 0 } });
   chart('chCM', 'α [°]', 'Cm', vis.map(p => ds(p, q => ({ x: q.alpha, y: q.cm }))));
   renderSumTable();
 }
