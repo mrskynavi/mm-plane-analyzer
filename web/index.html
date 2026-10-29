@@ -1,0 +1,743 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MM Plane Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<script>try{ const t=localStorage.getItem('mmpa.theme'); if (t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(e){}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="core/profil.js"></script>
+<script src="core/nf-gewichte.js"></script>
+<script src="core/neuralfoil.js"></script>
+<script src="core/polare.js"></script>
+<script src="core/projekt.js"></script>
+<script src="core/bibliothek.js"></script>
+<style>
+/* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --fg:#17202b; --muted:#5b6876; --line:#d5dbe2;
+  --accent:#0b6bcb; --accent-soft:#dbe9f8; --warn:#b85c00; --bad:#c2312f; --good:#1f7a4d;
+  --ghost:#9aa6b2;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141a; --panel:#171e26; --fg:#e4e9ef; --muted:#93a1b0; --line:#2a3440;
+  --accent:#4ea3f5; --accent-soft:#16304a; --warn:#f0a040; --bad:#f06a66; --good:#4cc38a; --ghost:#5d6a78; color-scheme:dark}}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  --bg:#0f141a; --panel:#171e26; --fg:#e4e9ef; --muted:#93a1b0; --line:#2a3440;
+  --accent:#4ea3f5; --accent-soft:#16304a; --warn:#f0a040; --bad:#f06a66; --good:#4cc38a; --ghost:#5d6a78; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+header.appbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.brand{display:flex;align-items:center;gap:8px}
+header.appbar .proj{flex:1 1 260px;min-width:0;display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
+header.appbar .proj b{color:var(--fg);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header.appbar .actions{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}
+h1{font:700 1.6rem/1 var(--display);white-space:nowrap;letter-spacing:.01em;margin:0;display:flex;align-items:center;gap:.4em}
+h1 .logo{height:1.05em;width:auto;flex:none}
+h2{font:600 1.15rem/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;margin:0;color:var(--muted)}
+h2.hi{display:flex;align-items:center;gap:8px}
+.iconbtn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--muted);background:none;color:var(--muted);font:700 .85rem/1 var(--body);cursor:pointer;display:inline-grid;place-items:center;padding:0}
+.iconbtn[aria-expanded="true"],.iconbtn:hover{border-color:var(--accent);color:var(--accent)}
+.iconbtn.sm{width:20px;height:20px;font-size:.72rem}
+.iconbtn.gear{border:0;font-size:1.25rem;width:32px;height:32px}
+.iconbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.infopop{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:.88rem;color:var(--muted)}
+.infopop p{margin:0} .infopop p+p{margin-top:6px}
+.btn{font:600 .95rem var(--body);background:var(--accent);color:#fff;border:0;border-radius:6px;padding:7px 14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.btn.sm{padding:3px 9px;font-size:.8rem}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{color:var(--muted);font-size:.85rem;margin:0}
+.tabbar{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin;flex:1 1 auto;min-width:0}
+.tab{font:600 1rem/1 var(--display);letter-spacing:.03em;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:10px 14px 9px;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--fg)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.pane{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+section{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.kpi{background:var(--panel);padding:12px 14px;display:grid;gap:2px;min-width:0}
+.kpi .l{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi .v{font:600 1.6rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+.kpi .v small{font:500 .85rem var(--body);color:var(--muted);margin-left:3px}
+.kpi .d{font:.78rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.kpi .d.up{color:var(--good)} .kpi .d.dn{color:var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 .85rem var(--body);border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:99px;padding:4px 11px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:500 .85rem var(--body);border:0;background:var(--panel);color:var(--muted);padding:4px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.pol{display:grid;grid-template-columns:280px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.pol{grid-template-columns:minmax(0,1fr)}}
+.pol-logs{display:grid;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}
+.pol-lh{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pol-mini{display:flex;gap:6px;flex-wrap:wrap}
+.pol-mini button{font:500 .8rem var(--body);border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:4px;padding:2px 8px;cursor:pointer}
+.pol-mini button:hover{color:var(--accent);border-color:var(--accent)}
+.pol-list{display:grid;gap:6px;margin:0;padding:0;list-style:none;max-height:62vh;overflow:auto}
+.pol-log{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;align-items:start}
+.pol-log:hover{border-color:var(--accent)}
+.pol-log.sel{border-color:var(--accent);background:var(--accent-soft)}
+.pol-log.off{opacity:.55}
+.pol-log input{margin:3px 0 0;accent-color:var(--accent);width:16px;height:16px}
+.pol-log .nm{font-weight:600;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;cursor:pointer;overflow-wrap:anywhere;background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left}
+.pol-log .sw{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block;margin-right:6px;vertical-align:baseline}
+.pol-log .meta{grid-column:2 / 4;font:.76rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.pol-log .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px}
+.pol-log .x:hover{color:var(--bad)}
+.pol-main{display:grid;gap:12px;min-width:0}
+.pol-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 10px;min-width:0;display:grid;gap:10px}
+.pol-head{display:flex;justify-content:space-between;align-items:center;gap:6px 12px;flex-wrap:wrap}
+.pol-head span{font:.78rem var(--mono);color:var(--muted)}
+.pol-ctrl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:.88rem;color:var(--muted)}
+.pol-ctrl label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.pol-ctrl input[type=checkbox]{accent-color:var(--accent)}
+.tag{font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+.tag.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.contour{position:relative;width:100%;aspect-ratio:3.6/1;min-height:150px}
+.contour canvas{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font:.78rem var(--mono);color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.legend i.dash{background:repeating-linear-gradient(90deg,var(--ghost) 0 4px,transparent 4px 7px)!important}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px 18px}
+.field{display:grid;gap:4px;font-size:.88rem;min-width:0}
+.field > span{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field .row{display:flex;gap:6px 8px;align-items:center;min-width:0;flex-wrap:wrap}
+.field input[type=range]{flex:1 1 auto;min-width:0;accent-color:var(--accent)}
+input.num,input.txt,select.sel{font:500 .9rem var(--mono);padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0}
+input.num{width:9ch;text-align:right;flex:none}
+input.txt{width:100%}
+.field .row input.txt{flex:1 1 8em;width:auto}
+input.num:focus-visible,input.txt:focus-visible,select.sel:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.field .u{font:.8rem var(--mono);color:var(--muted)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.status{font:.8rem var(--mono);color:var(--muted)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
+.cbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 6px;min-width:0}
+.cbox .ct{display:flex;justify-content:space-between;gap:12px;font:600 1rem var(--display);letter-spacing:.03em}
+.cbox .ct span{font:400 .78rem var(--mono);color:var(--muted)}
+.cbox .cv{position:relative;height:300px}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td .sw{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.empty{display:grid;place-items:center;min-height:160px;color:var(--muted);text-align:center;padding:20px}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:20px;width:min(560px,calc(100vw - 32px))}
+dialog::backdrop{background:color-mix(in srgb,#000 45%,transparent)}
+dialog h2{margin-bottom:12px}
+.libgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px}
+.libitem{display:grid;gap:2px;text-align:left;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);cursor:pointer;font:400 .8rem var(--mono)}
+.libitem b{font:600 .95rem var(--body);color:var(--accent)}
+.libitem:hover,.libitem:focus-visible{border-color:var(--accent);outline:none}
+.libitem[disabled]{opacity:.45;cursor:default}
+.setform{display:grid;gap:14px}
+.setform .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.setform .row.end{justify-content:flex-end}
+.dropover{position:fixed;inset:0;z-index:100;display:none;place-items:center;background:color-mix(in srgb,var(--accent) 18%,transparent);border:3px dashed var(--accent);pointer-events:none}
+.dropover span{font:600 1.4rem var(--display);color:var(--accent);background:var(--panel);padding:10px 18px;border-radius:8px}
+.dropover.over{display:grid}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
+</style>
+
+<div class="wrap">
+  <header class="appbar">
+    <div class="brand">
+      <h1><svg class="logo" viewBox="-20 -20 378 385" aria-hidden="true"><path d="M0 0V345M338 0V345M55 0L169 165L283 0M65 345V130L169 280L273 130V345" fill="none" stroke="currentColor" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/></svg>MM Plane Analyzer</h1>
+      <button type="button" class="iconbtn" data-info="info-app" aria-expanded="false" aria-controls="info-app" aria-label="Info zur App">i</button>
+    </div>
+    <div class="proj">Projekt <b id="projName"></b></div>
+    <div class="actions">
+      <button class="btn" type="button" id="importBtn">Import .dat …</button>
+      <button class="btn ghost" type="button" id="openBtn">Öffnen …</button>
+      <button class="btn ghost" type="button" id="saveBtn">Speichern</button>
+      <button type="button" class="iconbtn gear" id="openSettings" aria-label="Einstellungen" title="Einstellungen">⚙</button>
+    </div>
+    <input type="file" id="datFile" accept=".dat,.txt,.cor" multiple hidden>
+    <input type="file" id="projFile" accept=".json,.mmpa" hidden>
+  </header>
+  <div class="infopop" id="info-app" hidden>
+    <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Diese erste Stufe (P0) enthält die Profile: .dat-Dateien einlesen, Dicke und Wölbung anpassen, Wölbklappen drehen und Profilpolaren rechnen und vergleichen. Flügel, Schwerpunkt und EWD folgen in P1.</p>
+    <p>Die Polaren rechnet NeuralFoil (Peter Sharpe, MIT): ein neuronales Netz, das auf Zehntausenden XFOIL-Rechnungen trainiert ist und dieselben Werte wie das Python-Original liefert. Es konvergiert immer und ist schnell genug für Live-Änderungen. Die Konfidenz zeigt, ob ein Profil weit weg von den Trainingsdaten liegt. XFOIL selbst kommt später über die Desktop-App dazu.</p>
+    <p>Das Projekt wird im Browser zwischengespeichert. Mit „Speichern“ legst Du es als Datei ab.</p>
+  </div>
+
+  <div class="tabbar">
+    <nav class="tabs" role="tablist" aria-label="Ansichten">
+      <button type="button" role="tab" class="tab" data-tab="profile" id="tab-profile" aria-controls="pane-profile">Profile</button>
+      <button type="button" role="tab" class="tab" data-tab="polaren" id="tab-polaren" aria-controls="pane-polaren">Polaren</button>
+    </nav>
+  </div>
+
+  <!-- Profile -->
+  <div class="pane" role="tabpanel" id="pane-profile" data-tab="profile" aria-labelledby="tab-profile">
+    <div class="pol">
+      <section class="pol-logs">
+        <div class="pol-lh"><h2>Profile</h2><span class="pol-mini"><button type="button" id="libBtn">Bibliothek …</button><button type="button" id="importBtn2">Import …</button></span></div>
+        <ul class="pol-list" id="profList"></ul>
+        <p class="hint">.dat-Dateien (Selig oder Lednicer) auch per Ziehen und Ablegen.</p>
+      </section>
+      <div class="pol-main">
+        <div class="kpis" id="profKpis"></div>
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi" id="profTitle">Kontur</h2><span id="profInfo"></span></div>
+          <div class="contour"><canvas id="contour" aria-label="Profilkontur"></canvas></div>
+          <div class="legend" id="contourLegend"></div>
+        </section>
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Anpassen <button type="button" class="iconbtn sm" data-info="info-mod" aria-expanded="false" aria-controls="info-mod" aria-label="So wird angepasst">i</button></h2><span id="modState"></span></div>
+          <div class="infopop" id="info-mod" hidden><p>Das Profil wird in Skelettlinie (Wölbung) und Dickenverteilung zerlegt. Beide lassen sich getrennt skalieren und in ihrer Lage verschieben, wie mit TFAC und HIGH in XFOIL. Die Originalkoordinaten bleiben gespeichert; ein abgeleitetes Profil merkt sich nur die Änderung.</p><p>Die Klappe hier ist nur eine Vorschau. Klappenstellungen für Polaren wählst Du im Tab Polaren.</p></div>
+          <div class="form">
+            <label class="field"><span>Dicke</span><span class="row"><input type="range" id="mThick" min="50" max="150" step="1" value="100"><input class="num" id="mThickN" type="number" min="50" max="150" step="1" value="100"><span class="u">%</span></span></label>
+            <label class="field"><span>Dickenrücklage</span><span class="row"><input type="range" id="mXT" min="15" max="50" step="0.5"><input class="num" id="mXTN" type="number" min="15" max="50" step="0.5"><span class="u">% l</span></span></label>
+            <label class="field"><span>Wölbung</span><span class="row"><input type="range" id="mCamb" min="0" max="200" step="1" value="100"><input class="num" id="mCambN" type="number" min="0" max="200" step="1" value="100"><span class="u">%</span></span></label>
+            <label class="field"><span>Wölbungsrücklage</span><span class="row"><input type="range" id="mXC" min="15" max="60" step="0.5"><input class="num" id="mXCN" type="number" min="15" max="60" step="0.5"><span class="u">% l</span></span></label>
+          </div>
+          <div class="form">
+            <label class="field"><span>Klappe (Vorschau)</span><span class="row"><input type="range" id="fDefl" min="-10" max="15" step="0.5" value="0"><input class="num" id="fDeflN" type="number" min="-10" max="15" step="0.5" value="0"><span class="u">°</span></span></label>
+            <label class="field"><span>Klappentiefe</span><span class="row"><input type="range" id="fDepth" min="10" max="40" step="1" value="25"><input class="num" id="fDepthN" type="number" min="10" max="40" step="1" value="25"><span class="u">% l</span></span></label>
+            <div class="field"><span>Drehpunkt</span><span class="seg" id="fHinge"><button type="button" data-v="auto" aria-pressed="true">Auto</button><button type="button" data-v="unten">Unten</button><button type="button" data-v="mitte">Mitte</button><button type="button" data-v="oben">Oben</button></span></div>
+          </div>
+          <div class="btnrow">
+            <input class="txt" id="newName" style="max-width:260px" aria-label="Name für das neue Profil">
+            <button type="button" class="btn" id="saveNew">Als neues Profil speichern</button>
+            <button type="button" class="btn ghost" id="applyMod">Auf dieses Profil anwenden</button>
+            <button type="button" class="btn ghost" id="resetMod">Zurücksetzen</button>
+            <button type="button" class="btn ghost" id="exportDat">Als .dat exportieren</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Polaren -->
+  <div class="pane" role="tabpanel" id="pane-polaren" data-tab="polaren" aria-labelledby="tab-polaren" hidden>
+    <div class="pol">
+      <section class="pol-logs">
+        <div class="pol-lh"><h2>Polaren</h2><span class="pol-mini"><button type="button" id="polAll">Alle</button><button type="button" id="polNone">Keine</button><button type="button" id="polClear">Leeren</button></span></div>
+        <ul class="pol-list" id="polList"></ul>
+        <p class="hint" id="polHint"></p>
+      </section>
+      <div class="pol-main">
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Polaren rechnen <button type="button" class="iconbtn sm" data-info="info-pol" aria-expanded="false" aria-controls="info-pol" aria-label="So werden Polaren gerechnet">i</button></h2><span id="calcStatus" class="status"></span></div>
+          <div class="infopop" id="info-pol" hidden><p>Typ 1 rechnet mit fester Reynoldszahl. Typ 2 hält Re·√Ca konstant: So fliegt ein Flügel bei fester Flächenbelastung, und so rechnet auch Dein altes Rechenblatt. Für ein Modell mit 77 g/dm² und 170 mm Tiefe ist Re·√Ca etwa 150 000.</p><p>Ncrit beschreibt die Turbulenz der Anströmung: 9 ist der Standard aus XFOIL, ruhige Luft für Segler eher 11 bis 14.</p><p>Für jede Kombination aus Profil, Re und Klappenstellung entsteht eine Polare. Gleiche Einstellungen werden nicht doppelt gerechnet. Die Hüllkurve zeigt pro Ca die Klappenstellung mit dem kleinsten Widerstand.</p></div>
+          <div class="field"><span>Profile</span><div class="chips" id="calcProfiles"></div></div>
+          <div class="form">
+            <div class="field"><span>Polarentyp</span><span class="seg" id="cType"><button type="button" data-v="1" aria-pressed="true">Typ 1 · Re fest</button><button type="button" data-v="2">Typ 2 · Re·√Ca fest</button></span></div>
+            <label class="field"><span id="cReLbl">Reynoldszahlen</span><input class="txt" id="cRe" value="100000 200000 400000"></label>
+            <label class="field"><span>Klappenstellungen</span><span class="row"><input class="txt" id="cFlaps" value="0"><span class="u">°</span></span></label>
+          </div>
+          <div class="form">
+            <label class="field"><span>Anstellwinkel</span><span class="row"><input class="num" id="cA0" type="number" value="-5" step="0.5"><span class="u">bis</span><input class="num" id="cA1" type="number" value="12" step="0.5"><span class="u">Schritt</span><input class="num" id="cAS" type="number" value="0.5" step="0.25" min="0.1"><span class="u">°</span></span></label>
+            <label class="field"><span>Ncrit</span><span class="row"><input class="num" id="cN" type="number" value="9" step="0.5" min="1" max="16"></span></label>
+            <label class="field"><span>Klappentiefe · Drehpunkt</span><span class="row"><input class="num" id="cDepth" type="number" value="25" min="5" max="45"><span class="u">% l</span><select class="sel" id="cHinge"><option value="auto">Auto</option><option value="unten">Unten</option><option value="mitte">Mitte</option><option value="oben">Oben</option></select></span></label>
+          </div>
+          <div class="btnrow"><button type="button" class="btn" id="calcBtn">Polaren rechnen</button><span class="hint" id="calcCount"></span></div>
+        </section>
+        <div class="pol-ctrl">
+          <label><input type="checkbox" id="showEnv"> Hüllkurve der Klappen</label>
+          <label><input type="checkbox" id="showPts"> Punkte</label>
+        </div>
+        <div class="charts" id="charts">
+          <div class="cbox"><div class="ct">Ca über Cw <span>Polare</span></div><div class="cv"><canvas id="chCLCD"></canvas></div></div>
+          <div class="cbox"><div class="ct">Ca über α <span>Auftrieb</span></div><div class="cv"><canvas id="chCLA"></canvas></div></div>
+          <div class="cbox"><div class="ct">Gleitzahl über Ca <span>Ca / Cw</span></div><div class="cv"><canvas id="chLD"></canvas></div></div>
+          <div class="cbox"><div class="ct">Cm über α <span>Moment um l/4</span></div><div class="cv"><canvas id="chCM"></canvas></div></div>
+        </div>
+        <section>
+          <h2>Kennwerte</h2>
+          <div class="tablewrap"><table id="sumTable"></table></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="libDlg">
+  <h2>Profilbibliothek</h2>
+  <div class="libgrid" id="libGrid"></div>
+  <div class="setform">
+    <div class="row"><label for="nacaCode">NACA 4-Ziffern</label><input class="txt" id="nacaCode" value="0009" style="width:8ch" maxlength="4" inputmode="numeric"><button type="button" class="btn sm" id="nacaAdd">Hinzufügen</button></div>
+    <p class="hint">Die mitgelieferten Profile stammen aus der UIUC-Profildatenbank (m-selig.ae.illinois.edu).</p>
+    <div class="row end"><button type="button" class="btn ghost" id="libClose">Schliessen</button></div>
+  </div>
+</dialog>
+
+<dialog id="settingsDlg">
+  <h2>Einstellungen</h2>
+  <div class="setform">
+    <label class="field"><span>Projektname</span><input class="txt" id="setName"></label>
+    <div class="field"><span>Darstellung</span><span class="seg" id="setTheme"><button type="button" data-v="system">System</button><button type="button" data-v="light">Hell</button><button type="button" data-v="dark">Dunkel</button></span></div>
+    <div class="row"><button type="button" class="btn ghost" id="newProj">Neues Projekt</button><span class="hint">Das aktuelle Projekt vorher speichern.</span></div>
+    <div class="row end"><button type="button" class="btn" id="setClose">Fertig</button></div>
+  </div>
+</dialog>
+
+<div class="dropover" id="dropover"><span>.dat-Dateien ablegen</span></div>
+
+<script>
+'use strict';
+const { profil: PF, polare: POL, projekt: PR, bibliothek: LIB } = window.MMPA;
+const $ = id => document.getElementById(id);
+const PALETTE = ['#0b6bcb','#d0552b','#1f8a5c','#8a4fd0','#b8860b','#c2317a','#2a8fa0','#6b7a1f'];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (v, d = 2) => Number.isFinite(v) ? v.toLocaleString('de-CH', { minimumFractionDigits: d, maximumFractionDigits: d }) : '–';
+const fmtRe = v => Math.round(v).toLocaleString('de-CH');
+const pct = (v, d = 1) => fmt(v * 100, d);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2800);
+}
+
+// ---------- Projekt ----------
+let project;
+function defaultProject() {
+  const pj = PR.createProject('Mein Projekt');
+  for (const k of ['e374', 'hq309', 'rg15', 'ht14']) PR.addProfile(pj, { datText: LIB[k], source: 'bibliothek' });
+  return pj;
+}
+try { const s = store.get('mmpa.projekt'); project = s ? PR.parse(s) : defaultProject(); } catch { project = defaultProject(); }
+let saveTimer = null;
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); }
+
+const ui = {
+  tab: store.get('mmpa.tab') || 'profile',
+  sel: null, // gewähltes Profil
+  draft: null, // Änderungen im Editor
+  flap: { deflection: 0, depth: 25, hinge: 'auto' },
+  calcSel: new Set(), polOff: new Set(), type: 1,
+};
+const profById = id => project.profiles.find(p => p.id === id);
+
+// ---------- Tabs und Info ----------
+function showTab(id) {
+  ui.tab = id; store.set('mmpa.tab', id);
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === id));
+  document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== id);
+  if (id === 'profile') drawContour(); else renderPolars();
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+document.querySelectorAll('[data-info]').forEach(b => b.addEventListener('click', () => {
+  const p = $(b.dataset.info), open = p.hidden;
+  p.hidden = !open;
+  document.querySelectorAll(`[data-info="${b.dataset.info}"]`).forEach(x => x.setAttribute('aria-expanded', open));
+}));
+
+// ---------- Import ----------
+function importDat(name, text) {
+  try {
+    const p = PR.addProfile(project, { datText: text, name: null, source: 'import' });
+    if (!p.name || p.name === 'Profil') p.name = name.replace(/\.[^.]+$/, '');
+    return p;
+  } catch (e) { toast(`${name}: ${e.message}`); return null; }
+}
+async function importFiles(files) {
+  let last = null, n = 0;
+  for (const f of files) { const p = importDat(f.name, await f.text()); if (p) { last = p; n++; } }
+  if (last) { selectProfile(last.id); persist(); renderAll(); toast(n === 1 ? `${last.name} eingelesen` : `${n} Profile eingelesen`); }
+}
+$('importBtn').onclick = $('importBtn2').onclick = () => $('datFile').click();
+$('datFile').onchange = e => { importFiles([...e.target.files]); e.target.value = ''; };
+let dragDepth = 0;
+addEventListener('dragenter', e => { if (e.dataTransfer?.types?.includes('Files')) { dragDepth++; $('dropover').classList.add('over'); } });
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('dropover').classList.remove('over'); } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; $('dropover').classList.remove('over'); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length) importFiles(fs); });
+
+// Projekt speichern/öffnen
+$('saveBtn').onclick = () => {
+  const blob = new Blob([PR.serialize(project)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (project.name || 'Projekt').replace(/[\\/:*?"<>|]+/g, '_') + '.mmpa.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('openBtn').onclick = () => $('projFile').click();
+$('projFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try { project = PR.parse(await f.text()); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`); }
+  catch (err) { toast(err.message); }
+};
+
+// Bibliothek
+function renderLib() {
+  const have = new Set(project.profiles.map(p => p.name));
+  $('libGrid').innerHTML = Object.entries(LIB).map(([k, t]) => {
+    const d = PF.parseDat(t, k), s = PF.stats(PF.normalize(d.coords).coords);
+    return `<button type="button" class="libitem" data-k="${k}" ${have.has(d.name) ? 'disabled' : ''}><b>${esc(d.name)}</b>${pct(s.thickness)} % · ${pct(s.camber)} %</button>`;
+  }).join('');
+}
+$('libBtn').onclick = () => { renderLib(); $('libDlg').showModal(); };
+$('libClose').onclick = () => $('libDlg').close();
+$('libGrid').onclick = e => {
+  const b = e.target.closest('.libitem'); if (!b || b.disabled) return;
+  const p = PR.addProfile(project, { datText: LIB[b.dataset.k], source: 'bibliothek' });
+  selectProfile(p.id); persist(); renderAll(); renderLib();
+};
+$('nacaAdd').onclick = () => {
+  const c = $('nacaCode').value.trim();
+  if (!/^\d{4}$/.test(c)) { toast('Bitte vier Ziffern eingeben, z. B. 0009 oder 2412'); return; }
+  const p = PR.addProfile(project, { name: 'NACA ' + c, coords: PF.naca4(c), source: 'naca' });
+  selectProfile(p.id); persist(); renderAll(); $('libDlg').close();
+};
+
+// Einstellungen
+function themeNow() { return document.documentElement.dataset.theme || 'system'; }
+$('openSettings').onclick = () => {
+  $('setName').value = project.name;
+  $('setTheme').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === themeNow()));
+  $('settingsDlg').showModal();
+};
+$('setTheme').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.v === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = b.dataset.v;
+  store.set('mmpa.theme', b.dataset.v);
+  $('setTheme').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+};
+$('setName').oninput = () => { project.name = $('setName').value || 'Projekt'; $('projName').textContent = project.name; persist(); };
+$('setClose').onclick = () => $('settingsDlg').close();
+$('newProj').onclick = () => { project = defaultProject(); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
+new MutationObserver(() => { drawContour(); renderPolars(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { drawContour(); renderPolars(); });
+
+// ---------- Profile ----------
+function selectProfile(id) {
+  ui.sel = id;
+  const p = profById(id);
+  ui.draft = p ? { ...p.mod } : null;
+  syncEditor();
+}
+function renderProfList() {
+  if (!profById(ui.sel)) selectProfile(project.profiles[0]?.id || null);
+  $('profList').innerHTML = project.profiles.map(p => {
+    const s = PF.stats(PR.geometry(p));
+    const base = p.baseId ? profById(p.baseId) : null;
+    const tag = p.source === 'abgeleitet' ? `<span class="tag">abgeleitet</span>` : p.source === 'import' ? `<span class="tag">Import</span>` : '';
+    return `<li class="pol-log ${p.id === ui.sel ? 'sel' : ''}" data-id="${p.id}">
+      <span class="sw" style="background:${p.id === ui.sel ? 'var(--accent)' : 'var(--line)'};margin-top:6px"></span>
+      <button type="button" class="nm" data-act="sel">${esc(p.name)} ${tag}</button>
+      <button type="button" class="x" data-act="del" aria-label="${esc(p.name)} entfernen" title="Entfernen">×</button>
+      <span class="meta">d ${pct(s.thickness)} % bei ${pct(s.xThickness, 0)} % · f ${pct(s.camber)} % bei ${pct(s.xCamber, 0)} %${base ? ' · aus ' + esc(base.name) : ''}</span></li>`;
+  }).join('') || '<li class="hint">Noch keine Profile. Importiere eine .dat-Datei oder nimm eines aus der Bibliothek.</li>';
+}
+$('profList').onclick = e => {
+  const li = e.target.closest('[data-id]'); if (!li) return;
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (act === 'del') {
+    const p = profById(li.dataset.id);
+    const users = project.profiles.filter(q => q.baseId === p.id).length;
+    PR.removeProfile(project, p.id); ui.calcSel.delete(p.id);
+    persist(); renderAll(); toast(`${p.name} entfernt` + (users ? ` (${users} abgeleitete Profile behalten ihre Koordinaten)` : ''));
+    return;
+  }
+  selectProfile(li.dataset.id); renderProfList(); renderProfile();
+};
+
+const editors = [
+  ['mThick', 'mThickN', v => ui.draft.thickness = v / 100, () => Math.round(ui.draft.thickness * 100)],
+  ['mCamb', 'mCambN', v => ui.draft.camber = v / 100, () => Math.round(ui.draft.camber * 100)],
+  ['mXT', 'mXTN', v => ui.draft.xThickness = v / 100, () => (ui.draft.xThickness ?? baseStats().xThickness) * 100],
+  ['mXC', 'mXCN', v => ui.draft.xCamber = v / 100, () => (ui.draft.xCamber ?? baseStats().xCamber) * 100],
+  ['fDefl', 'fDeflN', v => ui.flap.deflection = v, () => ui.flap.deflection],
+  ['fDepth', 'fDepthN', v => ui.flap.depth = v, () => ui.flap.depth],
+];
+function baseStats() { const p = profById(ui.sel); return PF.stats(PF.normalize(p.coords).coords); }
+for (const [r, n, set] of editors) {
+  const on = src => { const v = parseFloat(src.value); if (!Number.isFinite(v) || !ui.draft) return; set(v); (src === $(r) ? $(n) : $(r)).value = v; renderProfile(); };
+  $(r).addEventListener('input', () => on($(r)));
+  $(n).addEventListener('change', () => on($(n)));
+}
+$('fHinge').onclick = e => { const b = e.target.closest('button'); if (!b) return; ui.flap.hinge = b.dataset.v; $('fHinge').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderProfile(); };
+function syncEditor() {
+  if (!ui.draft) return;
+  for (const [r, n, , get] of editors) { const v = get(); $(r).value = v; $(n).value = Math.round(v * 10) / 10; }
+  const p = profById(ui.sel);
+  $('newName').value = p ? p.name.replace(/ \(.*\)$/, '') + ' mod' : '';
+}
+const draftChanged = () => { const p = profById(ui.sel); return p && JSON.stringify(p.mod) !== JSON.stringify(ui.draft); };
+
+function draftGeometry() {
+  const p = profById(ui.sel);
+  return PR.geometry({ ...p, mod: ui.draft });
+}
+
+function renderProfile() {
+  const p = profById(ui.sel);
+  const has = !!p;
+  ['saveNew', 'applyMod', 'resetMod', 'exportDat'].forEach(id => $(id).disabled = !has);
+  if (!has) { $('profKpis').innerHTML = ''; $('profTitle').textContent = 'Kontur'; $('profInfo').textContent = ''; drawContour(); return; }
+  const orig = PF.stats(PR.geometry(p));
+  const cur = PF.stats(draftGeometry());
+  const delta = (a, b, unit = '%', f = 100, d = 1) => {
+    const dv = (a - b) * f;
+    if (Math.abs(dv) < Math.pow(10, -d) / 2) return '<span class="d">unverändert</span>';
+    return `<span class="d ${dv > 0 ? 'up' : 'dn'}">${dv > 0 ? '+' : '−'}${fmt(Math.abs(dv), d)} ${unit} zum Profil</span>`;
+  };
+  const k = (l, v, u, d) => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d || '<span class="d">&nbsp;</span>'}</div>`;
+  $('profKpis').innerHTML = [
+    k('Dicke', pct(cur.thickness), '%', delta(cur.thickness, orig.thickness)),
+    k('Dickenrücklage', pct(cur.xThickness, 0), '%', delta(cur.xThickness, orig.xThickness, '%', 100, 0)),
+    k('Wölbung', pct(cur.camber, 2), '%', delta(cur.camber, orig.camber, '%', 100, 2)),
+    k('Wölbungsrücklage', pct(cur.xCamber, 0), '%', delta(cur.xCamber, orig.xCamber, '%', 100, 0)),
+    k('Nasenradius', pct(cur.leRadius, 2), '%'),
+    k('Endleiste', pct(cur.teThickness, 2), '%'),
+  ].join('');
+  $('profTitle').textContent = p.name;
+  $('profInfo').textContent = `${p.coords.length} Punkte im Original · gerechnet mit ${cur.points}`;
+  $('modState').textContent = draftChanged() ? 'geändert, noch nicht gespeichert' : '';
+  $('applyMod').hidden = p.source !== 'abgeleitet';
+  drawContour();
+}
+
+// Kontur selbst zeichnen: gleicher Massstab in x und y
+function drawContour() {
+  const cv = $('contour'); if (!cv || cv.offsetParent === null) return;
+  const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, r.width, r.height);
+  const p = profById(ui.sel);
+  const legend = [];
+  const padX = 28, padY = 14;
+  const sc = (r.width - 2 * padX) / 1.0;
+  const ySpan = (r.height - 2 * padY) / sc;
+  let yMid = 0.02;
+  const sets = [];
+  if (p) {
+    const orig = PR.geometry(p);
+    const cur = draftGeometry();
+    const flapped = ui.flap.deflection ? PF.flap(cur, ui.flap.deflection, 1 - ui.flap.depth / 100, ui.flap.hinge) : null;
+    const ys = cur.map(q => q[1]).concat(flapped ? flapped.map(q => q[1]) : []);
+    yMid = (Math.max(...ys) + Math.min(...ys)) / 2;
+    if (draftChanged()) { sets.push({ c: orig, col: css('--ghost'), dash: [5, 4], w: 1.2 }); legend.push(['dash', 'Profil']); }
+    sets.push({ c: cur, col: css('--accent'), w: 2 }); legend.push([css('--accent'), draftChanged() ? 'Angepasst' : 'Profil']);
+    if (flapped) { sets.push({ c: flapped, col: css('--warn'), w: 1.6 }); legend.push([css('--warn'), `Klappe ${ui.flap.deflection > 0 ? '+' : ''}${fmt(ui.flap.deflection, 1)}°`]); }
+  }
+  const X = x => padX + x * sc, Y = y => r.height / 2 - (y - yMid) * sc;
+  // Raster alle 10 % der Tiefe
+  g.strokeStyle = css('--line'); g.lineWidth = 1; g.fillStyle = css('--muted'); g.font = '11px ' + css('--mono');
+  for (let i = 0; i <= 10; i++) { const x = X(i / 10); g.beginPath(); g.moveTo(x, padY / 2); g.lineTo(x, r.height - padY / 2); g.stroke(); }
+  g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(1), Y(0)); g.stroke();
+  if (p) {
+    // Skelettlinie
+    const cur = sets.find(s => !s.dash && s.col === css('--accent')).c;
+    const xs = PF.cosspace(80);
+    const cam = PF.thicknessCamber(cur, xs).c;
+    g.setLineDash([2, 3]); g.strokeStyle = css('--muted'); g.beginPath();
+    xs.forEach((x, i) => i ? g.lineTo(X(x), Y(cam[i])) : g.moveTo(X(x), Y(cam[i]))); g.stroke(); g.setLineDash([]);
+    for (const s of sets) {
+      g.strokeStyle = s.col; g.lineWidth = s.w; g.setLineDash(s.dash || []); g.beginPath();
+      s.c.forEach((q, i) => i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1])));
+      g.stroke(); g.setLineDash([]);
+    }
+    legend.push(['', 'Skelettlinie gepunktet · Raster 10 % der Tiefe']);
+  } else {
+    g.fillText('Kein Profil gewählt', X(0.4), r.height / 2);
+  }
+  $('contourLegend').innerHTML = legend.map(([c, t]) => c === 'dash' ? `<span><i class="dash"></i>${t}</span>` : c ? `<span><i style="background:${c}"></i>${t}</span>` : `<span>${t}</span>`).join('');
+}
+addEventListener('resize', () => { if (ui.tab === 'profile') drawContour(); });
+
+$('resetMod').onclick = () => { const p = profById(ui.sel); ui.draft = { ...p.mod }; ui.flap.deflection = 0; syncEditor(); renderProfile(); };
+$('saveNew').onclick = () => {
+  const p = profById(ui.sel);
+  const base = p.baseId ? profById(p.baseId) || p : p;
+  const mod = { ...ui.draft };
+  const name = $('newName').value.trim() || p.name + ' mod';
+  const n = PR.deriveProfile(project, { ...base, coords: p.coords }, mod, name);
+  n.baseId = base.id;
+  if (ui.flap.deflection) toast('Die Klappenvorschau wird nicht ins Profil übernommen. Klappen wählst Du im Tab Polaren.');
+  selectProfile(n.id); persist(); renderAll();
+};
+$('applyMod').onclick = () => {
+  const p = profById(ui.sel); p.mod = { ...ui.draft };
+  persist(); renderAll(); toast(`${p.name} angepasst`);
+};
+$('exportDat').onclick = () => {
+  const p = profById(ui.sel);
+  const name = draftChanged() ? $('newName').value.trim() || p.name + ' mod' : p.name;
+  const blob = new Blob([PF.toDat(name, draftGeometry())], { type: 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = name.replace(/[\\/:*?"<>|\s]+/g, '_') + '.dat';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+// ---------- Polaren ----------
+const parseList = s => String(s).split(/[\s;,]+/).map(v => parseFloat(v.replace(/'/g, ''))).filter(Number.isFinite);
+function renderCalcProfiles() {
+  for (const id of [...ui.calcSel]) if (!profById(id)) ui.calcSel.delete(id);
+  if (!ui.calcSel.size && project.profiles[0]) ui.calcSel.add(project.profiles[0].id);
+  $('calcProfiles').innerHTML = project.profiles.map(p => `<button type="button" class="chip" data-id="${p.id}" aria-pressed="${ui.calcSel.has(p.id)}">${esc(p.name)}</button>`).join('');
+  updateCalcCount();
+}
+$('calcProfiles').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; const id = b.dataset.id; ui.calcSel.has(id) ? ui.calcSel.delete(id) : ui.calcSel.add(id); b.setAttribute('aria-pressed', ui.calcSel.has(id)); updateCalcCount(); };
+$('cType').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  ui.type = +b.dataset.v;
+  $('cType').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('cReLbl').textContent = ui.type === 2 ? 'Re·√Ca' : 'Reynoldszahlen';
+  if (ui.type === 2 && $('cRe').value === '100000 200000 400000') $('cRe').value = '100000 150000';
+  if (ui.type === 1 && $('cRe').value === '100000 150000') $('cRe').value = '100000 200000 400000';
+  updateCalcCount();
+};
+['cRe', 'cFlaps'].forEach(id => $(id).addEventListener('input', updateCalcCount));
+function updateCalcCount() {
+  const n = ui.calcSel.size * parseList($('cRe').value).length * Math.max(1, parseList($('cFlaps').value).length);
+  $('calcCount').textContent = n ? `${n} Polare${n === 1 ? '' : 'n'}` : 'Profil, Re und Klappe wählen';
+  $('calcBtn').disabled = !n;
+}
+$('calcBtn').onclick = () => {
+  const res = parseList($('cRe').value).filter(v => v >= 1000);
+  const flaps = parseList($('cFlaps').value);
+  if (!flaps.length) flaps.push(0);
+  const opts = { type: ui.type, alphaFrom: +$('cA0').value, alphaTo: +$('cA1').value, alphaStep: Math.max(0.1, +$('cAS').value), nCrit: +$('cN').value || 9 };
+  if (!(opts.alphaTo > opts.alphaFrom)) { toast('Der Anstellwinkel „bis“ muss grösser als „von“ sein'); return; }
+  const hingeX = 1 - Math.min(45, Math.max(5, +$('cDepth').value || 25)) / 100, hinge = $('cHinge').value;
+  const t0 = performance.now();
+  let made = 0, cached = 0;
+  for (const id of ui.calcSel) {
+    const p = profById(id);
+    for (const fl of flaps) {
+      const flap = fl ? { deflection: fl, hingeX, hinge } : null;
+      const geo = PR.geometry(p, flap);
+      for (const re of res) {
+        const o = { ...opts, re };
+        const res1 = POL.compute(geo, o);
+        const before = project.polars.length;
+        const pol = PR.storePolar(project, p, flap, res1);
+        if (project.polars.length > before) made++; else cached++;
+        ui.polOff.delete(pol.id);
+      }
+    }
+  }
+  const ms = Math.round(performance.now() - t0);
+  $('calcStatus').textContent = `${made} neu gerechnet${cached ? `, ${cached} schon vorhanden` : ''} · ${ms} ms`;
+  persist(); renderPolars();
+};
+
+function polarLabel(pol) {
+  const p = profById(pol.profileId);
+  const re = pol.opts.type === 2 ? `Re√Ca ${fmtRe(pol.opts.re)}` : `Re ${fmtRe(pol.opts.re)}`;
+  const fl = pol.flap ? ` · Klappe ${pol.flap.deflection > 0 ? '+' : ''}${fmt(pol.flap.deflection, 1)}°` : '';
+  return `${p ? p.name : '?'} · ${re}${fl}`;
+}
+const polColor = pol => PALETTE[project.polars.indexOf(pol) % PALETTE.length];
+const visiblePolars = () => project.polars.filter(p => !ui.polOff.has(p.id) && profById(p.profileId));
+
+function renderPolList() {
+  $('polList').innerHTML = project.polars.map(pol => {
+    const s = pol.summary, on = !ui.polOff.has(pol.id);
+    const warn = s.lowConfidence ? ` · <span style="color:var(--warn)">${s.lowConfidence} unsicher</span>` : '';
+    return `<li class="pol-log ${on ? '' : 'off'}" data-id="${pol.id}">
+      <input type="checkbox" ${on ? 'checked' : ''} aria-label="${esc(polarLabel(pol))} anzeigen">
+      <span class="nm" style="display:block"><span class="sw" style="background:${polColor(pol)}"></span>${esc(polarLabel(pol))}</span>
+      <button type="button" class="x" data-act="del" aria-label="Polare entfernen" title="Entfernen">×</button>
+      <span class="meta">Typ ${pol.opts.type} · Ncrit ${fmt(pol.opts.nCrit, 0)} · E ${fmt(s.ldMax, 0)} bei Ca ${fmt(s.clAtLdMax)}${warn}</span></li>`;
+  }).join('');
+  $('polHint').textContent = project.polars.length ? 'Haken setzen, um Polaren zu vergleichen.' : 'Noch keine Polaren. Wähle rechts Profile und Re und klicke „Polaren rechnen“.';
+}
+$('polList').onclick = e => {
+  const li = e.target.closest('[data-id]'); if (!li) return;
+  const id = li.dataset.id;
+  if (e.target.closest('[data-act="del"]')) { project.polars = project.polars.filter(p => p.id !== id); persist(); renderPolars(); return; }
+  if (e.target.matches('input') || e.target.closest('.nm')) { ui.polOff.has(id) ? ui.polOff.delete(id) : ui.polOff.add(id); renderPolars(); }
+};
+$('polAll').onclick = () => { ui.polOff.clear(); renderPolars(); };
+$('polNone').onclick = () => { project.polars.forEach(p => ui.polOff.add(p.id)); renderPolars(); };
+$('polClear').onclick = () => { project.polars = []; ui.polOff.clear(); persist(); renderPolars(); };
+['showEnv', 'showPts'].forEach(id => $(id).addEventListener('change', renderPolars));
+
+const charts = {};
+function chart(id, xLabel, yLabel, datasets, lim = {}) {
+  const grid = css('--line'), tick = css('--muted');
+  const axis = (title) => ({ type: 'linear', title: { display: true, text: title, color: tick, font: { family: css('--body') } }, grid: { color: grid }, ticks: { color: tick, font: { family: css('--mono'), size: 11 } } });
+  const cfg = {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false, parsing: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${xLabel} ${fmt(c.parsed.x, 4)} · ${yLabel} ${fmt(c.parsed.y, 3)}` } } },
+      scales: { x: { ...axis(xLabel), ...lim.x }, y: { ...axis(yLabel), ...lim.y } },
+    },
+  };
+  if (charts[id]) { charts[id].destroy(); }
+  charts[id] = new Chart($(id), cfg);
+}
+
+function renderPolars() {
+  renderCalcProfiles();
+  renderPolList();
+  if (ui.tab !== 'polaren' || typeof Chart === 'undefined') { renderSumTable(); return; }
+  const vis = visiblePolars();
+  const pts = $('showPts').checked;
+  const ds = (pol, map) => ({
+    label: polarLabel(pol), data: pol.points.map(map), showLine: true, borderColor: polColor(pol), backgroundColor: polColor(pol),
+    borderWidth: 1.8, pointRadius: pts ? 2.5 : 0, pointHoverRadius: 4,
+    pointStyle: pol.points.map(q => q.conf < 0.5 ? 'crossRot' : 'circle'),
+  });
+  const clcd = vis.map(p => ds(p, q => ({ x: q.cd, y: q.cl })));
+  if ($('showEnv').checked) {
+    // pro Profil und Re eine Hüllkurve, wenn mehrere Klappenstellungen sichtbar sind
+    const groups = new Map();
+    for (const p of vis) { const k = p.profileId + '|' + p.opts.type + '|' + p.opts.re + '|' + p.opts.nCrit; (groups.get(k) || groups.set(k, []).get(k)).push(p); }
+    for (const g of groups.values()) {
+      if (g.length < 2) continue;
+      const env = POL.envelope(g.map(p => ({ flap: p.flap ? p.flap.deflection : 0, points: p.points })), -0.3, 1.6, 0.02);
+      clcd.push({ label: 'Hüllkurve ' + polarLabel(g[0]).replace(/ · Klappe.*$/, ''), data: env.map(e => ({ x: e.cd, y: e.cl })), showLine: true, borderColor: css('--fg'), borderDash: [6, 4], borderWidth: 2.5, pointRadius: 0, order: -1 });
+    }
+  }
+  // Cw-Achse auf den brauchbaren Bereich begrenzen, sonst drücken die Punkte nach dem Abriss alles zusammen
+  const cdMin = Math.min(...vis.map(p => p.summary.cdMin));
+  chart('chCLCD', 'Cw', 'Ca', clcd, Number.isFinite(cdMin) ? { x: { min: 0, max: Math.max(0.03, Math.ceil(cdMin * 5 * 200) / 200) } } : {});
+  chart('chCLA', 'α [°]', 'Ca', vis.map(p => ds(p, q => ({ x: q.alpha, y: q.cl }))));
+  chart('chLD', 'Ca', 'Ca/Cw', vis.map(p => ds(p, q => ({ x: q.cl, y: q.cl / q.cd }))), { y: { min: 0 }, x: { min: 0 } });
+  chart('chCM', 'α [°]', 'Cm', vis.map(p => ds(p, q => ({ x: q.alpha, y: q.cm }))));
+  renderSumTable();
+}
+
+function renderSumTable() {
+  const vis = visiblePolars();
+  if (!vis.length) { $('sumTable').innerHTML = '<tr><td class="empty">Keine Polare ausgewählt.</td></tr>'; return; }
+  $('sumTable').innerHTML = `<thead><tr><th>Polare</th><th>Ca max</th><th>bei α</th><th>Cw min</th><th>bei Ca</th><th>E max</th><th>bei Ca</th><th>α₀</th><th>Cm₀</th><th>dCa/dα</th></tr></thead><tbody>` +
+    vis.map(p => { const s = p.summary; return `<tr><td><span class="sw" style="background:${polColor(p)}"></span>${esc(polarLabel(p))}</td>
+      <td>${fmt(s.clMax)}</td><td>${fmt(s.alphaClMax, 1)}°</td><td>${fmt(s.cdMin, 4)}</td><td>${fmt(s.clAtCdMin)}</td>
+      <td>${fmt(s.ldMax, 1)}</td><td>${fmt(s.clAtLdMax)}</td><td>${fmt(s.alpha0, 2)}°</td><td>${fmt(s.cm0, 3)}</td><td>${fmt(s.slopePerDeg, 3)}/°</td></tr>`; }).join('') + '</tbody>';
+}
+
+// ---------- Start ----------
+function renderAll() {
+  $('projName').textContent = project.name;
+  renderProfList(); renderProfile(); renderPolars();
+}
+// Erster Start: eine Polare zum E374, damit der Tab Polaren nicht leer ist
+if (!project.polars.length && project.profiles.length && !store.get('mmpa.projekt')) {
+  const p = project.profiles[0];
+  for (const re of [100000, 200000, 400000]) PR.storePolar(project, p, null, POL.compute(PR.geometry(p), { re }));
+  persist();
+}
+selectProfile(project.profiles[0]?.id || null);
+renderAll();
+showTab(ui.tab === 'polaren' ? 'polaren' : 'profile');
+</script>
