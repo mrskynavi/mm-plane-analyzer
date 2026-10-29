@@ -1,16 +1,19 @@
 // Rumpf als feste Form mit wenigen Parametern: Stabrumpf, Keulenrumpf mit kleinem oder grossem Stirnwiderstand.
+// Die Keulen sind wie ein manntragender Segler geformt: Cockpit mit dem grössten Querschnitt vor dem Flügel,
+// Einschnürung unter dem Flügel, dann ein konischer Leitwerksträger bis zum Höhenleitwerk.
 // Liefert die Kontur (Radius über x), den Widerstand nach Hoerner und das Rumpfmoment nach Multhopp
 // mit dem Auf- und Abwind aus dem Wirbelgitter. x in mm ab der Nasenleiste der Flügelwurzel, nach hinten positiv.
 (function (root) {
   'use strict';
 
   const NU = 1.5e-5;
-  // Standardwerte je Form, bezogen auf die Wurzeltiefe c: grösster Durchmesser, Leitwerksträger, Nasenkappe,
-  // Lage des grössten Durchmessers und ob die Grenzschicht laminar anlaufen kann
+  // Standardwerte je Form, bezogen auf die Wurzeltiefe c: grösster Durchmesser d, Leitwerksträger am Ende (boom)
+  // und hinter dem Flügel (cone) als Anteil von d, Nasenkappe als Anteil der Nasenlänge, laminarer Anlauf,
+  // Zuschlag für Haube und Kanten
   const TYPES = {
     stab: { name: 'Stabrumpf', d: 0.2, boom: 0.4, laminar: true, extra: 1.0 },
-    'keule-klein': { name: 'Keulenrumpf, kleiner Stirnwiderstand', d: 0.3, boom: 0.3, laminar: true, extra: 1.0 },
-    'keule-gross': { name: 'Keulenrumpf, grosser Stirnwiderstand', d: 0.5, boom: 0.25, laminar: false, extra: 1.1 },
+    'keule-klein': { name: 'Keulenrumpf, kleiner Stirnwiderstand', d: 0.55, cone: 0.4, boom: 0.2, cap: 0.5, laminar: true, extra: 1.0 },
+    'keule-gross': { name: 'Keulenrumpf, grosser Stirnwiderstand', d: 0.7, cone: 0.5, boom: 0.28, cap: 0.35, laminar: false, extra: 1.1 },
   };
 
   const defaults = model => ({ type: 'keule-klein', nose: Math.round(1.8 * model.wing.stations[0].chord / 10) * 10, diameter: null, fin: null });
@@ -36,13 +39,14 @@
         else if (x < xt) r = R + (Rb - R) * ease((x - xe) / (xt - xe));
         else r = Rb * (1 - 0.2 * (x - xt) / Math.max(1, x3 - xt));
       } else {
-        // Keule: Nase, grösster Durchmesser kurz vor dem Flügel, dann lang auslaufend bis zum Leitwerk
-        const cap = f.type === 'keule-gross' ? Math.min(f.nose, 1.2 * D) : Math.min(f.nose, 2 * D);
-        const xm = Math.max(x0 + cap, -0.1 * c), xb = xm + 0.75 * (x3 - xm);
+        // Segler: Nasenkappe bis zum Cockpit, grösster Querschnitt bis zur Schulter, Einschnürung bis kurz hinter
+        // die Endleiste, dann gerader Kegel bis zum Leitwerk
+        const cap = Math.max(D / 2, t.cap * f.nose), xs = x0 + Math.max(cap, 0.6 * f.nose);
+        const xc = Math.max(xs + 0.5 * c, 1.3 * c), Rc = R * t.cone;
         if (x < x0 + cap) r = R * Math.sqrt(Math.max(0, 1 - ((x0 + cap - x) / cap) ** 2));
-        else if (x < xm) r = R;
-        else if (x < xb) r = R + (Rb - R) * ease((x - xm) / (xb - xm)) ** 0.8;
-        else r = Rb * (1 - 0.15 * (x - xb) / Math.max(1, x3 - xb));
+        else if (x < xs) r = R;
+        else if (x < xc) r = R + (Rc - R) * ease((x - xs) / (xc - xs));
+        else r = Rc + (Rb - Rc) * (x - xc) / Math.max(1, x3 - xc);
       }
       pts.push({ x, r });
     }
@@ -65,10 +69,10 @@
   // Rumpfwiderstand bezogen auf die Flügelfläche sRef (mm²) bei v (m/s)
   function drag(sh, v, sRef) {
     const re = v * sh.length / 1000 / NU;
-    const f = sh.podLength / sh.D; // Schlankheit der Gondel
-    const ffPod = 1 + 1.5 / f ** 1.5 + 7 / f ** 3; // Hoerner, Formfaktor eines Rotationskörpers
-    const c = cf(re, sh.laminar);
-    return c * (ffPod * sh.sPod * sh.extra + 1.02 * sh.sBoom) / sRef;
+    const c = cf(re, sh.laminar), ff = f => 1 + 1.5 / f ** 1.5 + 7 / f ** 3; // Hoerner, Formfaktor eines Rotationskörpers
+    // Stabrumpf: Gondel mit ihrer Schlankheit, Rohr wie eine Platte; Segler: ein Körper über die ganze Länge
+    if (sh.type !== 'stab') return c * ff(sh.length / sh.D) * sh.swet * sh.extra / sRef;
+    return c * (ff(sh.podLength / sh.D) * sh.sPod * sh.extra + 1.02 * sh.sBoom) / sRef;
   }
 
   // Seitenleitwerk ohne Auftrieb: Fläche in dm², mittlere Tiefe bei Streckung 1,4 (Höhe/Tiefe).
