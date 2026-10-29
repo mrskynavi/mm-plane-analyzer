@@ -50,15 +50,15 @@ test('Modell: Neutralpunkt, Trimm und Gegenprobe mit der Handrechnung', () => {
   assert.ok(r.xNP > r.wing.xMac + 0.4 * r.wing.mac && r.xNP < r.wing.xMac + 0.8 * r.wing.mac, r.xNP);
   // VLM und Excel-Formel liegen beim Neutralpunkt nahe beieinander
   assert.ok(Math.abs(r.xNP - r.hand.xNP) < 0.05 * r.wing.mac, [r.xNP, r.hand.xNP]);
-  assert.ok(Math.abs(r.sigma - 0.12) < 1e-9);
+  assert.ok(Math.abs(r.sigma - 0.2) < 1e-9);
   // getrimmt: Auslegungs-Ca erreicht
   assert.ok(Math.abs(r.trim.CL - 0.4) < 1e-6);
   // Schwerpunkt weiter vorne braucht mehr EWD
-  const r2 = M.analyze({ ...m, cg: { mode: 'sigma', sigma: 0.25 } }, pj.profiles);
+  const r2 = M.analyze({ ...m, cg: { mode: 'sigma', sigma: 0.3 } }, pj.profiles);
   assert.ok(r2.trim.ewd > r.trim.ewd + 0.3, [r.trim.ewd, r2.trim.ewd]);
   // fester Schwerpunkt ergibt das passende Stabilitätsmass
   const r3 = M.analyze({ ...m, cg: { mode: 'x', x: r.xCG } }, pj.profiles);
-  assert.ok(Math.abs(r3.sigma - 0.12) < 1e-9);
+  assert.ok(Math.abs(r3.sigma - 0.2) < 1e-9);
   // Wölbklappe positiv: bei gleichem Ca weniger Anstellwinkel
   const mf = JSON.parse(JSON.stringify(m)); mf.wing.stations.forEach(s => { s.flap = 5; });
   const r4 = M.analyze(mf, pj.profiles);
@@ -74,4 +74,30 @@ test('Modell: andere Dicke und Wölbung an einer Station ändern die Rechnung', 
   const r2 = M.analyze(m2, pj.profiles);
   assert.ok(r2.trim.alpha < r.trim.alpha - 0.5, 'mehr Wölbung, weniger Anstellwinkel');
   assert.ok(Math.abs(M.stationGeometry(m2.wing.stations[0], pj.profiles).stats.camber - 0.035) < 1e-3);
+});
+
+test('Trefftz: induzierter Widerstand eines Trapezflügels nahe Ca²/(π·Λ)', () => {
+  const st = [{ y: 0, chord: 200 }, { y: 600, chord: 180 }, { y: 900, chord: 140 }, { y: 1000, chord: 80, offset: 60 }];
+  const pf = V.planform(st), r = V.solve(V.build(V.panelize(st, { ny: 30, nx: 4 })), 4, { sRef: pf.area, cRef: pf.mac });
+  const e = r.CL ** 2 / (Math.PI * pf.aspect * V.trefftz(r.strips, pf.area));
+  assert.ok(e > 0.95 && e < 1.02, e);
+});
+
+test('Modell: Arbeitstabelle mit EWD je Stabilitätsmass, neutralem Leitwerk und Gleitzahl', () => {
+  const pj = PR.createProject();
+  const e = PR.addProfile(pj, { datText: LIB.e374 }), h = PR.addProfile(pj, { datText: LIB.ht14 });
+  const m = PR.createModel('Test', e.id, h.id);
+  const r = M.analyze(m, pj.profiles);
+  assert.deepStrictEqual(r.sigmas, [0.15, 0.2, 0.25]);
+  const row = r.table.find(t => t.cl === 0.4);
+  // bei σ 20 % (Modell) stimmt die Tabellen-EWD mit dem Trimm überein
+  assert.ok(Math.abs(row.ewd[1] - r.trim.ewd) < 1e-6, [row.ewd[1], r.trim.ewd]);
+  // mehr Stabilität braucht mehr EWD, mehr Ca auch
+  assert.ok(row.ewd[2] > row.ewd[1] && row.ewd[1] > row.ewd[0]);
+  assert.ok(r.table.find(t => t.cl === 0.6).ewd[1] > row.ewd[1]);
+  // Schwerpunkt für unbelastetes Leitwerk: dort trägt das Leitwerk wirklich nichts
+  const n = M.analyze({ ...m, clDesign: 0.4, cg: { mode: 'x', x: row.neutral.x } }, pj.profiles);
+  assert.ok(Math.abs(n.trim.clTail) < 1e-3, n.trim.clTail);
+  assert.ok(r.best && r.best.E > 15 && r.best.E < 60, r.best && r.best.E);
+  assert.ok(r.minSink.cl >= r.best.cl);
 });

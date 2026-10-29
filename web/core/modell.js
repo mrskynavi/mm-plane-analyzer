@@ -44,8 +44,42 @@
     const re = Math.round(POL.reSqrtCl(wingLoading, st.chord) / 100) * 100;
     return cached('p' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, re, nCrit])), () => {
       const r = POL.compute(g.geo, { type: 2, re, alphaFrom: -6, alphaTo: 16, alphaStep: 1, nCrit });
-      return { re, ...r.summary };
+      return { re, ...r.summary, pts: r.points };
     });
+  }
+
+  // Polare einer Leitwerksstation bei fester Re (die Leitwerks-Ca folgt nicht der Flügel-Ca)
+  function tailPolar(st, profiles, re, nCrit = 9) {
+    const g = stationGeometry(st, profiles);
+    if (!g) return null;
+    re = Math.max(20000, Math.round(re / 5000) * 5000);
+    return cached('t' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, re, nCrit])), () => {
+      const r = POL.compute(g.geo, { type: 1, re, alphaFrom: -8, alphaTo: 8, alphaStep: 1, nCrit });
+      return { re, ...r.summary, pts: r.points };
+    });
+  }
+
+  // Cw bei Ca auf der Polare; unter dem kleinsten Ca der Wert dort, über Ca max NaN (Abriss)
+  const cdOf = (pol, cl) => {
+    if (!pol) return NaN;
+    const cd = POL.cdAtCl(pol.pts, cl);
+    if (Number.isFinite(cd)) return cd;
+    const lo = pol.pts.reduce((m, p) => (p.cl < m.cl ? p : m));
+    return cl < lo.cl ? lo.cd : NaN;
+  };
+
+  // Profilwiderstand einer Fläche aus den Streifen: Cw zwischen den Stationen linear verteilt
+  function profileDrag(strips, stations, pols, sRef) {
+    const P0 = V.stationPoints(stations);
+    let D = 0;
+    for (const s of strips) {
+      let i = 1;
+      while (i < P0.length - 1 && s.y > P0[i].le[1]) i++;
+      const y0 = P0[i - 1].le[1], y1 = P0[i].le[1], t = Math.min(1, Math.max(0, (s.y - y0) / (y1 - y0 || 1)));
+      const cd = cdOf(pols[i - 1], s.cl) * (1 - t) + cdOf(pols[i], s.cl) * t;
+      D += cd * s.chord * s.width;
+    }
+    return 2 * D / sRef;
   }
 
   // Handrechnung wie im Excel-Blatt (Blatt „Masse, SP“): aF = Λ/(√(Λ²+4)+2), Neutralpunkt hinter dem Flügel-NP
@@ -142,18 +176,66 @@
     }
     const hand = handMethod(wing, tail, { tailEff: tailEffOf(T.stations), xCG, CL, alpha0: sw ? a0 / sw : 0, cm0: sw ? c0 / sw : 0 });
 
+    // Arbeitstabelle: für jedes Ca die EWD bei verschiedenen Stabilitätsmassen, der Schwerpunkt für ein
+    // unbelastetes Leitwerk (wie im Excel-Blatt mit Ca HLW = 0) und die Gleitzahl ohne Rumpf
+    const lT = ri.lift[1] - r0.lift[1], lA = ra.lift[1] - r0.lift[1];
+    const sigmas = [...new Set([0.15, 0.2, 0.25].concat(model.cg.mode === 'sigma' ? [+(+model.cg.sigma).toFixed(4)] : []))].sort((a, b) => a - b);
+    // Trimm für Ca und Schwerpunkt x: lineare Schätzung, dann zwei Newton-Schritte (die Einstellwinkel drehen die Normalen)
+    const trimAt = (cl, x) => {
+      const det = cA * mI - cI * mA, tM = -cl * x / wing.mac;
+      let a = 0, i = 0, r = r0;
+      for (let k = 0; k < 3; k++) {
+        if (k) r = run(a, i);
+        const dC = cl - r.CL, dM = tM - r.Cm;
+        a += (dC * mI - cI * dM) / det; i += (cA * dM - dC * mA) / det;
+      }
+      return [a, i];
+    };
+    const table = [];
+    for (let k = 1; k <= 14; k++) {
+      const cl = Math.round(k * 0.1 * 100) / 100;
+      const [al, iT] = trimAt(cl, xCG);
+      const r = run(al, iT);
+      const v = Math.sqrt(2 * model.mass / 1000 * G / (RHO * wing.area / 1e6 * cl));
+      const sw = r.strips.filter(q => q.surf === 0), st = r.strips.filter(q => q.surf === 1);
+      const over = sw.some(q => Number.isFinite(clMaxAt(q.y)) && q.cl > clMaxAt(q.y));
+      const reT = v * tail.mac / 1000 / NU;
+      const tpols = T.stations.map(q => tailPolar(q, profiles, reT, nCrit));
+      const cdi = V.trefftz(r.strips, wing.area);
+      const cdw = profileDrag(sw, W.stations, pols, wing.area), cdt = profileDrag(st, T.stations, tpols, wing.area);
+      const cd = cdi + cdw + cdt, E = cl / cd;
+      const stall = over || !Number.isFinite(cdw); // Ca einer Station über ihrem Ca max
+      // Leitwerk ohne Last: α und Einstellung so, dass Ca erreicht und Leitwerksauftrieb 0
+      let a0n = 0, i0n = 0, rn = r0;
+      for (let k = 0; k < 3; k++) {
+        if (k) rn = run(a0n, i0n);
+        const dC = cl - rn.CL, dL = -(rn.lift[1] || 0), det = cA * lT - cI * lA;
+        a0n += (dC * lT - cI * dL) / det; i0n += (cA * dL - dC * lA) / det;
+      }
+      rn = run(a0n, i0n);
+      const x0 = -rn.Cm * wing.mac / rn.CL;
+      table.push({
+        cl, v, alpha: al, ewdCur: (W.incidence || 0) - iT, E, sink: v / E, cdi, cdw, cdt, stall, clTail: (r.lift[1] || 0) / (0.5 * tail.area),
+        ewd: sigmas.map(sg => { const [, it2] = trimAt(cl, xNP - sg * wing.mac); return (W.incidence || 0) - it2; }),
+        neutral: { x: x0, sigma: (xNP - x0) / wing.mac, ewd: (W.incidence || 0) - i0n },
+      });
+      if (stall) break;
+    }
+    const ok = table.filter(t => !t.stall && Number.isFinite(t.E));
+    const best = ok.reduce((m, t) => (!m || t.E > m.E ? t : m), null), minSink = ok.reduce((m, t) => (!m || t.sink < m.sink ? t : m), null);
+
     const tailVolume = tail.area * tailEffOf(T.stations) * ((tail.xMac + tail.mac / 4) - xCG) / (wing.area * wing.mac);
     const stall = strips.filter(s => Number.isFinite(s.clMax)).reduce((m, s) => Math.max(m, s.cl / s.clMax), 0);
     return {
       wing, tail, xNP, xCG, sigma, CLalpha: cA * 180 / Math.PI,
       trim: { CL, alpha, tailIncidence: it, ewd: (W.incidence || 0) - it, clWing, clTail, speed, re: speed * wing.mac / 1000 / NU },
-      wingLoading: ws, tailVolume, strips, tailStrips, stations: pols, stall, hand,
+      wingLoading: ws, tailVolume, table, sigmas, best, minSink, strips, tailStrips, stations: pols, stall, hand,
       profiles: { wing: wingGeo.map(g => g && g.name), tail: tailGeo.map(g => g && g.name) },
       panels: sys.panels.length,
     };
   }
 
-  const api = { analyze, handMethod, stationGeometry, stationPolar, stationProfile };
+  const api = { analyze, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);

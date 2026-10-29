@@ -184,6 +184,7 @@ dialog h2{margin-bottom:12px}
 dd .d{margin-left:5px}
 .cardoff{display:grid;gap:8px;justify-items:start}
 #labTable tbody tr{cursor:pointer}
+#mOps tbody tr{cursor:pointer} #mOps tbody tr:hover td{background:var(--accent-soft)} #mOps tr.cur td{background:var(--accent-soft);font-weight:600} #mOps tr.stall td{color:var(--muted)} #mOps th.cur{color:var(--accent)} #mOps td,#mOps th{text-align:right;white-space:nowrap} #mOps .grp{border-left:1px solid var(--line)} #mOps th{text-transform:none;letter-spacing:0} #mOps td,#mOps th{padding:6px 9px}
 #labTable tbody tr:hover td{background:var(--accent-soft)}
 td.best{color:var(--good);font-weight:600}
 td .dash{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;background:repeating-linear-gradient(90deg,currentColor 0 4px,transparent 4px 7px)}
@@ -341,6 +342,15 @@ td.warn{color:var(--warn);font-weight:600}
             <label class="field"><span>Leitwerk hinter Nasenleiste</span><span class="row"><input class="num" id="mTx" type="number" step="5"><span class="u">mm</span></span></label>
             <label class="field"><span>Leitwerk Höhe</span><span class="row"><input class="num" id="mTz" type="number" step="5"><span class="u">mm</span></span></label>
           </div>
+        </section>
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Arbeitstabelle <button type="button" class="iconbtn sm" data-info="info-ops" aria-expanded="false" aria-controls="info-ops" aria-label="Was die Tabelle zeigt">i</button></h2><span id="opsInfo" class="status"></span></div>
+          <div class="infopop" id="info-ops" hidden>
+            <p>Für jedes Arbeits-Ca: Geschwindigkeit, Anstellwinkel, Gleitzahl und Sinken, dazu die EWD, die bei verschiedenen Schwerpunkten zum Trimm nötig ist. Der Schwerpunkt hängt nur vom Stabilitätsmass ab, darum steht er im Spaltenkopf; die EWD wählt das Ca.</p>
+            <p>„Leitwerk ohne Last“ ist die Rechnung aus Deinem Excel-Blatt mit Ca HLW = 0: der Schwerpunkt, bei dem das Leitwerk bei diesem Ca nichts trägt, mit σ und EWD dazu.</p>
+            <p>Die Gleitzahl enthält Profilwiderstand von Flügel und Leitwerk (Polaren der Stationen bei der passenden Re) und induzierten Widerstand (Trefftz-Ebene), aber noch keinen Rumpf. Mit Rumpf wird sie kleiner und das beste Ca etwas höher. Zeile anklicken übernimmt das Ca als Trimm-Ca.</p>
+          </div>
+          <div class="tablewrap"><table id="mOps"></table></div>
         </section>
         <section class="pol-box">
           <div class="pol-head"><h2>Grundriss</h2><span class="legend" id="planLegend"></span></div>
@@ -1231,6 +1241,32 @@ function computeModel() {
 function renderModel() {
   renderModelList(); syncModelForm(); stationTable('wing'); stationTable('tail'); computeModel();
 }
+// Arbeitstabelle: EWD je Ca und Schwerpunkt, Gleitzahl, Leitwerk ohne Last
+function renderOps(m, r) {
+  const T = r.table, mac = r.wing.mac;
+  const cur = m.cg.mode === 'sigma' ? +(+m.cg.sigma).toFixed(4) : null;
+  const cols = r.sigmas.map(sg => ({ h: `σ ${fmt(sg * 100, 0)} %`, sub: `SP ${fmt(r.xNP - sg * mac, 1)} mm`, cur: sg === cur, v: t => t.ewd[r.sigmas.indexOf(sg)] }));
+  if (m.cg.mode === 'x') cols.push({ h: `Dein SP`, sub: `${fmt(r.xCG, 1)} mm · σ ${fmt(r.sigma * 100, 1)} %`, cur: true, v: t => t.ewdCur });
+  const head = `<thead><tr><th rowspan="2">Ca</th><th rowspan="2">V km/h</th><th rowspan="2">α °</th><th rowspan="2">Gleitzahl</th><th rowspan="2">Sinken m/s</th><th rowspan="2">Ca HLW</th>` +
+    `<th class="grp" colspan="${cols.length}">EWD ° bei Schwerpunkt</th><th class="grp" colspan="3">Leitwerk ohne Last</th></tr><tr>` +
+    cols.map((c, i) => `<th class="${i ? '' : 'grp '}${c.cur ? 'cur' : ''}" title="${c.sub}">${c.h}<br><small>${c.sub}</small></th>`).join('') +
+    `<th class="grp">SP mm</th><th>σ %</th><th>EWD °</th></tr></thead>`;
+  const body = T.map(t => {
+    const isCur = Math.abs(t.cl - m.clDesign) < 1e-6;
+    const st = t.stall;
+    return `<tr data-cl="${t.cl}" class="${isCur ? 'cur ' : ''}${st ? 'stall' : ''}"><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.alpha, 2)}</td>` +
+      `<td class="${t === r.best ? 'best' : ''}">${st ? 'Abriss' : fmt(t.E, 1)}</td><td class="${t === r.minSink ? 'best' : ''}">${st ? '–' : fmt(t.sink, 3)}</td><td>${fmt(t.clTail, 3)}</td>` +
+      cols.map((c, i) => `<td class="${i ? '' : 'grp'}">${fmt(c.v(t), 2)}</td>`).join('') +
+      `<td class="grp">${fmt(t.neutral.x, 1)}</td><td>${fmt(t.neutral.sigma * 100, 1)}</td><td>${fmt(t.neutral.ewd, 2)}</td></tr>`;
+  }).join('');
+  $('mOps').innerHTML = head + '<tbody>' + body + '</tbody>';
+  $('opsInfo').textContent = r.best ? `beste Gleitzahl ${fmt(r.best.E, 1)} bei Ca ${fmt(r.best.cl, 1)} · geringstes Sinken bei Ca ${fmt(r.minSink.cl, 1)} · ohne Rumpf` : '';
+}
+$('mOps').onclick = e => {
+  const tr = e.target.closest('tr[data-cl]');
+  if (!tr) return;
+  const m = curModel(); m.clDesign = +tr.dataset.cl; persist(); syncModelForm(); scheduleModel();
+};
 function renderModelResults() {
   const m = curModel(), r = lastModel;
   drawPlan(m, r);
@@ -1254,6 +1290,7 @@ function renderModelResults() {
   ].join('');
   $('wingInfo').textContent = `Fläche ${fmt(r.wing.area / 1e4, 2)} dm² · Streckung ${fmt(r.wing.aspect, 1)} · l_μ ${fmt(r.wing.mac, 1)} mm bei y ${fmt(r.wing.yMac, 0)}`;
   $('tailInfo').textContent = `Fläche ${fmt(r.tail.area / 1e4, 2)} dm² · Streckung ${fmt(r.tail.aspect, 1)} · l_μ ${fmt(r.tail.mac, 1)} mm`;
+  renderOps(m, r);
   // Gegenprobe
   const h = r.hand, row = (l, a, b, d, u = '') => `<tr><td>${l}</td><td>${fmt(a, d)}${u}</td><td>${fmt(b, d)}${u}</td><td>${Number.isFinite(a - b) ? signed(b - a, d) + u : '–'}</td></tr>`;
   $('mCheck').innerHTML = `<thead><tr><th>Grösse</th><th>Wirbelgitter (XFLR5-Methode)</th><th>Handrechnung (Excel)</th><th>Differenz</th></tr></thead><tbody>` +

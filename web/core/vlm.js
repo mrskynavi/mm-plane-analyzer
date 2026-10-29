@@ -165,7 +165,7 @@
       L += lift;
       M += 2 * (mid[2] * F[0] - (mid[0] - xRef) * F[2]);
       bySurf[p.surf] = (bySurf[p.surf] || 0) + lift;
-      const s = strips.get(p.strip) || { y: p.y, z: p.z, chord: p.chord, width: p.width, surf: p.surf, gamma: 0 };
+      const s = strips.get(p.strip) || { y: p.y, z: p.z, chord: p.chord, width: p.width, surf: p.surf, gamma: 0, a: [p.A[1], p.A[2]], b: [p.B[1], p.B[2]] };
       s.gamma += G[i]; strips.set(p.strip, s);
     });
     const q = 0.5 * sRef;
@@ -173,7 +173,32 @@
     return out;
   }
 
-  const api = { stationPoints, planform, panelize, build, solve, segment, horseshoe, lu, RAD };
+  // Induzierter Widerstand in der Trefftz-Ebene aus der Zirkulation der Streifen (halbes Modell, gespiegelt).
+  // Jeder Streifen lässt an seinen Kanten freie Wirbel ±Γ nach hinten; Di = −ρ/2·∑Γ·vn·ds über beide Hälften.
+  function trefftz(strips, sRef) {
+    const vort = [];
+    for (const s of strips) {
+      vort.push([s.b[0], s.b[1], s.gamma], [s.a[0], s.a[1], -s.gamma]);
+      vort.push([-s.b[0], s.b[1], -s.gamma], [-s.a[0], s.a[1], s.gamma]);
+    }
+    let D = 0;
+    for (const s of strips) {
+      const my = (s.a[0] + s.b[0]) / 2, mz = (s.a[1] + s.b[1]) / 2;
+      const dy = s.b[0] - s.a[0], dz = s.b[1] - s.a[1], len = Math.hypot(dy, dz);
+      if (!len) continue;
+      const ny = -dz / len, nz = dy / len;
+      let vn = 0;
+      for (const [qy, qz, g] of vort) {
+        const ry = my - qy, rz = mz - qz, r2 = ry * ry + rz * rz;
+        if (r2 < 1e-12) continue;
+        vn += g / (2 * Math.PI * r2) * (-rz * ny + ry * nz);
+      }
+      D += -0.5 * s.gamma * vn * len;
+    }
+    return 2 * D / (0.5 * sRef);
+  }
+
+  const api = { trefftz, stationPoints, planform, panelize, build, solve, segment, horseshoe, lu, RAD };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).vlm = api;
 })(typeof self !== 'undefined' ? self : this);
