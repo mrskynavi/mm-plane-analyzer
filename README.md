@@ -1,0 +1,48 @@
+# MM Plane Analyzer
+
+Auslegung von Modellflugzeugen von Mächler Modelle: Profile, Polaren, Schwerpunkt, EWD und Festigkeit.
+
+Stand: **P0** (Rechenkern und Profile). Konzept und Roadmap: siehe Projekt „Plane Analyzer“.
+
+## Was P0 kann
+
+- Profile als .dat einlesen (Selig und Lednicer, auch mit Dezimalkomma), per Dialog oder Ziehen und Ablegen
+- Bibliothek mit Segler- und Leitwerksprofilen (aus der UIUC-Profildatenbank) und NACA-4-Ziffern-Profile
+- Kennwerte: Dicke, Dickenrücklage, Wölbung, Wölbungsrücklage, Nasenradius, Endleistendicke
+- Dicke und Wölbung skalieren und in der Lage verschieben (wie XFOIL TFAC/HIGH), als abgeleitetes Profil speichern, als .dat exportieren
+- Wölbklappe um einen Drehpunkt drehen (Klappentiefe, Drehpunkt unten/Mitte/oben)
+- Profilpolaren Typ 1 (Re fest) und Typ 2 (Re·√Ca fest), für mehrere Profile, Re und Klappenstellungen auf einmal
+- Polaren vergleichen: Ca–Cw, Ca–α, Gleitzahl–Ca, Cm–α, Kennwerttabelle, Hüllkurve einer Klappenschar
+- Projektdatei (`.mmpa.json`) speichern und öffnen; im Browser wird automatisch zwischengespeichert
+
+## Polarenrechnung
+
+Die Polaren rechnet [NeuralFoil](https://github.com/peterdsharpe/NeuralFoil) (Peter Sharpe, MIT-Lizenz), hier nach JavaScript übertragen (`web/core/neuralfoil.js`). Das Netz ist auf XFOIL-Rechnungen trainiert, konvergiert immer und liefert eine Konfidenz pro Punkt. Die Tests vergleichen die JavaScript-Fassung mit dem Python-Original (Abweichung unter 1e-9). XFOIL selbst soll später über die Desktop-App dazukommen.
+
+## Aufbau
+
+```
+web/index.html          Oberfläche (gleicher Stil wie MM Flight Analyzer, Chart.js)
+web/core/profil.js      Geometrie: .dat lesen, normieren, neu verteilen, Dicke/Wölbung, Klappe
+web/core/neuralfoil.js  NeuralFoil: Kulfan-Anpassung und Netz
+web/core/nf-gewichte.js Netzgewichte (erzeugt)
+web/core/polare.js      Polaren Typ 1/2, Kennwerte, Hüllkurve
+web/core/projekt.js     Projektdatei, Fingerabdruck der Polaren, Modell-Grundgerüst für P1
+web/core/bibliothek.js  mitgelieferte Profile (erzeugt aus web/profile/*.dat)
+```
+
+Die Kernmodule laufen im Browser und in Node ohne Abhängigkeiten.
+
+## Entwicklung
+
+```
+npm test                       # Tests (node --test)
+node scripts/bibliothek.js     # web/profile/*.dat nach web/core/bibliothek.js
+```
+
+`web/index.html` direkt im Browser öffnen genügt. Die Netzgewichte und Referenzwerte entstehen mit Python und `pip install neuralfoil==0.3.3`:
+
+```
+python3 scripts/nf-gewichte.py <site-packages>/neuralfoil/nn_weights_and_biases xlarge
+python3 scripts/nf-referenz.py
+```
