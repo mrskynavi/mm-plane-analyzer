@@ -142,7 +142,7 @@
     for (const p of panels) span = Math.max(span, Math.abs(p.B[1]), Math.abs(p.A[1]));
     const far = 2000 * Math.max(span, 1);
     const M = panels.map(pi => panels.map(pj => dot(horseshoe(pi.cp, pj.A, pj.B, far), pi.n0)));
-    return { panels, solve: lu(M) };
+    return { panels, far, solve: lu(M) };
   }
 
   // Ein Betriebspunkt: alpha in Grad, extra(panel) = zusätzlicher Winkel in Grad (z. B. Leitwerkseinstellung)
@@ -169,7 +169,7 @@
       s.gamma += G[i]; strips.set(p.strip, s);
     });
     const q = 0.5 * sRef;
-    const out = { alpha, CL: L / q, Cm: M / (q * cRef), lift: bySurf, strips: [...strips.values()].map(s => ({ ...s, cl: 2 * s.gamma / s.chord })) };
+    const out = { alpha, G, CL: L / q, Cm: M / (q * cRef), lift: bySurf, strips: [...strips.values()].map(s => ({ ...s, cl: 2 * s.gamma / s.chord })) };
     return out;
   }
 

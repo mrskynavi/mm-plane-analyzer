@@ -12,6 +12,7 @@
 <script src="core/projekt.js"></script>
 <script src="core/bibliothek.js"></script>
 <script src="core/vlm.js"></script>
+<script src="core/rumpf.js"></script>
 <script src="core/modell.js"></script>
 <script src="core/excel.js"></script>
 <style>
@@ -98,6 +99,7 @@ section{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
 .pol-log .meta{grid-column:2 / 4;font:.76rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .pol-log .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px}
 .pol-log .x:hover{color:var(--bad)}
+.pol-log .cmp{cursor:pointer;white-space:nowrap} .pol-log .cmp input{vertical-align:-2px;margin:0 2px 0 0}
 .pol-main{display:grid;gap:12px;min-width:0}
 .pol-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 10px;min-width:0;display:grid;gap:10px}
 .pol-head{display:flex;justify-content:space-between;align-items:center;gap:6px 12px;flex-wrap:wrap}
@@ -344,11 +346,25 @@ td.warn{color:var(--warn);font-weight:600}
           </div>
         </section>
         <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Rumpf <button type="button" class="iconbtn sm" data-info="info-fus" aria-expanded="false" aria-controls="info-fus" aria-label="So wird der Rumpf gerechnet">i</button></h2><span id="fusInfo" class="status"></span></div>
+          <div class="infopop" id="info-fus" hidden>
+            <p>Der Rumpf ist eine feste Form, die Du nur über wenige Werte anpasst. Stabrumpf: schlanke Gondel und dünnes Leitwerksrohr. Keulenrumpf mit kleinem Stirnwiderstand: schlank, laminar anlaufend. Keulenrumpf mit grossem Stirnwiderstand: dick wie ein Semi-Scale- oder Scale-Rumpf, mit Haube, turbulent. Der Rumpf reicht bis zur Endleiste des Höhenleitwerks.</p>
+            <p>Widerstand: Plattenreibung über die benetzte Fläche mal Formfaktor nach Hoerner, bei der Re der Rumpflänge. Seitenleitwerk mit dem Leitwerksprofil bei Ca 0. Moment: nach Multhopp mit dem Auf- und Abwind aus dem Wirbelgitter; der Rumpf vor dem Flügel verschiebt den Neutralpunkt nach vorn.</p>
+            <p>Grau eingetragene Werte sind automatisch. Durchmesser und Seitenleitwerk leer lassen heisst: aus der Form und der Wurzeltiefe bzw. 60 % der HLW-Fläche (bei V-Leitwerk keins).</p>
+          </div>
+          <div class="form">
+            <div class="field"><span>Form</span><span class="seg" id="fType"><button type="button" data-v="stab">Stab</button><button type="button" data-v="keule-klein" title="Keulenrumpf, kleiner Stirnwiderstand">Keule klein</button><button type="button" data-v="keule-gross" title="Keulenrumpf, grosser Stirnwiderstand">Keule gross</button></span></div>
+            <label class="field"><span>Länge vor dem Flügel</span><span class="row"><input class="num" id="fNose" type="number" step="10" min="0"><span class="u">mm</span></span></label>
+            <label class="field"><span>Grösster Durchmesser</span><span class="row"><input class="num" id="fD" type="number" step="2" min="5"><span class="u">mm</span></span></label>
+            <label class="field"><span>Seitenleitwerk</span><span class="row"><input class="num" id="fFin" type="number" step="0.1" min="0"><span class="u">dm²</span></span></label>
+          </div>
+        </section>
+        <section class="pol-box">
           <div class="pol-head"><h2 class="hi">Arbeitstabelle <button type="button" class="iconbtn sm" data-info="info-ops" aria-expanded="false" aria-controls="info-ops" aria-label="Was die Tabelle zeigt">i</button></h2><span id="opsInfo" class="status"></span></div>
           <div class="infopop" id="info-ops" hidden>
             <p>Für jedes Arbeits-Ca: Geschwindigkeit, Anstellwinkel, Gleitzahl und Sinken, dazu die EWD, die bei verschiedenen Schwerpunkten zum Trimm nötig ist. Der Schwerpunkt hängt nur vom Stabilitätsmass ab, darum steht er im Spaltenkopf; die EWD wählt das Ca.</p>
             <p>„Leitwerk ohne Last“ ist die Rechnung aus Deinem Excel-Blatt mit Ca HLW = 0: der Schwerpunkt, bei dem das Leitwerk bei diesem Ca nichts trägt, mit σ und EWD dazu.</p>
-            <p>Die Gleitzahl enthält Profilwiderstand von Flügel und Leitwerk (Polaren der Stationen bei der passenden Re) und induzierten Widerstand (Trefftz-Ebene), aber noch keinen Rumpf. Mit Rumpf wird sie kleiner und das beste Ca etwas höher. Zeile anklicken übernimmt das Ca als Trimm-Ca.</p>
+            <p>Die Gleitzahl enthält Profilwiderstand von Flügel und Leitwerk (Polaren der Stationen bei der passenden Re), induzierten Widerstand (Trefftz-Ebene), Rumpf und Seitenleitwerk. Zeile anklicken übernimmt das Ca als Trimm-Ca.</p>
           </div>
           <div class="tablewrap"><table id="mOps"></table></div>
         </section>
@@ -370,10 +386,20 @@ td.warn{color:var(--warn);font-weight:600}
           <div class="cbox"><div class="ct">Auftriebsverteilung <span>örtliches Ca und Ca max <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div></div>
           <div class="cbox"><div class="ct">Last über die Spannweite <span>Ca·l / l<sub>μ</sub> und Ellipse <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mLoad"></canvas></div></div>
         </div>
+        <section class="pol-box">
+          <div class="pol-head"><h2>Gesamtpolare</h2><span class="legend" id="gpLegend"></span></div>
+          <p class="hint" style="margin:0 0 8px">Ganzes Modell mit Rumpf, getrimmt mit Deinem Schwerpunkt. Weitere Modelle zum Vergleich hakst Du links in der Modellliste an.</p>
+          <div class="charts">
+            <div class="cbox"><div class="ct">Geschwindigkeitspolare <span>Sinken über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpSink"></canvas></div></div>
+            <div class="cbox"><div class="ct">Gleitzahl <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpE"></canvas></div></div>
+            <div class="cbox"><div class="ct">Widerstandsanteile <span><span id="gpCdLeg" class="legend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpCd"></canvas></div></div>
+            <div class="cbox"><div class="ct">Polare <span>Ca über Cw <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpPol"></canvas></div></div>
+          </div>
+        </section>
         <section>
           <h2>Gegenprobe mit Deinem Excel-Blatt</h2>
           <div class="tablewrap"><table id="mCheck"></table></div>
-          <p class="hint">Gleicher Schwerpunkt und gleiches Trimm-Ca. Die Handrechnung nutzt aF = Λ/(√(Λ²+4)+2), den Abwind 4·aF/Λ·(α−α0) und α0, Cm0 der Profile.</p>
+          <p class="hint">Gleicher Schwerpunkt und gleiches Trimm-Ca. Neutralpunkt ohne Rumpf, weil Dein Blatt keinen Rumpf kennt. Die Handrechnung nutzt aF = Λ/(√(Λ²+4)+2), den Abwind 4·aF/Λ·(α−α0) und α0, Cm0 der Profile.</p>
         </section>
       </div>
     </div>
@@ -1018,7 +1044,7 @@ $('varNone').onclick = () => { project.variants.forEach(v => ui.varOff.add(v.id)
 
 // ---------- Modell ----------
 // Flügel und Leitwerk als Stationen, Rechnung mit dem Wirbelgitter (core/modell.js)
-const MD = window.MMPA.modell;
+const MD = window.MMPA.modell, FU = window.MMPA.rumpf;
 const COLS = [
   ['y', 'y', 'mm', 5], ['chord', 'Tiefe', 'mm', 1], ['offset', 'Versatz', 'mm', 1], ['dihedral', 'V-Form', '°', 0.5], ['twist', 'Schränk.', '°', 0.25, 'Schränkung'],
   ['profileId', 'Profil'], ['thickness', 'Dicke', '%', 0.1], ['camber', 'Wölb.', '%', 0.05, 'Wölbung'], ['flapDepth', 'Kl.-tiefe', '%', 1, 'Klappentiefe'], ['flap', 'Klappe', '°', 0.5],
@@ -1039,12 +1065,19 @@ function renderModelList() {
     <span class="sw" style="background:${m === cur ? 'var(--accent)' : 'var(--line)'};margin-top:6px"></span>
     <button type="button" class="nm" data-act="open">${esc(m.name)}</button>
     <button type="button" class="x" data-act="del" aria-label="${esc(m.name)} löschen" title="Löschen">×</button>
-    <span class="meta">${fmt(MD_span(m) / 1000, 2)} m · ${fmt(m.mass, 0)} g</span></li>`).join('');
+    <span class="meta">${fmt(MD_span(m) / 1000, 2)} m · ${fmt(m.mass, 0)} g${m === cur ? '' : ` · <label class="cmp"><input type="checkbox" data-act="cmp" ${cmpIds().includes(m.id) ? 'checked' : ''}> vergleichen</label>`}</span></li>`).join('');
 }
+const cmpIds = () => (store.get('mmpa.cmp') || '').split(',').filter(Boolean);
 const MD_span = m => 2 * (m.wing.stations[m.wing.stations.length - 1].y - m.wing.stations[0].y);
 $('modelList').onclick = e => {
   const li = e.target.closest('[data-id]'); if (!li) return;
   const m = project.models.find(x => x.id === li.dataset.id); if (!m) return;
+  if (e.target.closest('[data-act="cmp"]')) {
+    const ids = cmpIds().filter(i => i !== m.id && project.models.some(x => x.id === i));
+    if (e.target.checked) ids.push(m.id);
+    store.set('mmpa.cmp', ids.join(',')); renderModelResults(); return;
+  }
+  if (e.target.closest('.cmp')) return;
   if (e.target.closest('[data-act="del"]')) {
     if (project.models.length === 1) { toast('Das letzte Modell bleibt stehen'); return; }
     project.models = project.models.filter(x => x !== m); persist(); renderModel(); toast(`${m.name} gelöscht`); return;
@@ -1098,7 +1131,18 @@ function syncModelForm() {
   $('mCgLbl').textContent = sig ? 'Stabilitätsmass' : 'Schwerpunkt hinter Nasenleiste';
   $('mCgU').textContent = sig ? '%' : 'mm';
   $('mCg').value = sig ? +(m.cg.sigma * 100).toFixed(2) : +(+m.cg.x).toFixed(1);
+  const f = FU.of(m), sh = FU.shape(m);
+  $('fType').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === f.type));
+  $('fNose').value = f.nose;
+  $('fD').value = f.diameter ?? ''; $('fD').placeholder = sh.D;
+  $('fFin').value = f.fin ?? ''; $('fFin').placeholder = FU.finArea(m, window.MMPA.vlm.planform(m.tail.stations).area);
 }
+// Rumpf: Form und Parameter; leere Felder = automatisch
+const setFus = (k, v) => { const m = curModel(); m.fuselage = { ...FU.of(m), [k]: v }; persist(); syncModelForm(); scheduleModel(); };
+$('fType').onclick = e => { const b = e.target.closest('button'); if (b) setFus('type', b.dataset.v); };
+$('fNose').addEventListener('change', () => { const v = parseFloat($('fNose').value); Number.isFinite(v) ? setFus('nose', Math.min(5000, Math.max(0, v))) : syncModelForm(); });
+$('fD').addEventListener('change', () => { const v = parseFloat($('fD').value); setFus('diameter', Number.isFinite(v) && v > 0 ? Math.min(1000, v) : null); });
+$('fFin').addEventListener('change', () => { const v = parseFloat($('fFin').value); setFus('fin', Number.isFinite(v) && v >= 0 ? Math.min(500, v) : null); });
 const MFORM = { mMass: ['mass', 10, 100000], mCl: ['clDesign', 0.05, 1.5], mInc: ['wing.incidence', -10, 10], mTx: ['tail.x', 50, 5000], mTz: ['tail.z', -500, 1000] };
 for (const [id, [path, lo, hi]] of Object.entries(MFORM)) {
   $(id).addEventListener('change', () => {
@@ -1181,7 +1225,8 @@ function drawPlan(m, r) {
   const cv = $('planCv'); if (!cv || cv.offsetParent === null) return;
   const VL0 = window.MMPA.vlm, Pw = VL0.stationPoints(m.wing.stations), Pt = VL0.stationPoints(m.tail.stations, m.tail.x);
   const all = Pw.concat(Pt), w0 = cv.parentElement.clientWidth;
-  const xr = Math.max(...all.map(p => p.le[0] + p.chord)) - Math.min(...all.map(p => p.le[0])), yr = 2 * Math.max(...all.map(p => p.le[1]));
+  const fs0 = window.MMPA.rumpf.shape(m);
+  const xr = Math.max(fs0.x3, ...all.map(p => p.le[0] + p.chord)) - Math.min(fs0.x0, ...all.map(p => p.le[0])), yr = 2 * Math.max(...all.map(p => p.le[1]));
   cv.parentElement.style.height = Math.round(Math.min(520, Math.max(160, (w0 - 36) * xr / yr + 36))) + 'px';
   const rc = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   cv.width = Math.round(rc.width * dpr); cv.height = Math.round(rc.height * dpr);
@@ -1190,8 +1235,15 @@ function drawPlan(m, r) {
   const surf = [[m.wing.stations, 0], [m.tail.stations, m.tail.x]].map(([st, x0]) => ({ st, P: VL.stationPoints(st, x0) }));
   let xmin = Infinity, xmax = -Infinity, ymax = 0;
   for (const s of surf) s.P.forEach(p => { xmin = Math.min(xmin, p.le[0]); xmax = Math.max(xmax, p.le[0] + p.chord); ymax = Math.max(ymax, p.le[1]); });
+  const fsh = window.MMPA.rumpf.shape(m);
+  xmin = Math.min(xmin, fsh.x0); xmax = Math.max(xmax, fsh.x3);
   const pad = 18, sc = Math.min((rc.width - 2 * pad) / (2 * ymax), (rc.height - 2 * pad) / (xmax - xmin));
   const X = y => rc.width / 2 + y * sc, Y = x => pad + (x - xmin) * sc + ((rc.height - 2 * pad) - (xmax - xmin) * sc) / 2;
+  // Rumpf von oben
+  g.beginPath();
+  fsh.pts.forEach((p, i) => i ? g.lineTo(X(p.r), Y(p.x)) : g.moveTo(X(p.r), Y(p.x)));
+  [...fsh.pts].reverse().forEach(p => g.lineTo(X(-p.r), Y(p.x)));
+  g.closePath(); g.fillStyle = css('--line'); g.fill(); g.strokeStyle = css('--muted'); g.lineWidth = 1; g.stroke();
   g.lineWidth = 1.5;
   for (const [si, s] of surf.entries()) {
     for (const side of [1, -1]) {
@@ -1243,7 +1295,7 @@ function renderModel() {
 }
 // Arbeitstabelle: EWD je Ca und Schwerpunkt, Gleitzahl, Leitwerk ohne Last
 function renderOps(m, r) {
-  const T = r.table, mac = r.wing.mac;
+  const T = r.table.filter(t => Math.abs(t.cl * 10 - Math.round(t.cl * 10)) < 1e-6), mac = r.wing.mac;
   const cur = m.cg.mode === 'sigma' ? +(+m.cg.sigma).toFixed(4) : null;
   const cols = r.sigmas.map(sg => ({ h: `σ ${fmt(sg * 100, 0)} %`, sub: `SP ${fmt(r.xNP - sg * mac, 1)} mm`, cur: sg === cur, v: t => t.ewd[r.sigmas.indexOf(sg)] }));
   if (m.cg.mode === 'x') cols.push({ h: `Dein SP`, sub: `${fmt(r.xCG, 1)} mm · σ ${fmt(r.sigma * 100, 1)} %`, cur: true, v: t => t.ewdCur });
@@ -1260,13 +1312,40 @@ function renderOps(m, r) {
       `<td class="grp">${fmt(t.neutral.x, 1)}</td><td>${fmt(t.neutral.sigma * 100, 1)}</td><td>${fmt(t.neutral.ewd, 2)}</td></tr>`;
   }).join('');
   $('mOps').innerHTML = head + '<tbody>' + body + '</tbody>';
-  $('opsInfo').textContent = r.best ? `beste Gleitzahl ${fmt(r.best.E, 1)} bei Ca ${fmt(r.best.cl, 1)} · geringstes Sinken bei Ca ${fmt(r.minSink.cl, 1)} · ohne Rumpf` : '';
+  $('opsInfo').textContent = r.best ? `beste Gleitzahl ${fmt(r.best.E, 1)} bei Ca ${fmt(r.best.cl, 2)} · geringstes Sinken bei Ca ${fmt(r.minSink.cl, 2)} · mit Rumpf` : '';
 }
 $('mOps').onclick = e => {
   const tr = e.target.closest('tr[data-cl]');
   if (!tr) return;
   const m = curModel(); m.clDesign = +tr.dataset.cl; persist(); syncModelForm(); scheduleModel();
 };
+// Gesamtpolare: aktuelles Modell und angehakte Vergleichsmodelle
+const cmpCache = new Map();
+function cmpResult(m) {
+  const key = PR.hash(JSON.stringify([m, lab.nCrit, project.profiles.map(p => [p.id, p.mod])]));
+  if (!cmpCache.has(key)) { if (cmpCache.size > 20) cmpCache.clear(); try { cmpCache.set(key, MD.analyze(m, project.profiles, { nCrit: lab.nCrit })); } catch (e) { cmpCache.set(key, null); } }
+  return cmpCache.get(key);
+}
+function renderPolars(m, r) {
+  if (typeof Chart === 'undefined') return;
+  const others = cmpIds().map(id => project.models.find(x => x.id === id)).filter(x => x && x !== m);
+  const sets = [{ m, r, col: PALETTE[0], main: true }].concat(others.map((o, i) => ({ m: o, r: cmpResult(o), col: PALETTE[(i + 1) % PALETTE.length] }))).filter(q => q.r);
+  const ok = q => q.r.table.filter(t => !t.stall && Number.isFinite(t.E));
+  const line = (q, data, o = {}) => ({ label: q.m.name, data, showLine: true, borderColor: q.col, backgroundColor: q.col, borderWidth: q.main ? 2.4 : 1.6, pointRadius: 2, pointHoverRadius: 4, ...o });
+  const mark = (q, t, y) => ({ label: `${q.m.name} Bestwert`, data: [{ x: t.v * 3.6, y }], showLine: false, pointRadius: 5, pointStyle: 'rectRot', borderColor: q.col, backgroundColor: q.col });
+  const vmax = Math.max(...sets.flatMap(q => ok(q).map(t => t.v * 3.6)));
+  liveChart('gpSink', 'V [km/h]', 'Sinken [m/s]', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: -t.sink }))), ...(q.r.minSink ? [mark(q, q.r.minSink, -q.r.minSink.sink)] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
+  liveChart('gpE', 'V [km/h]', 'Gleitzahl', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: t.E }))), ...(q.r.best ? [mark(q, q.r.best, q.r.best.E)] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
+  liveChart('gpPol', 'Cw', 'Ca', sets.map(q => line(q, ok(q).map(t => ({ x: t.cd, y: t.cl })))), { x: { min: 0 } });
+  const T = ok(sets[0]), parts = [['cdi', 'induziert'], ['cdw', 'Flügelprofil'], ['cdt', 'Höhenleitwerk'], ['cdf', 'Rumpf'], ['cdv', 'Seitenleitwerk']];
+  let acc = T.map(() => 0);
+  liveChart('gpCd', 'Ca', 'Cw', parts.map(([k, l], i) => {
+    acc = acc.map((a, j) => a + T[j][k]);
+    return { label: l, data: T.map((t, j) => ({ x: t.cl, y: acc[j] })), showLine: true, fill: i ? '-1' : 'origin', borderColor: PALETTE[i], backgroundColor: PALETTE[i] + '55', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3 };
+  }), { x: { min: 0 }, y: { min: 0 } });
+  $('gpCdLeg').innerHTML = parts.map(([, l], i) => `<span><i style="background:${PALETTE[i]}"></i>${l}</span>`).join('');
+  $('gpLegend').innerHTML = sets.map(q => `<span><i style="background:${q.col}"></i>${esc(q.m.name)}</span>`).join('');
+}
 function renderModelResults() {
   const m = curModel(), r = lastModel;
   drawPlan(m, r);
@@ -1275,7 +1354,7 @@ function renderModelResults() {
   const t = r.trim;
   const stallCls = r.stall > 0.85 ? 'dn' : '';
   $('mKpis').innerHTML = [
-    k('Neutralpunkt', fmt(r.xNP, 1), 'mm', `${fmt((r.xNP - r.wing.xMac) / r.wing.mac * 100, 1)} % l<sub>μ</sub>`),
+    k('Neutralpunkt', fmt(r.xNP, 1), 'mm', `${fmt((r.xNP - r.wing.xMac) / r.wing.mac * 100, 1)} % l<sub>μ</sub> · Rumpf ${signed(r.fuselage.dNP, 1)}`),
     k('Schwerpunkt', fmt(r.xCG, 1), 'mm', `${fmt((r.xCG - r.wing.xMac) / r.wing.mac * 100, 1)} % l<sub>μ</sub>`),
     k('Stabilitätsmass', fmt(r.sigma * 100, 1), '%'),
     k('EWD', fmt(t.ewd, 2), '°', `Leitwerk ${t.tailIncidence >= 0 ? '+' : ''}${fmt(t.tailIncidence, 2)}°`),
@@ -1286,15 +1365,19 @@ function renderModelResults() {
     k('Spannweite', fmt(r.wing.span / 1000, 3), 'm', `Fläche ${fmt(r.wing.area / 1e4, 1)} dm²`),
     k('Streckung', fmt(r.wing.aspect, 1), '', `l<sub>μ</sub> ${fmt(r.wing.mac, 1)} mm`),
     k('Leitwerksvolumen', fmt(r.tailVolume, 2), '', `HLW ${fmt(r.tail.area / 1e4, 1)} dm²`),
+    r.best ? k('Beste Gleitzahl', fmt(r.best.E, 1), '', `bei ${fmt(r.best.v * 3.6, 0)} km/h, Ca ${fmt(r.best.cl, 2)}`) : '',
+    r.minSink ? k('Min. Sinken', fmt(r.minSink.sink, 2), 'm/s', `bei ${fmt(r.minSink.v * 3.6, 0)} km/h, Ca ${fmt(r.minSink.cl, 2)}`) : '',
     `<div class="kpi"><span class="l">Ca / Ca max</span><span class="v">${fmt(r.stall * 100, 0)}<small>%</small></span><span class="d ${stallCls}">höchste Ausnutzung</span></div>`,
   ].join('');
   $('wingInfo').textContent = `Fläche ${fmt(r.wing.area / 1e4, 2)} dm² · Streckung ${fmt(r.wing.aspect, 1)} · l_μ ${fmt(r.wing.mac, 1)} mm bei y ${fmt(r.wing.yMac, 0)}`;
   $('tailInfo').textContent = `Fläche ${fmt(r.tail.area / 1e4, 2)} dm² · Streckung ${fmt(r.tail.aspect, 1)} · l_μ ${fmt(r.tail.mac, 1)} mm`;
   renderOps(m, r);
+  $('fusInfo').textContent = `${r.fuselage.typeName} · Länge ${fmt(r.fuselage.length, 0)} mm · Ø ${fmt(r.fuselage.D, 0)} mm · benetzt ${fmt(r.fuselage.swet / 1e4, 1)} dm² · SLW ${fmt(r.fuselage.fin, 1)} dm² · Neutralpunkt ${signed(r.fuselage.dNP, 1)} mm`;
+  renderPolars(m, r);
   // Gegenprobe
   const h = r.hand, row = (l, a, b, d, u = '') => `<tr><td>${l}</td><td>${fmt(a, d)}${u}</td><td>${fmt(b, d)}${u}</td><td>${Number.isFinite(a - b) ? signed(b - a, d) + u : '–'}</td></tr>`;
   $('mCheck').innerHTML = `<thead><tr><th>Grösse</th><th>Wirbelgitter (XFLR5-Methode)</th><th>Handrechnung (Excel)</th><th>Differenz</th></tr></thead><tbody>` +
-    row('Neutralpunkt', r.xNP, h.xNP, 1, ' mm') + row('Ca Flügel', t.clWing, h.caF, 3) + row('Ca Leitwerk', t.clTail, h.caH, 3) + row('EWD', t.ewd, h.ewd, 2, '°') + '</tbody>';
+    row('Neutralpunkt ohne Rumpf', r.xNP0, h.xNP, 1, ' mm') + row('Ca Flügel', t.clWing, h.caF, 3) + row('Ca Leitwerk', t.clTail, h.caH, 3) + row('EWD', t.ewd, h.ewd, 2, '°') + '</tbody>';
   // Diagramme
   if (typeof Chart !== 'undefined') {
     const s = r.strips, half = Math.ceil(r.wing.projSpan / 200) * 100;

@@ -10,6 +10,7 @@
   const PR = isNode ? require('./projekt.js') : root.MMPA.projekt;
   const POL = isNode ? require('./polare.js') : root.MMPA.polare;
   const V = isNode ? require('./vlm.js') : root.MMPA.vlm;
+  const F = isNode ? require('./rumpf.js') : root.MMPA.rumpf;
 
   const RHO = 1.225, NU = 1.5e-5, G = 9.81;
   const XS = P.cosspace(60);
@@ -125,12 +126,36 @@
       return V.build(pw.concat(pt));
     });
     const ref = { sRef: wing.area, cRef: wing.mac, xRef: 0 };
-    const run = (alpha, it) => V.solve(sys, alpha, { ...ref, extra: it ? p => (p.surf === 1 ? it : 0) : null });
+    // Rumpf: Moment nach Multhopp mit dem Auf- und Abwind des Wirbelgitters entlang der Rumpfachse.
+    // Die Einflusszahlen der Panels auf die Rumpfpunkte rechnen wir einmal pro Geometrie.
+    const fus = F.shape(model);
+    const P0w = V.stationPoints(W.stations), rootLe = P0w[0].le[0], rootTe = rootLe + W.stations[0].chord;
+    const tailLe = T.x + (T.stations[0]?.offset || 0);
+    const fusInf = cached('f' + geoKey + PR.hash(JSON.stringify(fus.pts)), () => {
+      const pts = [];
+      for (let i = 1; i < fus.pts.length; i++) {
+        const a = fus.pts[i - 1], b = fus.pts[i], x = (a.x + b.x) / 2;
+        if ((x > rootLe && x < rootTe) || x > tailLe) continue;
+        const w = a.r + b.r;
+        pts.push({ k: Math.PI / 2 * w * w * (b.x - a.x) / (wing.area * wing.mac), inf: sys.panels.map(p => V.horseshoe([x, 0, 0], p.A, p.B, sys.far)[2]) });
+      }
+      return pts;
+    });
+    const cmFus = (alpha, G) => fusInf.reduce((m, q) => {
+      let vz = 0;
+      for (let j = 0; j < G.length; j++) vz += q.inf[j] * G[j];
+      return m + q.k * (alpha * V.RAD + vz);
+    }, 0);
+    const run = (alpha, it) => {
+      const r = V.solve(sys, alpha, { ...ref, extra: it ? p => (p.surf === 1 ? it : 0) : null });
+      r.cmF = cmFus(alpha, r.G); r.Cm += r.cmF;
+      return r;
+    };
 
     // linear in α und Leitwerkseinstellung: drei Lösungen genügen
     const r0 = run(0, 0), ra = run(1, 0), ri = run(0, 1);
     const cA = ra.CL - r0.CL, mA = ra.Cm - r0.Cm, cI = ri.CL - r0.CL, mI = ri.Cm - r0.Cm;
-    const xNP = -(mA / cA) * wing.mac;
+    const xNP = -(mA / cA) * wing.mac, xNP0 = -((mA - (ra.cmF - r0.cmF)) / cA) * wing.mac; // mit und ohne Rumpf
     const sigmaOf = x => (xNP - x) / wing.mac;
     const xCG = model.cg.mode === 'sigma' ? xNP - model.cg.sigma * wing.mac : model.cg.x;
     const sigma = sigmaOf(xCG);
@@ -192,8 +217,10 @@
       return [a, i];
     };
     const table = [];
-    for (let k = 1; k <= 14; k++) {
-      const cl = Math.round(k * 0.1 * 100) / 100;
+    const finA = F.finArea(model, tail.area);
+    const finCd0 = re => { const q = T.stations[0] && tailPolar(T.stations[0], profiles, re, nCrit); const c = q && cdOf(q, 0); return Number.isFinite(c) ? c : null; };
+    for (let k = 2; k <= 28; k++) {
+      const cl = Math.round(k * 0.05 * 100) / 100;
       const [al, iT] = trimAt(cl, xCG);
       const r = run(al, iT);
       const v = Math.sqrt(2 * model.mass / 1000 * G / (RHO * wing.area / 1e6 * cl));
@@ -203,7 +230,8 @@
       const tpols = T.stations.map(q => tailPolar(q, profiles, reT, nCrit));
       const cdi = V.trefftz(r.strips, wing.area);
       const cdw = profileDrag(sw, W.stations, pols, wing.area), cdt = profileDrag(st, T.stations, tpols, wing.area);
-      const cd = cdi + cdw + cdt, E = cl / cd;
+      const cdf = F.drag(fus, v, wing.area), cdv = F.finDrag(finA, v, wing.area, finCd0);
+      const cd = cdi + cdw + cdt + cdf + cdv, E = cl / cd;
       const stall = over || !Number.isFinite(cdw); // Ca einer Station über ihrem Ca max
       // Leitwerk ohne Last: α und Einstellung so, dass Ca erreicht und Leitwerksauftrieb 0
       let a0n = 0, i0n = 0, rn = r0;
@@ -215,7 +243,7 @@
       rn = run(a0n, i0n);
       const x0 = -rn.Cm * wing.mac / rn.CL;
       table.push({
-        cl, v, alpha: al, ewdCur: (W.incidence || 0) - iT, E, sink: v / E, cdi, cdw, cdt, stall, clTail: (r.lift[1] || 0) / (0.5 * tail.area),
+        cl, v, alpha: al, ewdCur: (W.incidence || 0) - iT, E, sink: v / E, cd, cdi, cdw, cdt, cdf, cdv, stall, clTail: (r.lift[1] || 0) / (0.5 * tail.area),
         ewd: sigmas.map(sg => { const [, it2] = trimAt(cl, xNP - sg * wing.mac); return (W.incidence || 0) - it2; }),
         neutral: { x: x0, sigma: (xNP - x0) / wing.mac, ewd: (W.incidence || 0) - i0n },
       });
@@ -229,7 +257,8 @@
     return {
       wing, tail, xNP, xCG, sigma, CLalpha: cA * 180 / Math.PI,
       trim: { CL, alpha, tailIncidence: it, ewd: (W.incidence || 0) - it, clWing, clTail, speed, re: speed * wing.mac / 1000 / NU },
-      wingLoading: ws, tailVolume, table, sigmas, best, minSink, strips, tailStrips, stations: pols, stall, hand,
+      wingLoading: ws, tailVolume, table, sigmas, best, minSink, xNP0,
+      fuselage: { ...fus, fin: finA, dNP: xNP - xNP0 }, strips, tailStrips, stations: pols, stall, hand,
       profiles: { wing: wingGeo.map(g => g && g.name), tail: tailGeo.map(g => g && g.name) },
       panels: sys.panels.length,
     };
