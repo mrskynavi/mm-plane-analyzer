@@ -6,7 +6,14 @@ Stand: **P0** (Rechenkern und Profile). Konzept und Roadmap: siehe Projekt „Pl
 
 ## Was P0 kann
 
-Alles läuft auf einem Bildschirm, dem Profil-Labor:
+Modell (P1):
+
+- Flügel und Höhenleitwerk als Stationen wie in XFLR5: Spannweite, Tiefe, Versatz, V-Form, Schränkung, Profil mit eigener Dicke und Wölbung, Klappentiefe und -ausschlag
+- Wirbelgitterverfahren (VLM, `web/core/vlm.js`): Neutralpunkt, Schwerpunkt aus Stabilitätsmass oder Lage, Trimm auf ein Ca mit Anstellwinkel, Leitwerkseinstellung und EWD, Auftriebsverteilung mit örtlichem Ca max der Profile
+- Gegenprobe mit der Handrechnung aus dem bisherigen Excel-Blatt
+- mehrere Modelle pro Projekt
+
+Profil-Labor:
 
 - Profildatenbank links: .dat einlesen (Selig und Lednicer, auch mit Dezimalkomma, per Dialog oder Ziehen und Ablegen), Bibliothek mit Segler- und Leitwerksprofilen (UIUC) und NACA-4-Ziffern, umbenennen, als .dat exportieren, entfernen
 - Zwei Arbeitskarten A und B: Dicke, Dickenrücklage, Wölbung, Wölbungsrücklage und Wölbklappe mit Schiebern ändern (wie XFOIL TFAC/HIGH), Polaren rechnen sofort mit
@@ -28,6 +35,8 @@ web/core/profil.js      Geometrie: .dat lesen, normieren, neu verteilen, Dicke/W
 web/core/neuralfoil.js  NeuralFoil: Kulfan-Anpassung und Netz
 web/core/nf-gewichte.js Netzgewichte (erzeugt)
 web/core/polare.js      Polaren Typ 1/2, Kennwerte, Hüllkurve
+web/core/vlm.js         Wirbelgitter: Panels, Hufeisenwirbel, Lösung, Beiwerte
+web/core/modell.js      Modellrechnung: Neutralpunkt, Trimm, EWD, Handrechnung
 web/core/projekt.js     Projektdatei, Fingerabdruck der Polaren, Modell-Grundgerüst für P1
 web/core/bibliothek.js  mitgelieferte Profile (erzeugt aus web/profile/*.dat)
 ```
