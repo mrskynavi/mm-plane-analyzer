@@ -19,7 +19,9 @@
     const at = NF.prepare(coords);
     const pts = [];
     for (const alpha of range(o.alphaFrom, o.alphaTo, o.alphaStep)) {
-      let Re = o.re, r = at(alpha, Re, o.nCrit, o.xtrTop, o.xtrBot);
+      // Typ 2 startet mit der Re des vorigen Punkts, das spart Iterationen
+      let Re = o.type === 2 && pts.length ? pts[pts.length - 1].re : o.re;
+      let r = at(alpha, Re, o.nCrit, o.xtrTop, o.xtrBot);
       if (o.type === 2) {
         // Re hängt von Ca ab: einige Festpunkt-Schritte; unter Ca 0.05 bleibt Re bei re/√0.05
         for (let k = 0; k < 8; k++) {
@@ -101,7 +103,36 @@
     return out;
   }
 
-  const api = { compute, summary, cdAtCl, envelope, range };
+  // Re·√Ca aus Flächenbelastung [g/dm²] und Profiltiefe [mm]: V = √(2·m·g/(ρ·S·Ca)), Re = V·l/ν
+  function reSqrtCl(wingLoadingGdm2, chordMm, rho = 1.225, nu = 1.5e-5) {
+    const ws = wingLoadingGdm2 / 1000 * 100 * 9.81; // N/m²
+    return Math.sqrt(2 * ws / rho) * chordMm / 1000 / nu;
+  }
+
+  // Kennzahlen für den direkten Vergleich zweier Profile in einem Einsatzbereich Ca von … bis:
+  // cdMean = mittlerer Profilwiderstand im Bereich (kleiner ist besser), dazu beste Gleitzahl und Steigzahl Ca^1.5/Cw
+  function metrics(pts, clFrom = 0.2, clTo = 0.9, n = 15) {
+    let sum = 0, ok = 0;
+    for (let i = 0; i < n; i++) {
+      const cd = cdAtCl(pts, clFrom + (clTo - clFrom) * i / (n - 1));
+      if (Number.isFinite(cd)) { sum += cd; ok++; }
+    }
+    let ld = -Infinity, clLd = NaN, climb = -Infinity, clClimb = NaN;
+    for (const p of pts) {
+      if (p.cl <= 0) continue;
+      if (p.cl / p.cd > ld) { ld = p.cl / p.cd; clLd = p.cl; }
+      const c = Math.pow(p.cl, 1.5) / p.cd;
+      if (c > climb) { climb = c; clClimb = p.cl; }
+    }
+    const s = summary(pts);
+    return {
+      cdMean: ok === n ? sum / n : NaN, covered: ok / n,
+      ldMax: ld, clAtLdMax: clLd, climbMax: climb, clAtClimbMax: clClimb,
+      clMax: s.clMax, cm0: s.cm0, alpha0: s.alpha0, lowConfidence: s.lowConfidence,
+    };
+  }
+
+  const api = { compute, summary, cdAtCl, envelope, range, metrics, reSqrtCl };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).polare = api;
 })(typeof self !== 'undefined' ? self : this);

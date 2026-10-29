@@ -35,3 +35,19 @@ test('Hüllkurve wählt pro Ca die beste Klappe', () => {
     if (Number.isFinite(cd)) assert.ok(e.cd <= cd + 1e-12);
   }
 });
+
+test('Re·√Ca aus Flächenbelastung und Tiefe', () => {
+  // 77 g/dm², 170 mm: V(Ca=1) = √(2·75.5/1.225) = 11.1 m/s → Re√Ca ≈ 126 000
+  const k = POL.reSqrtCl(77, 170);
+  assert.ok(Math.abs(k - 125800) < 1500, String(k));
+});
+
+test('Kennzahlen: dünneres Profil hat im Speedbereich weniger Widerstand', () => {
+  const o = { type: 2, re: 120000, alphaFrom: -4, alphaTo: 10, alphaStep: 0.5 };
+  const a = POL.metrics(POL.compute(P.modify(e374, {}), o).points, 0.05, 0.4);
+  const b = POL.metrics(POL.compute(P.modify(e374, { thickness: 0.8, camber: 0.7 }), o).points, 0.05, 0.4);
+  assert.strictEqual(a.covered, 1);
+  assert.ok(b.cdMean < a.cdMean, `${b.cdMean} < ${a.cdMean}`);
+  assert.ok(a.climbMax > 0 && a.ldMax > 30);
+  assert.ok(Number.isNaN(POL.metrics(POL.compute(e374, o).points, 0.2, 3).cdMean), 'Bereich über Ca max ist nicht bewertbar');
+});

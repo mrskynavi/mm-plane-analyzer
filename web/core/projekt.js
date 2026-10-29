@@ -22,7 +22,7 @@
   const DEFAULT_MOD = { thickness: 1, camber: 1, xThickness: null, xCamber: null };
 
   function createProject(name = 'Neues Projekt') {
-    return { format: FORMAT, version: VERSION, name, created: new Date().toISOString(), profiles: [], polars: [], models: [] };
+    return { format: FORMAT, version: VERSION, name, created: new Date().toISOString(), profiles: [], polars: [], variants: [], models: [] };
   }
 
   // Profil aus .dat-Text oder Koordinaten anlegen. Die Originalkoordinaten bleiben unverändert gespeichert.
@@ -72,6 +72,30 @@
     project.polars = project.polars.filter(p => p.profileId !== id);
   }
 
+  // Gemerkter Zustand aus dem Profil-Labor: Ausgangsprofil (Koordinaten kopiert), Änderung und Klappe.
+  // Bleibt gültig, auch wenn das Ausgangsprofil später gelöscht wird.
+  function addVariant(project, base, mod, flap, name) {
+    const v = {
+      id: uid(), name: name || base.name, baseId: base.id, baseName: base.name, coords: base.coords,
+      mod: { ...DEFAULT_MOD, ...mod }, flap: flap && flap.deflection ? { deflection: flap.deflection, hingeX: flap.hingeX ?? 0.75, hinge: flap.hinge || 'auto' } : null,
+      created: new Date().toISOString(),
+    };
+    (project.variants = project.variants || []).push(v);
+    return v;
+  }
+
+  // Zustand als eigenes Profil ablegen. Ohne Klappe als abgeleitetes Profil (nur die Änderung wird gespeichert),
+  // mit Klappe werden die Koordinaten samt Klappe übernommen.
+  function variantToProfile(project, v, name) {
+    const n = name || v.name;
+    if (!v.flap) {
+      const prof = deriveProfile(project, { id: v.baseId, name: v.baseName, coords: v.coords }, v.mod, n);
+      prof.source = 'labor';
+      return prof;
+    }
+    return addProfile(project, { name: n, coords: geometry(v, v.flap), source: 'labor' });
+  }
+
   function serialize(project) { return JSON.stringify(project, null, 1); }
 
   function parse(text) {
@@ -80,6 +104,7 @@
     if (p.version > VERSION) throw new Error('Projektdatei ist neuer als diese App (Version ' + p.version + ')');
     p.profiles = (p.profiles || []).map(pr => ({ ...pr, mod: { ...DEFAULT_MOD, ...(pr.mod || {}) } }));
     p.polars = p.polars || [];
+    p.variants = (p.variants || []).map(v => ({ ...v, mod: { ...DEFAULT_MOD, ...(v.mod || {}) }, flap: v.flap || null }));
     p.models = p.models || [];
     return p;
   }
@@ -100,7 +125,7 @@
     };
   }
 
-  const api = { FORMAT, VERSION, createProject, addProfile, deriveProfile, geometry, polarKey, findPolar, storePolar, removeProfile, serialize, parse, createModel, hash, isModified };
+  const api = { FORMAT, VERSION, createProject, addProfile, deriveProfile, geometry, polarKey, findPolar, storePolar, removeProfile, addVariant, variantToProfile, serialize, parse, createModel, hash, isModified };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).projekt = api;
 })(typeof self !== 'undefined' ? self : this);

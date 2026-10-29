@@ -38,3 +38,24 @@ test('Fremde Dateien werden abgelehnt', () => {
   assert.throws(() => PR.parse('{"a":1}'), /Keine Projektdatei/);
   assert.throws(() => PR.parse(JSON.stringify({ format: PR.FORMAT, version: 99 })), /neuer/);
 });
+
+test('Zustände aus dem Labor merken und als Profil speichern', () => {
+  const pj = PR.createProject();
+  const e = PR.addProfile(pj, { datText });
+  const v1 = PR.addVariant(pj, e, { thickness: 0.9 }, null, 'dünner');
+  const v2 = PR.addVariant(pj, e, { camber: 1.2 }, { deflection: 4, hingeX: 0.75 }, 'Klappe 4');
+  assert.strictEqual(pj.variants.length, 2);
+  PR.removeProfile(pj, e.id);
+  const back = PR.parse(PR.serialize(pj));
+  assert.strictEqual(back.variants.length, 2);
+  assert.strictEqual(back.variants[0].mod.camber, 1, 'fehlende Werte werden ergänzt');
+  // Zustand ohne Klappe wird zum abgeleiteten Profil mit gleicher Geometrie
+  const p1 = PR.variantToProfile(back, back.variants[0]);
+  assert.strictEqual(p1.name, 'dünner');
+  assert.deepStrictEqual(PR.geometry(p1), PR.geometry(back.variants[0]));
+  // mit Klappe werden die Koordinaten samt Klappe übernommen
+  const p2 = PR.variantToProfile(back, back.variants[1]);
+  const g = PR.geometry(back.variants[1], back.variants[1].flap);
+  assert.ok(Math.abs(P.stats(P.normalize(p2.coords).coords).camber - P.stats(P.normalize(g).coords).camber) < 2e-3);
+  assert.ok(v2.flap && v1.flap === null);
+});

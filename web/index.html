@@ -112,9 +112,11 @@ section{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
 .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px 18px}
 .field{display:grid;gap:4px;font-size:.88rem;min-width:0}
 .field > span{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.field .row{display:flex;gap:6px 8px;align-items:center;min-width:0;flex-wrap:wrap}
+.form{align-items:end}
+.field .row{display:flex;gap:6px 8px;align-items:center;min-width:0;flex-wrap:nowrap}
 .field input[type=range]{flex:1 1 auto;min-width:0;accent-color:var(--accent)}
-input.num,input.txt,select.sel{font:500 .9rem var(--mono);padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0}
+input.num,input.txt,select.sel{font:500 .9rem var(--mono);height:32px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0}
+.field .seg{height:32px}
 input.num{width:9ch;text-align:right;flex:none}
 input.txt{width:100%}
 .field .row input.txt{flex:1 1 8em;width:auto}
@@ -122,11 +124,11 @@ input.num:focus-visible,input.txt:focus-visible,select.sel:focus-visible{outline
 .field .u{font:.8rem var(--mono);color:var(--muted)}
 .btnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .status{font:.8rem var(--mono);color:var(--muted)}
-.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:12px}
 .cbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 6px;min-width:0}
 .cbox .ct{display:flex;justify-content:space-between;gap:12px;font:600 1rem var(--display);letter-spacing:.03em}
 .cbox .ct span{font:400 .78rem var(--mono);color:var(--muted)}
-.cbox .cv{position:relative;height:300px}
+.cbox .cv{position:relative;height:280px}
 .tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
 table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
 th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -149,6 +151,42 @@ dialog h2{margin-bottom:12px}
 .dropover{position:fixed;inset:0;z-index:100;display:none;place-items:center;background:color-mix(in srgb,var(--accent) 18%,transparent);border:3px dashed var(--accent);pointer-events:none}
 .dropover span{font:600 1.4rem var(--display);color:var(--accent);background:var(--panel);padding:10px 18px;border-radius:8px}
 .dropover.over{display:grid}
+/* Profil-Labor: Arbeitskarten A und B mit Schiebern, Kennzahl und Mini-Kontur */
+.lab-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:10px;padding:10px 12px 12px;display:grid;gap:10px;min-width:0;align-content:start}
+.card-h{display:flex;gap:8px;align-items:center;min-width:0}
+.card-h .badge{flex:none;width:28px;height:28px;border-radius:6px;background:var(--c);color:#fff;font:700 1.1rem/28px var(--display);text-align:center}
+.card-h select{flex:1 1 auto;min-width:0}
+.card-h .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1.2rem;line-height:1;padding:0 4px}
+.card-h .x:hover{color:var(--bad)}
+.card .mini{position:relative;width:100%;aspect-ratio:5/1;min-height:56px}
+.card .mini canvas{position:absolute;inset:0;width:100%;height:100%}
+.sliders{display:grid;gap:4px}
+.sl{display:grid;grid-template-columns:8.8em minmax(0,1fr) 8ch 2.2em;gap:8px;align-items:center}
+.sl > span:first-child{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl.chg > span:first-child{color:var(--fg);font-weight:600}
+.sl input[type=range]{width:100%;min-width:0;margin:0;accent-color:var(--c)}
+.sl input.num{width:100%}
+.sl .u{font:.8rem var(--mono);color:var(--muted)}
+.sl.off{opacity:.45}
+.score{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 22px;align-items:center;border-top:1px solid var(--line);padding-top:10px}
+@media (max-width:480px){.score{grid-template-columns:minmax(0,1fr)}}
+.score .big{display:grid}
+.score .l,.score dt{font:500 .68rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.score .v{font:600 2.1rem/1.05 var(--display);font-variant-numeric:tabular-nums}
+.score dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px;margin:0}
+.score dd{margin:0;font:600 1.05rem var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.d{font:.76rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.d.up{color:var(--good)} .d.dn{color:var(--warn)}
+dd .d{margin-left:5px}
+.cardoff{display:grid;gap:8px;justify-items:start}
+#labTable tbody tr{cursor:pointer}
+#labTable tbody tr:hover td{background:var(--accent-soft)}
+td.best{color:var(--good);font-weight:600}
+td .dash{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;background:repeating-linear-gradient(90deg,currentColor 0 4px,transparent 4px 7px)}
+.pol-log .vact{grid-column:2 / 4;margin-top:4px}
+.pol-log .nm input{font:600 .95rem var(--body);width:100%;padding:1px 4px;border:1px solid var(--accent);border-radius:4px;background:var(--bg);color:var(--fg)}
+.legend i.dashc{background:none!important;border-top:2px dashed currentColor;height:0}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
 </style>
 
@@ -169,20 +207,66 @@ dialog h2{margin-bottom:12px}
     <input type="file" id="projFile" accept=".json,.mmpa" hidden>
   </header>
   <div class="infopop" id="info-app" hidden>
-    <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Diese erste Stufe (P0) enthält die Profile: .dat-Dateien einlesen, Dicke und Wölbung anpassen, Wölbklappen drehen und Profilpolaren rechnen und vergleichen. Flügel, Schwerpunkt und EWD folgen in P1.</p>
+    <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Diese erste Stufe (P0) enthält die Profile: Im Profil-Labor änderst Du Dicke, Wölbung und Klappe und siehst die Polaren sofort; Zustände lassen sich merken, vergleichen und als Profil speichern. Dazu .dat-Import und Polarenreihen für mehrere Re und Klappenstellungen. Flügel, Schwerpunkt und EWD folgen in P1.</p>
     <p>Die Polaren rechnet NeuralFoil (Peter Sharpe, MIT): ein neuronales Netz, das auf Zehntausenden XFOIL-Rechnungen trainiert ist und dieselben Werte wie das Python-Original liefert. Es konvergiert immer und ist schnell genug für Live-Änderungen. Die Konfidenz zeigt, ob ein Profil weit weg von den Trainingsdaten liegt. XFOIL selbst kommt später über die Desktop-App dazu.</p>
     <p>Das Projekt wird im Browser zwischengespeichert. Mit „Speichern“ legst Du es als Datei ab.</p>
   </div>
 
   <div class="tabbar">
     <nav class="tabs" role="tablist" aria-label="Ansichten">
+      <button type="button" role="tab" class="tab" data-tab="labor" id="tab-labor" aria-controls="pane-labor">Profil-Labor</button>
       <button type="button" role="tab" class="tab" data-tab="profile" id="tab-profile" aria-controls="pane-profile">Profile</button>
       <button type="button" role="tab" class="tab" data-tab="polaren" id="tab-polaren" aria-controls="pane-polaren">Polaren</button>
     </nav>
   </div>
 
+  <!-- Profil-Labor -->
+  <div class="pane" role="tabpanel" id="pane-labor" data-tab="labor" aria-labelledby="tab-labor" hidden>
+    <div class="pol">
+      <section class="pol-logs">
+        <div class="pol-lh"><h2>Zustände</h2><span class="pol-mini"><button type="button" id="varAll">Alle</button><button type="button" id="varNone">Keine</button></span></div>
+        <ul class="pol-list" id="varList"></ul>
+        <p class="hint" id="varHint"></p>
+      </section>
+      <div class="pol-main">
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Einsatz <button type="button" class="iconbtn sm" data-info="info-lab" aria-expanded="false" aria-controls="info-lab" aria-label="So wird verglichen">i</button></h2><span id="labRe" class="status"></span></div>
+          <div class="infopop" id="info-lab" hidden>
+            <p><b>Cw Mittel</b> ist der mittlere Profilwiderstand über den Ca-Bereich, in dem der Flügel fliegt. Kleiner ist besser. Die Zahl fasst die Polare dort zusammen, wo es zählt: Ein Profil, das nur bei einem Ca glänzt und daneben abfällt, schneidet schlechter ab. Erreicht ein Profil das obere Ca nicht, gibt es keinen Wert.</p>
+            <p>Gerechnet wird Typ 2: Re·√Ca folgt aus Flächenbelastung und Profiltiefe, so wie der Flügel bei jeder Geschwindigkeit fliegt. E max ist die beste Gleitzahl des Profils, Ca^1,5/Cw das beste Steigen, beide ohne induzierten Widerstand.</p>
+            <p>Schieber ändern die Karte sofort. „Zustand merken“ legt den Stand links ab; dort kannst Du ihn einblenden, wieder in A oder B laden oder als Profil speichern. Ein Klick auf eine Zeile im Vergleich macht sie zum Bezug für die Prozentwerte.</p>
+          </div>
+          <div class="form">
+            <div class="field"><span>Einsatzbereich</span><span class="seg" id="lUse"><button type="button" data-v="thermik">Thermik</button><button type="button" data-v="allround">Allround</button><button type="button" data-v="speed">Speed</button></span></div>
+            <label class="field"><span>Ca von … bis</span><span class="row"><input class="num" id="lCl0" type="number" step="0.05" min="-0.5" max="1.6"><span class="u">bis</span><input class="num" id="lCl1" type="number" step="0.05" min="-0.4" max="1.8"></span></label>
+            <label class="field"><span>Flächenbelastung</span><span class="row"><input class="num" id="lWs" type="number" step="1" min="5" max="300"><span class="u">g/dm²</span></span></label>
+            <label class="field"><span>Profiltiefe</span><span class="row"><input class="num" id="lChord" type="number" step="5" min="20" max="600"><span class="u">mm</span></span></label>
+            <label class="field"><span>Ncrit</span><span class="row"><input class="num" id="lN" type="number" step="0.5" min="1" max="16"></span></label>
+            <label class="field"><span>Klappentiefe</span><span class="row"><input class="num" id="lDepth" type="number" step="1" min="5" max="45"><span class="u">% l</span></span></label>
+          </div>
+        </section>
+        <div class="lab-cards" id="labCards"></div>
+        <div class="legend" id="labLegend"></div>
+        <div class="charts">
+          <div class="cbox"><div class="ct">Ca über Cw <span>Einsatzbereich hinterlegt</span></div><div class="cv"><canvas id="lCLCD"></canvas></div></div>
+          <div class="cbox"><div class="ct">Gleitzahl über Ca <span>Ca / Cw</span></div><div class="cv"><canvas id="lLD"></canvas></div></div>
+          <div class="cbox"><div class="ct">Ca über α <span>Auftrieb</span></div><div class="cv"><canvas id="lCLA"></canvas></div></div>
+          <div class="cbox"><div class="ct">Cm über α <span>Moment um l/4</span></div><div class="cv"><canvas id="lCM"></canvas></div></div>
+        </div>
+        <section>
+          <div class="pol-head"><h2>Vergleich</h2><span id="labStatus" class="status"></span></div>
+          <div class="tablewrap"><table id="labTable"></table></div>
+        </section>
+        <section class="pol-box">
+          <div class="pol-head"><h2>Konturen</h2></div>
+          <div class="contour"><canvas id="labContour" aria-label="Konturen im Vergleich"></canvas></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <!-- Profile -->
-  <div class="pane" role="tabpanel" id="pane-profile" data-tab="profile" aria-labelledby="tab-profile">
+  <div class="pane" role="tabpanel" id="pane-profile" data-tab="profile" aria-labelledby="tab-profile" hidden>
     <div class="pol">
       <section class="pol-logs">
         <div class="pol-lh"><h2>Profile</h2><span class="pol-mini"><button type="button" id="libBtn">Bibliothek …</button><button type="button" id="importBtn2">Import …</button></span></div>
@@ -195,26 +279,9 @@ dialog h2{margin-bottom:12px}
           <div class="pol-head"><h2 class="hi" id="profTitle">Kontur</h2><span id="profInfo"></span></div>
           <div class="contour"><canvas id="contour" aria-label="Profilkontur"></canvas></div>
           <div class="legend" id="contourLegend"></div>
-        </section>
-        <section class="pol-box">
-          <div class="pol-head"><h2 class="hi">Anpassen <button type="button" class="iconbtn sm" data-info="info-mod" aria-expanded="false" aria-controls="info-mod" aria-label="So wird angepasst">i</button></h2><span id="modState"></span></div>
-          <div class="infopop" id="info-mod" hidden><p>Das Profil wird in Skelettlinie (Wölbung) und Dickenverteilung zerlegt. Beide lassen sich getrennt skalieren und in ihrer Lage verschieben, wie mit TFAC und HIGH in XFOIL. Die Originalkoordinaten bleiben gespeichert; ein abgeleitetes Profil merkt sich nur die Änderung.</p><p>Die Klappe hier ist nur eine Vorschau. Klappenstellungen für Polaren wählst Du im Tab Polaren.</p></div>
-          <div class="form">
-            <label class="field"><span>Dicke</span><span class="row"><input type="range" id="mThick" min="50" max="150" step="1" value="100"><input class="num" id="mThickN" type="number" min="50" max="150" step="1" value="100"><span class="u">%</span></span></label>
-            <label class="field"><span>Dickenrücklage</span><span class="row"><input type="range" id="mXT" min="15" max="50" step="0.5"><input class="num" id="mXTN" type="number" min="15" max="50" step="0.5"><span class="u">% l</span></span></label>
-            <label class="field"><span>Wölbung</span><span class="row"><input type="range" id="mCamb" min="0" max="200" step="1" value="100"><input class="num" id="mCambN" type="number" min="0" max="200" step="1" value="100"><span class="u">%</span></span></label>
-            <label class="field"><span>Wölbungsrücklage</span><span class="row"><input type="range" id="mXC" min="15" max="60" step="0.5"><input class="num" id="mXCN" type="number" min="15" max="60" step="0.5"><span class="u">% l</span></span></label>
-          </div>
-          <div class="form">
-            <label class="field"><span>Klappe (Vorschau)</span><span class="row"><input type="range" id="fDefl" min="-10" max="15" step="0.5" value="0"><input class="num" id="fDeflN" type="number" min="-10" max="15" step="0.5" value="0"><span class="u">°</span></span></label>
-            <label class="field"><span>Klappentiefe</span><span class="row"><input type="range" id="fDepth" min="10" max="40" step="1" value="25"><input class="num" id="fDepthN" type="number" min="10" max="40" step="1" value="25"><span class="u">% l</span></span></label>
-            <div class="field"><span>Drehpunkt</span><span class="seg" id="fHinge"><button type="button" data-v="auto" aria-pressed="true">Auto</button><button type="button" data-v="unten">Unten</button><button type="button" data-v="mitte">Mitte</button><button type="button" data-v="oben">Oben</button></span></div>
-          </div>
           <div class="btnrow">
-            <input class="txt" id="newName" style="max-width:260px" aria-label="Name für das neue Profil">
-            <button type="button" class="btn" id="saveNew">Als neues Profil speichern</button>
-            <button type="button" class="btn ghost" id="applyMod">Auf dieses Profil anwenden</button>
-            <button type="button" class="btn ghost" id="resetMod">Zurücksetzen</button>
+            <button type="button" class="btn" id="toLabA">Im Labor als A öffnen</button>
+            <button type="button" class="btn ghost" id="toLabB">Als B vergleichen</button>
             <button type="button" class="btn ghost" id="exportDat">Als .dat exportieren</button>
           </div>
         </section>
@@ -238,12 +305,14 @@ dialog h2{margin-bottom:12px}
           <div class="form">
             <div class="field"><span>Polarentyp</span><span class="seg" id="cType"><button type="button" data-v="1" aria-pressed="true">Typ 1 · Re fest</button><button type="button" data-v="2">Typ 2 · Re·√Ca fest</button></span></div>
             <label class="field"><span id="cReLbl">Reynoldszahlen</span><input class="txt" id="cRe" value="100000 200000 400000"></label>
-            <label class="field"><span>Klappenstellungen</span><span class="row"><input class="txt" id="cFlaps" value="0"><span class="u">°</span></span></label>
+            <label class="field"><span>Klappenstellungen in °</span><input class="txt" id="cFlaps" value="0"></label>
           </div>
           <div class="form">
-            <label class="field"><span>Anstellwinkel</span><span class="row"><input class="num" id="cA0" type="number" value="-5" step="0.5"><span class="u">bis</span><input class="num" id="cA1" type="number" value="12" step="0.5"><span class="u">Schritt</span><input class="num" id="cAS" type="number" value="0.5" step="0.25" min="0.1"><span class="u">°</span></span></label>
+            <label class="field"><span>Anstellwinkel von … bis</span><span class="row"><input class="num" id="cA0" type="number" value="-5" step="0.5"><span class="u">bis</span><input class="num" id="cA1" type="number" value="12" step="0.5"><span class="u">°</span></span></label>
+            <label class="field"><span>Winkelschritt</span><span class="row"><input class="num" id="cAS" type="number" value="0.5" step="0.25" min="0.1"><span class="u">°</span></span></label>
             <label class="field"><span>Ncrit</span><span class="row"><input class="num" id="cN" type="number" value="9" step="0.5" min="1" max="16"></span></label>
-            <label class="field"><span>Klappentiefe · Drehpunkt</span><span class="row"><input class="num" id="cDepth" type="number" value="25" min="5" max="45"><span class="u">% l</span><select class="sel" id="cHinge"><option value="auto">Auto</option><option value="unten">Unten</option><option value="mitte">Mitte</option><option value="oben">Oben</option></select></span></label>
+            <label class="field"><span>Klappentiefe</span><span class="row"><input class="num" id="cDepth" type="number" value="25" min="5" max="45"><span class="u">% l</span></span></label>
+            <label class="field"><span>Drehpunkt</span><select class="sel" id="cHinge"><option value="auto">Auto</option><option value="unten">Unten</option><option value="mitte">Mitte</option><option value="oben">Oben</option></select></label>
           </div>
           <div class="btnrow"><button type="button" class="btn" id="calcBtn">Polaren rechnen</button><span class="hint" id="calcCount"></span></div>
         </section>
@@ -319,11 +388,9 @@ let saveTimer = null;
 function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); }
 
 const ui = {
-  tab: store.get('mmpa.tab') || 'profile',
-  sel: null, // gewähltes Profil
-  draft: null, // Änderungen im Editor
-  flap: { deflection: 0, depth: 25, hinge: 'auto' },
-  calcSel: new Set(), polOff: new Set(), type: 1,
+  tab: store.get('mmpa.tab') || 'labor',
+  sel: null, // gewähltes Profil im Tab Profile
+  calcSel: new Set(), polOff: new Set(), varOff: new Set(), type: 1,
 };
 const profById = id => project.profiles.find(p => p.id === id);
 
@@ -332,7 +399,9 @@ function showTab(id) {
   ui.tab = id; store.set('mmpa.tab', id);
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === id));
   document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== id);
-  if (id === 'profile') drawContour(); else renderPolars();
+  if (id === 'profile') drawContour();
+  else if (id === 'labor') { syncConditions(); syncCard('A'); syncCard('B'); renderLab(); }
+  else renderPolars();
 }
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
 document.querySelectorAll('[data-info]').forEach(b => b.addEventListener('click', () => {
@@ -375,7 +444,7 @@ $('openBtn').onclick = () => $('projFile').click();
 $('projFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
-  try { project = PR.parse(await f.text()); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`); }
+  try { project = PR.parse(await f.text()); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`); }
   catch (err) { toast(err.message); }
 };
 
@@ -416,23 +485,23 @@ $('setTheme').onclick = e => {
 };
 $('setName').oninput = () => { project.name = $('setName').value || 'Projekt'; $('projName').textContent = project.name; persist(); };
 $('setClose').onclick = () => $('settingsDlg').close();
-$('newProj').onclick = () => { project = defaultProject(); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
-new MutationObserver(() => { drawContour(); renderPolars(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { drawContour(); renderPolars(); });
+$('newProj').onclick = () => { project = defaultProject(); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); ui.varOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
+// Farben hängen am Thema: Diagramme neu aufbauen
+function retheme() { for (const id in charts) { charts[id].destroy(); delete charts[id]; } drawContour(); renderPolars(); renderLab(); }
+new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', retheme);
+
+const charts = {};
 
 // ---------- Profile ----------
-function selectProfile(id) {
-  ui.sel = id;
-  const p = profById(id);
-  ui.draft = p ? { ...p.mod } : null;
-  syncEditor();
-}
+function selectProfile(id) { ui.sel = id; }
+const SRC_TAG = { abgeleitet: 'abgeleitet', labor: 'Labor', import: 'Import' };
 function renderProfList() {
   if (!profById(ui.sel)) selectProfile(project.profiles[0]?.id || null);
   $('profList').innerHTML = project.profiles.map(p => {
     const s = PF.stats(PR.geometry(p));
     const base = p.baseId ? profById(p.baseId) : null;
-    const tag = p.source === 'abgeleitet' ? `<span class="tag">abgeleitet</span>` : p.source === 'import' ? `<span class="tag">Import</span>` : '';
+    const tag = SRC_TAG[p.source] ? `<span class="tag">${SRC_TAG[p.source]}</span>` : '';
     return `<li class="pol-log ${p.id === ui.sel ? 'sel' : ''}" data-id="${p.id}">
       <span class="sw" style="background:${p.id === ui.sel ? 'var(--accent)' : 'var(--line)'};margin-top:6px"></span>
       <button type="button" class="nm" data-act="sel">${esc(p.name)} ${tag}</button>
@@ -453,135 +522,422 @@ $('profList').onclick = e => {
   selectProfile(li.dataset.id); renderProfList(); renderProfile();
 };
 
-const editors = [
-  ['mThick', 'mThickN', v => ui.draft.thickness = v / 100, () => Math.round(ui.draft.thickness * 100)],
-  ['mCamb', 'mCambN', v => ui.draft.camber = v / 100, () => Math.round(ui.draft.camber * 100)],
-  ['mXT', 'mXTN', v => ui.draft.xThickness = v / 100, () => (ui.draft.xThickness ?? baseStats().xThickness) * 100],
-  ['mXC', 'mXCN', v => ui.draft.xCamber = v / 100, () => (ui.draft.xCamber ?? baseStats().xCamber) * 100],
-  ['fDefl', 'fDeflN', v => ui.flap.deflection = v, () => ui.flap.deflection],
-  ['fDepth', 'fDepthN', v => ui.flap.depth = v, () => ui.flap.depth],
-];
-function baseStats() { const p = profById(ui.sel); return PF.stats(PF.normalize(p.coords).coords); }
-for (const [r, n, set] of editors) {
-  const on = src => { const v = parseFloat(src.value); if (!Number.isFinite(v) || !ui.draft) return; set(v); (src === $(r) ? $(n) : $(r)).value = v; renderProfile(); };
-  $(r).addEventListener('input', () => on($(r)));
-  $(n).addEventListener('change', () => on($(n)));
-}
-$('fHinge').onclick = e => { const b = e.target.closest('button'); if (!b) return; ui.flap.hinge = b.dataset.v; $('fHinge').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderProfile(); };
-function syncEditor() {
-  if (!ui.draft) return;
-  for (const [r, n, , get] of editors) { const v = get(); $(r).value = v; $(n).value = Math.round(v * 10) / 10; }
-  const p = profById(ui.sel);
-  $('newName').value = p ? p.name.replace(/ \(.*\)$/, '') + ' mod' : '';
-}
-const draftChanged = () => { const p = profById(ui.sel); return p && JSON.stringify(p.mod) !== JSON.stringify(ui.draft); };
-
-function draftGeometry() {
-  const p = profById(ui.sel);
-  return PR.geometry({ ...p, mod: ui.draft });
-}
-
 function renderProfile() {
   const p = profById(ui.sel);
-  const has = !!p;
-  ['saveNew', 'applyMod', 'resetMod', 'exportDat'].forEach(id => $(id).disabled = !has);
-  if (!has) { $('profKpis').innerHTML = ''; $('profTitle').textContent = 'Kontur'; $('profInfo').textContent = ''; drawContour(); return; }
-  const orig = PF.stats(PR.geometry(p));
-  const cur = PF.stats(draftGeometry());
-  const delta = (a, b, unit = '%', f = 100, d = 1) => {
-    const dv = (a - b) * f;
-    if (Math.abs(dv) < Math.pow(10, -d) / 2) return '<span class="d">unverändert</span>';
-    return `<span class="d ${dv > 0 ? 'up' : 'dn'}">${dv > 0 ? '+' : '−'}${fmt(Math.abs(dv), d)} ${unit} zum Profil</span>`;
-  };
-  const k = (l, v, u, d) => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d || '<span class="d">&nbsp;</span>'}</div>`;
+  ['toLabA', 'toLabB', 'exportDat'].forEach(id => $(id).disabled = !p);
+  if (!p) { $('profKpis').innerHTML = ''; $('profTitle').textContent = 'Kontur'; $('profInfo').textContent = ''; drawContour(); return; }
+  const s = PF.stats(PR.geometry(p));
+  const k = (l, v, u) => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span></div>`;
   $('profKpis').innerHTML = [
-    k('Dicke', pct(cur.thickness), '%', delta(cur.thickness, orig.thickness)),
-    k('Dickenrücklage', pct(cur.xThickness, 0), '%', delta(cur.xThickness, orig.xThickness, '%', 100, 0)),
-    k('Wölbung', pct(cur.camber, 2), '%', delta(cur.camber, orig.camber, '%', 100, 2)),
-    k('Wölbungsrücklage', pct(cur.xCamber, 0), '%', delta(cur.xCamber, orig.xCamber, '%', 100, 0)),
-    k('Nasenradius', pct(cur.leRadius, 2), '%'),
-    k('Endleiste', pct(cur.teThickness, 2), '%'),
+    k('Dicke', pct(s.thickness), '%'), k('Dickenrücklage', pct(s.xThickness, 0), '%'),
+    k('Wölbung', pct(s.camber, 2), '%'), k('Wölbungsrücklage', pct(s.xCamber, 0), '%'),
+    k('Nasenradius', pct(s.leRadius, 2), '%'), k('Endleiste', pct(s.teThickness, 2), '%'),
   ].join('');
   $('profTitle').textContent = p.name;
-  $('profInfo').textContent = `${p.coords.length} Punkte im Original · gerechnet mit ${cur.points}`;
-  $('modState').textContent = draftChanged() ? 'geändert, noch nicht gespeichert' : '';
-  $('applyMod').hidden = p.source !== 'abgeleitet';
+  $('profInfo').textContent = `${p.coords.length} Punkte im Original · gerechnet mit ${s.points}`;
   drawContour();
 }
 
-// Kontur selbst zeichnen: gleicher Massstab in x und y
-function drawContour() {
-  const cv = $('contour'); if (!cv || cv.offsetParent === null) return;
+// Profilkonturen zeichnen: gleicher Massstab in x und y, Raster alle 10 % der Tiefe
+function drawFoils(cv, sets, { camber = null, padX = 28, padY = 14, empty = 'Kein Profil gewählt' } = {}) {
+  if (!cv || cv.offsetParent === null) return;
   const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, r.width, r.height);
-  const p = profById(ui.sel);
-  const legend = [];
-  const padX = 28, padY = 14;
-  const sc = (r.width - 2 * padX) / 1.0;
-  const ySpan = (r.height - 2 * padY) / sc;
-  let yMid = 0.02;
-  const sets = [];
-  if (p) {
-    const orig = PR.geometry(p);
-    const cur = draftGeometry();
-    const flapped = ui.flap.deflection ? PF.flap(cur, ui.flap.deflection, 1 - ui.flap.depth / 100, ui.flap.hinge) : null;
-    const ys = cur.map(q => q[1]).concat(flapped ? flapped.map(q => q[1]) : []);
-    yMid = (Math.max(...ys) + Math.min(...ys)) / 2;
-    if (draftChanged()) { sets.push({ c: orig, col: css('--ghost'), dash: [5, 4], w: 1.2 }); legend.push(['dash', 'Profil']); }
-    sets.push({ c: cur, col: css('--accent'), w: 2 }); legend.push([css('--accent'), draftChanged() ? 'Angepasst' : 'Profil']);
-    if (flapped) { sets.push({ c: flapped, col: css('--warn'), w: 1.6 }); legend.push([css('--warn'), `Klappe ${ui.flap.deflection > 0 ? '+' : ''}${fmt(ui.flap.deflection, 1)}°`]); }
-  }
+  const sc = r.width - 2 * padX;
+  let lo = Infinity, hi = -Infinity;
+  for (const s of sets) for (const q of s.c) { if (q[1] < lo) lo = q[1]; if (q[1] > hi) hi = q[1]; }
+  const yMid = sets.length ? (lo + hi) / 2 : 0.02;
   const X = x => padX + x * sc, Y = y => r.height / 2 - (y - yMid) * sc;
-  // Raster alle 10 % der Tiefe
   g.strokeStyle = css('--line'); g.lineWidth = 1; g.fillStyle = css('--muted'); g.font = '11px ' + css('--mono');
   for (let i = 0; i <= 10; i++) { const x = X(i / 10); g.beginPath(); g.moveTo(x, padY / 2); g.lineTo(x, r.height - padY / 2); g.stroke(); }
   g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(1), Y(0)); g.stroke();
-  if (p) {
-    // Skelettlinie
-    const cur = sets.find(s => !s.dash && s.col === css('--accent')).c;
-    const xs = PF.cosspace(80);
-    const cam = PF.thicknessCamber(cur, xs).c;
+  if (!sets.length) { g.fillText(empty, X(0.4), r.height / 2); return; }
+  if (camber) {
+    const xs = PF.cosspace(80), cam = PF.thicknessCamber(camber, xs).c;
     g.setLineDash([2, 3]); g.strokeStyle = css('--muted'); g.beginPath();
     xs.forEach((x, i) => i ? g.lineTo(X(x), Y(cam[i])) : g.moveTo(X(x), Y(cam[i]))); g.stroke(); g.setLineDash([]);
-    for (const s of sets) {
-      g.strokeStyle = s.col; g.lineWidth = s.w; g.setLineDash(s.dash || []); g.beginPath();
-      s.c.forEach((q, i) => i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1])));
-      g.stroke(); g.setLineDash([]);
-    }
-    legend.push(['', 'Skelettlinie gepunktet · Raster 10 % der Tiefe']);
-  } else {
-    g.fillText('Kein Profil gewählt', X(0.4), r.height / 2);
   }
-  $('contourLegend').innerHTML = legend.map(([c, t]) => c === 'dash' ? `<span><i class="dash"></i>${t}</span>` : c ? `<span><i style="background:${c}"></i>${t}</span>` : `<span>${t}</span>`).join('');
+  for (const s of sets) {
+    g.strokeStyle = s.col; g.lineWidth = s.w || 1.6; g.setLineDash(s.dash || []); g.beginPath();
+    s.c.forEach((q, i) => i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1])));
+    g.stroke(); g.setLineDash([]);
+  }
 }
-addEventListener('resize', () => { if (ui.tab === 'profile') drawContour(); });
+function drawContour() {
+  const p = profById(ui.sel), sets = [], legend = [];
+  if (p) {
+    const base = p.baseId && profById(p.baseId);
+    if (base) { sets.push({ c: PR.geometry(base), col: css('--ghost'), dash: [5, 4], w: 1.2 }); legend.push(`<span><i class="dash"></i>${esc(base.name)}</span>`); }
+    sets.push({ c: PR.geometry(p), col: css('--accent'), w: 2 }); legend.push(`<span><i style="background:${css('--accent')}"></i>${esc(p.name)}</span>`);
+    legend.push('<span>Skelettlinie gepunktet · Raster 10 % der Tiefe</span>');
+  }
+  drawFoils($('contour'), sets, { camber: sets.length ? sets[sets.length - 1].c : null });
+  $('contourLegend').innerHTML = legend.join('');
+}
+addEventListener('resize', () => { if (ui.tab === 'profile') drawContour(); if (ui.tab === 'labor') scheduleLab(); });
 
-$('resetMod').onclick = () => { const p = profById(ui.sel); ui.draft = { ...p.mod }; ui.flap.deflection = 0; syncEditor(); renderProfile(); };
-$('saveNew').onclick = () => {
-  const p = profById(ui.sel);
-  const base = p.baseId ? profById(p.baseId) || p : p;
-  const mod = { ...ui.draft };
-  const name = $('newName').value.trim() || p.name + ' mod';
-  const n = PR.deriveProfile(project, { ...base, coords: p.coords }, mod, name);
-  n.baseId = base.id;
-  if (ui.flap.deflection) toast('Die Klappenvorschau wird nicht ins Profil übernommen. Klappen wählst Du im Tab Polaren.');
-  selectProfile(n.id); persist(); renderAll();
-};
-$('applyMod').onclick = () => {
-  const p = profById(ui.sel); p.mod = { ...ui.draft };
-  persist(); renderAll(); toast(`${p.name} angepasst`);
-};
 $('exportDat').onclick = () => {
   const p = profById(ui.sel);
-  const name = draftChanged() ? $('newName').value.trim() || p.name + ' mod' : p.name;
-  const blob = new Blob([PF.toDat(name, draftGeometry())], { type: 'text/plain' });
+  downloadDat(p.name, PR.geometry(p));
+};
+function downloadDat(name, coords) {
+  const blob = new Blob([PF.toDat(name, coords)], { type: 'text/plain' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = name.replace(/[\\/:*?"<>|\s]+/g, '_') + '.dat';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('toLabA').onclick = () => { labLoad('A', profById(ui.sel)); showTab('labor'); };
+$('toLabB').onclick = () => { labLoad('B', profById(ui.sel)); showTab('labor'); };
+
+// ---------- Profil-Labor ----------
+// Zwei Arbeitskarten A und B: Profil wählen, Geometrie mit Schiebern ändern, Polaren und Kennzahl live.
+// Gemerkte Zustände liegen im Projekt (project.variants), die Polaren dazu nur im Speicher.
+const USES = { thermik: [0.6, 1.1], allround: [0.2, 1.0], speed: [0.05, 0.4] };
+const LAB_DEF = { cl0: 0.2, cl1: 1.0, ws: 77, chord: 170, nCrit: 9, depth: 25, ref: 'A0',
+  A: { profileId: null, mod: null, flap: 0 }, B: { on: false, profileId: null, mod: null, flap: 0 } };
+const CARD_COL = { A: PALETTE[0], B: PALETTE[1] };
+let lab;
+try { lab = JSON.parse(store.get('mmpa.labor') || 'null'); } catch { lab = null; }
+lab = { ...LAB_DEF, ...(lab || {}) };
+lab.A = { ...LAB_DEF.A, ...lab.A }; lab.B = { ...LAB_DEF.B, ...lab.B };
+let labSaveTimer = null;
+const saveLab = () => { clearTimeout(labSaveTimer); labSaveTimer = setTimeout(() => store.set('mmpa.labor', JSON.stringify(lab)), 300); };
+
+const rawCache = new Map();
+// Kennwerte des unveränderten Profils (Bezug für die Schieber)
+function rawStats(src) {
+  const k = src.id || src.coords;
+  if (!rawCache.has(k)) rawCache.set(k, PF.stats(PF.modify(src.coords, {})));
+  return rawCache.get(k);
+}
+const labFlap = deg => deg ? { deflection: deg, hingeX: 1 - lab.depth / 100, hinge: 'auto' } : null;
+const labRe = () => Math.round(POL.reSqrtCl(lab.ws, lab.chord) / 100) * 100;
+const labOpts = () => ({ type: 2, re: labRe(), alphaFrom: -5, alphaTo: 15, alphaStep: 0.5, nCrit: lab.nCrit });
+
+const polCache = new Map();
+function labPolar(src, mod, flap) {
+  const o = labOpts();
+  const key = PR.hash(JSON.stringify([src.coords, mod, flap, o]));
+  let r = polCache.get(key);
+  if (!r) {
+    const geo = PR.geometry({ coords: src.coords, mod }, flap);
+    r = { geo, points: POL.compute(geo, o).points, stats: PF.stats(PF.normalize(geo).coords) };
+    if (polCache.size > 300) polCache.delete(polCache.keys().next().value);
+    polCache.set(key, r);
+  }
+  return r;
+}
+
+function labProfile(k) {
+  const c = lab[k];
+  let p = profById(c.profileId);
+  if (!p) {
+    p = project.profiles[k === 'B' ? Math.min(1, project.profiles.length - 1) : 0] || null;
+    c.profileId = p?.id || null; c.mod = p ? { ...p.mod } : null; c.flap = 0;
+  }
+  if (p && !c.mod) c.mod = { ...p.mod };
+  return p;
+}
+const cardChanged = k => { const p = labProfile(k), c = lab[k]; return !!p && (JSON.stringify(c.mod) !== JSON.stringify(p.mod) || !!c.flap); };
+function labLoad(k, p, mod = null, flap = 0) {
+  if (!p) return;
+  lab[k].profileId = p.id; lab[k].mod = { ...(mod || p.mod) }; lab[k].flap = flap;
+  if (k === 'B') lab.B.on = true;
+  saveLab(); syncCard(k); scheduleLab();
+}
+
+// Schieber zeigen absolute Profilwerte; gespeichert wird die Änderung als Faktor bzw. Lage
+const SLIDERS = [
+  { k: 'thickness', label: 'Dicke', unit: '% l', step: 0.05,
+    range: r => [r.thickness * 50, r.thickness * 150],
+    get: (c, r) => r.thickness * c.mod.thickness * 100,
+    set: (c, r, v) => { const f = v / 100 / r.thickness; c.mod.thickness = Math.abs(f - 1) < 0.002 ? 1 : f; } },
+  { k: 'xThickness', label: 'Dickenrücklage', unit: '% l', step: 0.5, range: () => [15, 50],
+    get: (c, r) => (c.mod.xThickness ?? r.xThickness) * 100,
+    set: (c, r, v) => { c.mod.xThickness = Math.abs(v / 100 - r.xThickness) < 0.0026 ? null : v / 100; } },
+  { k: 'camber', label: 'Wölbung', unit: '% l', step: 0.05,
+    range: r => [0, Math.max(r.camber * 200, 0.5)],
+    get: (c, r) => r.camber * c.mod.camber * 100,
+    set: (c, r, v) => { const f = r.camber > 1e-4 ? v / 100 / r.camber : 1; c.mod.camber = Math.abs(f - 1) < 0.002 ? 1 : f; },
+    off: r => r.camber < 1e-4 },
+  { k: 'xCamber', label: 'Wölbungsrücklage', unit: '% l', step: 0.5, range: () => [15, 60],
+    get: (c, r) => (c.mod.xCamber ?? r.xCamber) * 100,
+    set: (c, r, v) => { c.mod.xCamber = Math.abs(v / 100 - r.xCamber) < 0.0026 ? null : v / 100; },
+    off: r => r.camber < 1e-4 },
+  { k: 'flap', label: 'Klappe', unit: '°', step: 0.5, range: () => [-10, 15],
+    get: c => c.flap, set: (c, r, v) => { c.flap = v; } },
+];
+const round = (v, step) => Math.round(v / step) * step;
+const numVal = (v, step) => +round(v, step).toFixed(step < 0.1 ? 2 : 1);
+
+function cardHtml(k) {
+  const sl = SLIDERS.map(s => `<label class="sl" data-k="${s.k}"><span>${s.label}</span><input type="range" step="${s.step}" aria-label="${s.label} ${k}"><input class="num" type="number" step="${s.step}" aria-label="${s.label} ${k} Wert"><span class="u">${s.unit}</span></label>`).join('');
+  return `<section class="card" id="card${k}" style="--c:${CARD_COL[k]}">
+    <div class="card-h"><span class="badge">${k}</span><select class="sel" data-f="prof" aria-label="Profil ${k}"></select><span class="tag" data-f="state" hidden>geändert</span>${k === 'B' ? '<button type="button" class="x" data-f="close" title="B ausblenden" aria-label="B ausblenden">×</button>' : ''}</div>
+    <div class="cardon" data-f="on">
+      <div class="mini"><canvas aria-label="Kontur ${k}"></canvas></div>
+      <div class="sliders">${sl}</div>
+      <div class="score" data-f="score"></div>
+      <div class="btnrow"><button type="button" class="btn sm" data-f="keep">Zustand merken</button><button type="button" class="btn ghost sm" data-f="reset">Zurücksetzen</button><button type="button" class="btn ghost sm" data-f="asProf">Als Profil speichern</button></div>
+    </div>
+    ${k === 'B' ? '<div class="cardoff" data-f="off"><p class="hint">Ein zweites Profil daneben legen und beide gleichzeitig verändern.</p><button type="button" class="btn ghost" data-f="open">Profil B dazunehmen</button></div>' : ''}
+  </section>`;
+}
+$('labCards').innerHTML = cardHtml('A') + cardHtml('B');
+const card = k => $('card' + k);
+
+function syncCard(k) {
+  const el = card(k), c = lab[k], p = labProfile(k);
+  const on = k === 'A' || c.on;
+  el.querySelector('[data-f=on]').hidden = !on;
+  if (k === 'B') { el.querySelector('[data-f=off]').hidden = on; el.querySelector('[data-f=close]').hidden = !on; el.querySelector('[data-f=prof]').hidden = !on; }
+  el.querySelector('[data-f=prof]').innerHTML = project.profiles.map(q => `<option value="${q.id}" ${q.id === c.profileId ? 'selected' : ''}>${esc(q.name)}</option>`).join('');
+  if (!p) return;
+  const r = rawStats(p);
+  for (const s of SLIDERS) {
+    const row = el.querySelector(`.sl[data-k="${s.k}"]`), [rg, nm] = row.querySelectorAll('input');
+    const [lo, hi] = s.range(r), v = s.get(c, r);
+    rg.min = numVal(lo, s.step); rg.max = numVal(hi, s.step);
+    rg.value = v; nm.value = numVal(v, s.step);
+    const off = s.off ? s.off(r) : false;
+    rg.disabled = nm.disabled = off; row.classList.toggle('off', off);
+  }
+  markCard(k);
+}
+function markCard(k) {
+  const el = card(k), c = lab[k], p = labProfile(k); if (!p) return;
+  el.querySelector('[data-f=state]').hidden = !cardChanged(k);
+  for (const s of SLIDERS) {
+    const chg = s.k === 'flap' ? !!c.flap : s.k.startsWith('x') ? c.mod[s.k] !== p.mod[s.k] : Math.abs(c.mod[s.k] - p.mod[s.k]) > 1e-9;
+    el.querySelector(`.sl[data-k="${s.k}"]`).classList.toggle('chg', chg);
+  }
+}
+
+for (const k of ['A', 'B']) {
+  const el = card(k);
+  el.addEventListener('input', e => {
+    const row = e.target.closest('.sl'); if (!row) return;
+    const s = SLIDERS.find(x => x.k === row.dataset.k), v = parseFloat(e.target.value);
+    if (!Number.isFinite(v)) return;
+    const p = labProfile(k); s.set(lab[k], rawStats(p), v);
+    const [rg, nm] = row.querySelectorAll('input');
+    if (e.target === rg) nm.value = numVal(v, s.step); else rg.value = v;
+    markCard(k); saveLab(); scheduleLab();
+  });
+  el.addEventListener('change', e => {
+    if (e.target.dataset.f === 'prof') labLoad(k, profById(e.target.value));
+  });
+  el.addEventListener('click', e => {
+    const f = e.target.closest('button[data-f]')?.dataset.f; if (!f) return;
+    const p = labProfile(k), c = lab[k];
+    if (f === 'reset') { labLoad(k, p); return; }
+    if (f === 'open') { lab.B.on = true; saveLab(); syncCard('B'); scheduleLab(); return; }
+    if (f === 'close') { lab.B.on = false; saveLab(); syncCard('B'); scheduleLab(); return; }
+    const name = autoName(p, c.mod, c.flap);
+    if (f === 'keep') {
+      PR.addVariant(project, p, c.mod, labFlap(c.flap), name);
+      persist(); scheduleLab(); toast(`Gemerkt: ${name}`);
+    }
+    if (f === 'asProf') {
+      const n = PR.variantToProfile(project, { baseId: p.id, baseName: p.name, coords: p.coords, mod: c.mod, flap: labFlap(c.flap) }, name);
+      persist(); renderProfList(); syncCard('A'); syncCard('B'); renderCalcProfiles(); toast(`Als Profil gespeichert: ${n.name}`);
+    }
+  });
+}
+// Name aus dem, was sich geändert hat
+function autoName(p, mod, flap) {
+  const r = rawStats(p), parts = [];
+  if (mod.thickness !== p.mod.thickness) parts.push(`d ${fmt(r.thickness * mod.thickness * 100, 2)}`);
+  if (mod.xThickness !== p.mod.xThickness) parts.push(`xd ${fmt((mod.xThickness ?? r.xThickness) * 100, 1)}`);
+  if (mod.camber !== p.mod.camber) parts.push(`f ${fmt(r.camber * mod.camber * 100, 2)}`);
+  if (mod.xCamber !== p.mod.xCamber) parts.push(`xf ${fmt((mod.xCamber ?? r.xCamber) * 100, 1)}`);
+  if (flap) parts.push(`K ${flap > 0 ? '+' : ''}${fmt(flap, 1)}°`);
+  return p.name + (parts.length ? ' · ' + parts.join(' ') : '');
+}
+
+// Einsatzbedingungen
+function syncConditions() {
+  $('lCl0').value = lab.cl0; $('lCl1').value = lab.cl1; $('lWs').value = lab.ws; $('lChord').value = lab.chord; $('lN').value = lab.nCrit; $('lDepth').value = lab.depth;
+  $('lUse').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', USES[b.dataset.v][0] === lab.cl0 && USES[b.dataset.v][1] === lab.cl1));
+}
+$('lUse').onclick = e => { const b = e.target.closest('button'); if (!b) return; [lab.cl0, lab.cl1] = USES[b.dataset.v]; syncConditions(); saveLab(); scheduleLab(); };
+for (const [id, key, lo, hi] of [['lCl0', 'cl0', -0.5, 1.6], ['lCl1', 'cl1', -0.4, 1.8], ['lWs', 'ws', 5, 300], ['lChord', 'chord', 20, 600], ['lN', 'nCrit', 1, 16], ['lDepth', 'depth', 5, 45]]) {
+  $(id).addEventListener('change', () => {
+    const v = parseFloat($(id).value);
+    if (Number.isFinite(v)) lab[key] = Math.min(hi, Math.max(lo, v));
+    if (lab.cl1 <= lab.cl0 + 0.05) { if (key === 'cl0') lab.cl1 = +(lab.cl0 + 0.1).toFixed(2); else lab.cl0 = +(lab.cl1 - 0.1).toFixed(2); }
+    syncConditions(); saveLab(); scheduleLab();
+  });
+}
+
+// Alle Kurven im Vergleich: A, B, deren Ausgangsprofile (wenn geändert) und die eingeblendeten Zustände
+const varColor = i => PALETTE[(i + 2) % PALETTE.length];
+function labCurves() {
+  const out = [];
+  for (const k of ['A', 'B']) {
+    if (k === 'B' && !lab.B.on) continue;
+    const p = labProfile(k); if (!p) continue;
+    const c = lab[k], col = CARD_COL[k];
+    if (cardChanged(k)) out.push({ key: k + '0', name: `${k} Ausgang · ${p.name}`, color: col, dash: true, ...labPolar(p, p.mod, null) });
+    out.push({ key: k, name: `${k} · ${cardChanged(k) ? autoName(p, c.mod, c.flap) : p.name}`, color: col, main: true, ...labPolar(p, c.mod, labFlap(c.flap)) });
+  }
+  project.variants.forEach((v, i) => {
+    if (ui.varOff.has(v.id)) return;
+    out.push({ key: v.id, name: v.name, color: varColor(i), ...labPolar(v, v.mod, v.flap) });
+  });
+  for (const c of out) c.m = POL.metrics(c.points, lab.cl0, lab.cl1);
+  return out;
+}
+
+let labRaf = 0;
+function scheduleLab() { if (!labRaf) labRaf = requestAnimationFrame(() => { labRaf = 0; renderLab(); }); }
+const signed = (v, d) => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v), d);
+// Abweichung zum Bezug; better: +1 wenn grösser besser ist, −1 wenn kleiner besser ist
+function dlt(v, ref, d, better, unit = '') {
+  if (!Number.isFinite(v) || !Number.isFinite(ref)) return '';
+  const dv = v - ref;
+  if (Math.abs(dv) < Math.pow(10, -d) / 2) return '';
+  const cls = better ? (dv * better > 0 ? 'up' : 'dn') : '';
+  return `<span class="d ${cls}">${signed(dv, d)}${unit}</span>`;
+}
+function renderScore(k, curves) {
+  const el = card(k).querySelector('[data-f=score]');
+  const cur = curves.find(c => c.key === k);
+  if (!cur) { el.innerHTML = ''; return; }
+  const org = curves.find(c => c.key === k + '0'), m = cur.m, o = org ? org.m : null;
+  let sub = '<span class="d">unverändertes Profil</span>';
+  if (!Number.isFinite(m.cdMean)) sub = `<span class="d dn">erreicht Ca ${fmt(lab.cl1)} nicht (Ca max ${fmt(m.clMax)})</span>`;
+  else if (o && Number.isFinite(o.cdMean)) { const dv = (m.cdMean / o.cdMean - 1) * 100; sub = `<span class="d ${dv < -0.05 ? 'up' : dv > 0.05 ? 'dn' : ''}">${signed(dv, 1)} % zum Ausgangsprofil</span>`; }
+  el.innerHTML = `<div class="big"><span class="l">Cw Mittel · Ca ${fmt(lab.cl0)} bis ${fmt(lab.cl1)}</span><span class="v">${Number.isFinite(m.cdMean) ? fmt(m.cdMean, 4) : '–'}</span>${sub}</div>
+    <dl>
+      <div><dt>E max</dt><dd>${fmt(m.ldMax, 1)}${o ? dlt(m.ldMax, o.ldMax, 1, 1) : ''}</dd></div>
+      <div><dt>Ca^1,5/Cw</dt><dd>${fmt(m.climbMax, 1)}${o ? dlt(m.climbMax, o.climbMax, 1, 1) : ''}</dd></div>
+      <div><dt>Ca max</dt><dd>${fmt(m.clMax)}${o ? dlt(m.clMax, o.clMax, 2, 1) : ''}</dd></div>
+      <div><dt>Cm₀</dt><dd>${fmt(m.cm0, 3)}${o ? dlt(m.cm0, o.cm0, 3, 0) : ''}</dd></div>
+    </dl>`;
+}
+function drawMini(k, curves) {
+  const cur = curves.find(c => c.key === k); if (!cur) return;
+  const org = curves.find(c => c.key === k + '0');
+  const sets = [];
+  if (org) sets.push({ c: org.geo, col: css('--ghost'), dash: [4, 3], w: 1.1 });
+  sets.push({ c: cur.geo, col: cur.color, w: 1.8 });
+  drawFoils(card(k).querySelector('.mini canvas'), sets, { padX: 10, padY: 6 });
+}
+
+const bandPlugin = {
+  id: 'band',
+  beforeDatasetsDraw(ch, args, o) {
+    if (!o || o.from == null) return;
+    const s = ch.scales[o.axis], a = ch.chartArea, g = ch.ctx;
+    const p0 = s.getPixelForValue(o.from), p1 = s.getPixelForValue(o.to);
+    g.save(); g.beginPath(); g.rect(a.left, a.top, a.right - a.left, a.bottom - a.top); g.clip();
+    g.fillStyle = o.color;
+    if (o.axis === 'y') g.fillRect(a.left, Math.min(p0, p1), a.right - a.left, Math.abs(p1 - p0));
+    else g.fillRect(Math.min(p0, p1), a.top, Math.abs(p1 - p0), a.bottom - a.top);
+    g.restore();
+  },
 };
+if (typeof Chart !== 'undefined') Chart.register(bandPlugin);
+// Diagramme im Labor bleiben bestehen und bekommen nur neue Daten, damit die Schieber flüssig bleiben
+function liveChart(id, xLabel, yLabel, datasets, lim = {}, band = null) {
+  const c = charts[id];
+  if (!c) { chart(id, xLabel, yLabel, datasets, lim); charts[id].options.plugins.band = band || {}; charts[id].update('none'); return; }
+  c.data.datasets = datasets;
+  for (const ax of ['x', 'y']) { c.options.scales[ax].min = lim[ax]?.min; c.options.scales[ax].max = lim[ax]?.max; }
+  c.options.plugins.band = band || {};
+  c.update('none');
+}
+
+function renderLab() {
+  if (ui.tab !== 'labor') return;
+  const t0 = performance.now();
+  const re = labRe();
+  $('labRe').textContent = `Re·√Ca ${fmtRe(re)} · Re ${fmtRe(re / Math.sqrt(Math.max(lab.cl1, 0.05)))} bis ${fmtRe(re / Math.sqrt(Math.max(lab.cl0, 0.05)))} im Einsatzbereich`;
+  const curves = labCurves();
+  for (const k of ['A', 'B']) { renderScore(k, curves); drawMini(k, curves); }
+  renderLabTable(curves);
+  renderVarList(curves);
+  $('labLegend').innerHTML = curves.map(c => `<span style="color:${c.color}"><i class="${c.dash ? 'dashc' : ''}" style="background:${c.color}"></i><span style="color:var(--muted)">${esc(c.name)}</span></span>`).join('');
+  if (typeof Chart !== 'undefined') {
+    const ds = (c, map) => ({ label: c.name, data: c.points.map(map), showLine: true, borderColor: c.color, backgroundColor: c.color,
+      borderWidth: c.main ? 2.4 : c.dash ? 1.3 : 1.6, borderDash: c.dash ? [5, 4] : [], pointRadius: 0, pointHoverRadius: 4, order: c.main ? 0 : 1 });
+    const band = (axis) => ({ axis, from: lab.cl0, to: lab.cl1, color: css('--accent-soft') });
+    const cdMin = Math.min(...curves.flatMap(c => c.points.map(q => q.cd)));
+    liveChart('lCLCD', 'Cw', 'Ca', curves.map(c => ds(c, q => ({ x: q.cd, y: q.cl }))), Number.isFinite(cdMin) ? { x: { min: 0, max: Math.max(0.03, Math.ceil(cdMin * 4 * 200) / 200) } } : {}, band('y'));
+    liveChart('lLD', 'Ca', 'Ca/Cw', curves.map(c => ds(c, q => ({ x: q.cl, y: q.cl / q.cd }))), { x: { min: 0 }, y: { min: 0 } }, band('x'));
+    liveChart('lCLA', 'α [°]', 'Ca', curves.map(c => ds(c, q => ({ x: q.alpha, y: q.cl }))), {}, band('y'));
+    liveChart('lCM', 'α [°]', 'Cm', curves.map(c => ds(c, q => ({ x: q.alpha, y: q.cm }))));
+  }
+  drawFoils($('labContour'), curves.map(c => ({ c: c.geo, col: c.color, w: c.main ? 2 : 1.3, dash: c.dash ? [5, 4] : null })));
+  $('labStatus').textContent = `${curves.length} Polare${curves.length === 1 ? '' : 'n'} · ${Math.round(performance.now() - t0)} ms`;
+}
+
+function renderLabTable(curves) {
+  if (!curves.length) { $('labTable').innerHTML = '<tr><td class="empty">Kein Profil gewählt.</td></tr>'; return; }
+  const ref = curves.find(c => c.key === lab.ref) || curves.find(c => c.key === 'A0') || curves[0];
+  const best = (f, dir) => { const vs = curves.map(c => c.m[f]).filter(Number.isFinite); return vs.length > 1 ? (dir < 0 ? Math.min(...vs) : Math.max(...vs)) : NaN; };
+  const bCd = best('cdMean', -1), bLd = best('ldMax', 1), bCl = best('climbMax', 1), bMax = best('clMax', 1);
+  const td = (v, d, b) => `<td class="${v === b ? 'best' : ''}">${fmt(v, d)}</td>`;
+  $('labTable').innerHTML = `<thead><tr><th>Profil</th><th>Cw Mittel</th><th>zum Bezug</th><th>E max</th><th>bei Ca</th><th>Ca^1,5/Cw</th><th>bei Ca</th><th>Ca max</th><th>Cm₀</th><th>Dicke</th><th>Wölbung</th></tr></thead><tbody>` +
+    curves.map(c => {
+      const m = c.m, isRef = c === ref;
+      const rel = isRef ? '<span class="tag">Bezug</span>' : Number.isFinite(m.cdMean) && Number.isFinite(ref.m.cdMean) ? (() => { const dv = (m.cdMean / ref.m.cdMean - 1) * 100; return `<span class="d ${dv < -0.05 ? 'up' : dv > 0.05 ? 'dn' : ''}">${signed(dv, 1)} %</span>`; })() : '–';
+      return `<tr data-key="${c.key}" title="Als Bezug wählen"><td><span style="color:${c.color}">${c.dash ? '<i class="dash"></i>' : '<span class="sw" style="background:' + c.color + '"></span>'}</span>${esc(c.name)}</td>
+        ${td(m.cdMean, 4, bCd)}<td>${rel}</td>${td(m.ldMax, 1, bLd)}<td>${fmt(m.clAtLdMax)}</td>${td(m.climbMax, 1, bCl)}<td>${fmt(m.clAtClimbMax)}</td>${td(m.clMax, 2, bMax)}<td>${fmt(m.cm0, 3)}</td>
+        <td>${pct(c.stats.thickness, 2)} %</td><td>${pct(c.stats.camber, 2)} %</td></tr>`;
+    }).join('') + '</tbody>';
+}
+$('labTable').onclick = e => { const tr = e.target.closest('tr[data-key]'); if (!tr) return; lab.ref = tr.dataset.key; saveLab(); scheduleLab(); };
+
+function renderVarList(curves = []) {
+  const vs = project.variants;
+  $('varList').innerHTML = vs.map((v, i) => {
+    const on = !ui.varOff.has(v.id), c = curves.find(x => x.key === v.id);
+    const s = c ? c.stats : PF.stats(PR.geometry(v));
+    const fl = v.flap ? ` · K ${v.flap.deflection > 0 ? '+' : ''}${fmt(v.flap.deflection, 1)}°` : '';
+    const cd = c ? ` · Cw ${Number.isFinite(c.m.cdMean) ? fmt(c.m.cdMean, 4) : '–'}` : '';
+    return `<li class="pol-log ${on ? '' : 'off'}" data-id="${v.id}">
+      <input type="checkbox" ${on ? 'checked' : ''} aria-label="${esc(v.name)} im Vergleich zeigen">
+      <span class="nm" style="display:block"><span class="sw" style="background:${varColor(i)}"></span><span data-act="ren" title="Klicken zum Umbenennen">${esc(v.name)}</span></span>
+      <button type="button" class="x" data-act="del" aria-label="Zustand löschen" title="Löschen">×</button>
+      <span class="meta">d ${pct(s.thickness, 2)} % · f ${pct(s.camber, 2)} %${fl}${cd}</span>
+      <span class="pol-mini vact"><button type="button" data-act="A">In A laden</button><button type="button" data-act="B">In B laden</button><button type="button" data-act="prof">Als Profil</button></span></li>`;
+  }).join('');
+  $('varHint').textContent = vs.length ? 'Haken setzen, um einen Zustand mitzuvergleichen. Namen anklicken zum Umbenennen.' : 'Noch nichts gemerkt. Verändere A oder B und klicke „Zustand merken“.';
+}
+$('varList').onclick = e => {
+  const li = e.target.closest('[data-id]'); if (!li) return;
+  const v = project.variants.find(x => x.id === li.dataset.id); if (!v) return;
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (e.target.matches('input[type=checkbox]')) { ui.varOff.has(v.id) ? ui.varOff.delete(v.id) : ui.varOff.add(v.id); scheduleLab(); return; }
+  if (act === 'del') { project.variants = project.variants.filter(x => x !== v); persist(); scheduleLab(); return; }
+  if (act === 'ren') {
+    const inp = document.createElement('input'); inp.value = v.name; inp.setAttribute('aria-label', 'Name des Zustands');
+    e.target.replaceWith(inp); inp.focus(); inp.select();
+    const done = () => { v.name = inp.value.trim() || v.name; persist(); scheduleLab(); };
+    inp.addEventListener('blur', done, { once: true });
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); if (ev.key === 'Escape') { inp.value = v.name; inp.blur(); } });
+    return;
+  }
+  if (act === 'A' || act === 'B') {
+    let p = profById(v.baseId);
+    if (!p) { p = PR.addProfile(project, { name: v.baseName, coords: v.coords, source: 'labor' }); persist(); renderProfList(); toast(`${v.baseName} war nicht mehr im Projekt und wurde wieder angelegt`); }
+    labLoad(act, p, v.mod, v.flap ? v.flap.deflection : 0);
+    if (v.flap) { lab.depth = Math.round((1 - v.flap.hingeX) * 100); syncConditions(); }
+    syncCard('A'); syncCard('B');
+    return;
+  }
+  if (act === 'prof') {
+    const n = PR.variantToProfile(project, v);
+    persist(); renderProfList(); syncCard('A'); syncCard('B'); renderCalcProfiles(); toast(`Als Profil gespeichert: ${n.name}`);
+  }
+};
+$('varAll').onclick = () => { ui.varOff.clear(); scheduleLab(); };
+$('varNone').onclick = () => { project.variants.forEach(v => ui.varOff.add(v.id)); scheduleLab(); };
 
 // ---------- Polaren ----------
 const parseList = s => String(s).split(/[\s;,]+/).map(v => parseFloat(v.replace(/'/g, ''))).filter(Number.isFinite);
@@ -668,7 +1024,6 @@ $('polNone').onclick = () => { project.polars.forEach(p => ui.polOff.add(p.id));
 $('polClear').onclick = () => { project.polars = []; ui.polOff.clear(); persist(); renderPolars(); };
 ['showEnv', 'showPts'].forEach(id => $(id).addEventListener('change', renderPolars));
 
-const charts = {};
 function chart(id, xLabel, yLabel, datasets, lim = {}) {
   const grid = css('--line'), tick = css('--muted');
   const axis = (title) => ({ type: 'linear', title: { display: true, text: title, color: tick, font: { family: css('--body') } }, grid: { color: grid }, ticks: { color: tick, font: { family: css('--mono'), size: 11 } } });
@@ -730,6 +1085,7 @@ function renderSumTable() {
 function renderAll() {
   $('projName').textContent = project.name;
   renderProfList(); renderProfile(); renderPolars();
+  syncConditions(); syncCard('A'); syncCard('B'); renderVarList(); renderLab();
 }
 // Erster Start: eine Polare zum E374, damit der Tab Polaren nicht leer ist
 if (!project.polars.length && project.profiles.length && !store.get('mmpa.projekt')) {
@@ -739,5 +1095,5 @@ if (!project.polars.length && project.profiles.length && !store.get('mmpa.projek
 }
 selectProfile(project.profiles[0]?.id || null);
 renderAll();
-showTab(ui.tab === 'polaren' ? 'polaren' : 'profile');
+showTab(['labor', 'profile', 'polaren'].includes(ui.tab) ? ui.tab : 'labor');
 </script>
