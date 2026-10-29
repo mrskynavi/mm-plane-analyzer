@@ -14,7 +14,7 @@ test('Excel-Import SB-10: Geometrie, Gewicht und Schwerpunkt wie im Blatt', () =
   const { model } = E.modelFromSheet(sheet('sb10'), { wingProfileId: e.id, tailProfileId: h.id });
   assert.strictEqual(model.name, 'SB-10 M1:5');
   assert.strictEqual(model.mass, 7500);
-  assert.deepStrictEqual(model.cg, { mode: 'x', sigma: 0.12, x: 106 });
+  assert.deepStrictEqual(model.cg, { mode: 'sigma', sigma: 0.12, x: 106 });
   assert.strictEqual(model.wing.stations.length, 6);
   assert.strictEqual(model.wing.stations[1].dihedral, 2.25, 'V-Form D21 gehört zum Trapez von Station 1 nach 2');
   // C12 = 9.1 dm ab Endleiste Wurzel (207.58 mm) → Nasenleiste HLW bei 1117.6 mm

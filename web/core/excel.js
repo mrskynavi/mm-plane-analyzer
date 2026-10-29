@@ -2,7 +2,7 @@
 // Aufbau des Blatts: Spalten B (Root) bis G (5. Knick) und H (Randbogen),
 // Zeilen 16–22 Flügel (Trapezlänge, Profiltiefe, Pfeilung = Lage der Nasenleiste, cmo, Schränkung, V-Form, Dicke),
 // Zeilen 24–26 Höhenleitwerk, C12 Abstand Flügelwurzel-Endleiste bis HLW in dm, Gewichte F12, F13, H19, H27,
-// B43 fester Schwerpunkt in mm. cell(adr) liefert den Wert einer Zelle (Formeln mit ihrem Ergebnis).
+// B43 fester Schwerpunkt in mm (nur als Hinweis, die App rechnet den Schwerpunkt selbst). cell(adr) liefert den Wert einer Zelle (Formeln mit ihrem Ergebnis).
 (function (root) {
   'use strict';
 
@@ -41,7 +41,8 @@
     if (ws.length < 2) throw new Error('Im Blatt „Masse, SP“ fehlen die Flügeldaten (Zeilen 16 bis 18)');
     const ts = surface(cell, { len: 24, chord: 25, off: 26 });
     const m = PR.createModel(String(cell('A3') || 'Excel-Modell').trim(), wingProfileId, tailProfileId);
-    if (base) { m.tail.z = base.tail.z; m.clDesign = base.clDesign; m.cg = { ...base.cg }; }
+    // Schwerpunkt rechnet die App aus Neutralpunkt und Stabilitätsmass, die EWD passend zum Trimm-Ca
+  if (base) { m.tail.z = base.tail.z; m.clDesign = base.clDesign; m.cg.sigma = base.cg.sigma; }
 
     // V-Form und Schränkung: Spalte X gehört zum Trapez, das an Station X endet; Dicke gehört zur Station
     m.wing.stations = ws.map((s, i) => {
@@ -66,7 +67,7 @@
     const mass = ['F12', 'F13', 'H19', 'H27'].map(a => num(cell(a)) || 0).reduce((a, b) => a + b, 0);
     if (mass > 0) m.mass = mass;
     const cg = num(cell('B43'));
-    if (cg != null && cg > 0) m.cg = { mode: 'x', sigma: m.cg.sigma, x: cg };
+    if (cg != null && cg > 0) { m.cg.x = cg; notes.push(`fester Schwerpunkt ${cg} mm aus B43 nicht übernommen, Schwerpunkt aus Stabilitätsmass ${Math.round(m.cg.sigma * 100)} %`); }
     if (num(cell('B30'))) notes.push('Seitenleitwerk wird für Schwerpunkt und EWD nicht gebraucht und nicht übernommen');
     m.notes = notes.join('; ');
     return { model: m, notes };
