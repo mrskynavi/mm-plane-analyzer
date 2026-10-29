@@ -13,6 +13,7 @@
 <script src="core/bibliothek.js"></script>
 <script src="core/vlm.js"></script>
 <script src="core/modell.js"></script>
+<script src="core/excel.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -223,13 +224,13 @@ td.warn{color:var(--warn);font-weight:600}
     </div>
     <div class="proj">Projekt <b id="projName"></b></div>
     <div class="actions">
-      <button class="btn" type="button" id="importBtn">Import .dat …</button>
-      <button class="btn ghost" type="button" id="openBtn">Öffnen …</button>
+      <button class="btn ghost" type="button" id="openBtn">Projekt öffnen …</button>
       <button class="btn ghost" type="button" id="saveBtn">Speichern</button>
       <button type="button" class="iconbtn gear" id="openSettings" aria-label="Einstellungen" title="Einstellungen">⚙</button>
     </div>
     <input type="file" id="datFile" accept=".dat,.txt,.cor" multiple hidden>
     <input type="file" id="projFile" accept=".json,.mmpa" hidden>
+    <input type="file" id="xlsFile" accept=".xls,.xlsx,.xlsm" hidden>
   </header>
   <div class="infopop" id="info-app" hidden>
     <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Im Tab Modell gibst Du Flügel und Leitwerk ein und bekommst Neutralpunkt, Schwerpunkt, EWD und Auftriebsverteilung nach dem Wirbelgitterverfahren wie in XFLR5. Im Profil-Labor arbeitest Du an den Profilen: Im Profil-Labor änderst Du Dicke, Wölbung und Klappe und siehst die Polaren sofort; Zustände lassen sich merken, vergleichen und als Profil speichern. Dazu .dat-Import und Polarenreihen für mehrere Re und Klappenstellungen.</p>
@@ -249,7 +250,7 @@ td.warn{color:var(--warn);font-weight:600}
     <div class="pol">
       <div class="side">
         <section class="pol-logs">
-          <div class="pol-lh"><h2>Profile</h2><span class="pol-mini"><button type="button" id="libBtn">Bibliothek …</button><button type="button" id="importBtn2">Import …</button></span></div>
+          <div class="pol-lh"><h2>Profile</h2><span class="pol-mini"><button type="button" id="libBtn">Bibliothek …</button><button type="button" id="importBtn2">Import .dat …</button></span></div>
           <ul class="pol-list" id="profList"></ul>
           <p class="hint">Name anklicken lädt das Profil in A. .dat-Dateien (Selig oder Lednicer) auch per Ziehen und Ablegen.</p>
         </section>
@@ -316,9 +317,9 @@ td.warn{color:var(--warn);font-weight:600}
     <div class="pol">
       <div class="side">
         <section class="pol-logs">
-          <div class="pol-lh"><h2>Modelle</h2><span class="pol-mini"><button type="button" id="mNew">Neu</button><button type="button" id="mDup">Duplizieren</button></span></div>
+          <div class="pol-lh"><h2>Modelle</h2><span class="pol-mini"><button type="button" id="mNew">Neu</button><button type="button" id="mDup">Duplizieren</button><button type="button" id="mXls">Excel …</button></span></div>
           <ul class="pol-list" id="modelList"></ul>
-          <p class="hint">Name anklicken zum Öffnen. Alle Modelle liegen in der Projektdatei.</p>
+          <p class="hint">Name anklicken zum Öffnen. „Excel …“ übernimmt ein Modell aus Deinem Blatt „Masse, SP“ (.xls oder .xlsx). Alle Modelle liegen in der Projektdatei.</p>
         </section>
       </div>
       <div class="pol-main">
@@ -407,7 +408,7 @@ function toast(msg) {
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2800);
+  setTimeout(() => t.remove(), Math.min(9000, 2800 + msg.length * 40));
 }
 
 // ---------- Projekt ----------
@@ -444,7 +445,7 @@ async function importFiles(files) {
   for (const f of files) { const p = importDat(f.name, await f.text()); if (p) { last = p; n++; } }
   if (last) { persist(); offerToA(last); renderAll(); toast(n === 1 ? `${last.name} eingelesen` : `${n} Profile eingelesen`); }
 }
-$('importBtn').onclick = $('importBtn2').onclick = () => $('datFile').click();
+$('importBtn2').onclick = () => $('datFile').click();
 $('datFile').onchange = e => { importFiles([...e.target.files]); e.target.value = ''; };
 let dragDepth = 0;
 addEventListener('dragenter', e => { if (e.dataTransfer?.types?.includes('Files')) { dragDepth++; $('dropover').classList.add('over'); } });
@@ -1043,6 +1044,33 @@ $('modelList').onclick = e => {
 $('mNew').onclick = () => {
   const m = PR.createModel('Neues Modell', lab.A.profileId || project.profiles[0]?.id || null, curModel().tail.stations[0].profileId);
   project.models.push(m); store.set('mmpa.model', m.id); persist(); renderModel();
+};
+// Excel-Blatt einlesen: SheetJS wird erst beim ersten Import geladen
+let xlsxLib = null;
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxLib) xlsxLib = new Promise((ok, fail) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = () => ok(window.XLSX); sc.onerror = () => { xlsxLib = null; fail(new Error('Excel-Leser konnte nicht geladen werden (keine Verbindung?)')); };
+    document.head.appendChild(sc);
+  });
+  return xlsxLib;
+}
+$('mXls').onclick = () => $('xlsFile').click();
+$('xlsFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const X = await loadXlsx();
+    const wb = X.read(await f.arrayBuffer(), { type: 'array' });
+    const name = wb.SheetNames.find(n => /masse/i.test(n)) || wb.SheetNames.find(n => String(wb.Sheets[n].A15?.v || '').startsWith('Flügel')) || wb.SheetNames[0];
+    const sh = wb.Sheets[name], cur = curModel();
+    const { model, notes } = window.MMPA.excel.modelFromSheet(a => sh[a]?.v, { wingProfileId: cur.wing.stations[0].profileId, tailProfileId: cur.tail.stations[0].profileId, base: cur });
+    if (!model.name || model.name === 'Excel-Modell') model.name = f.name.replace(/\.[^.]+$/, '');
+    project.models.push(model); store.set('mmpa.model', model.id); persist(); renderModel();
+    toast(`${model.name} übernommen: ${model.wing.stations.length} Stationen Flügel, ${model.tail.stations.length} Leitwerk, ${fmt(model.mass, 0)} g` + (notes.length ? ' · ' + notes.join(' · ') : ''));
+  } catch (err) { toast(`${f.name}: ${err.message}`); }
 };
 $('mDup').onclick = () => {
   const m = JSON.parse(JSON.stringify(curModel()));
