@@ -6,13 +6,14 @@ Stand: **P0** (Rechenkern und Profile). Konzept und Roadmap: siehe Projekt „Pl
 
 ## Was P0 kann
 
-- Profile als .dat einlesen (Selig und Lednicer, auch mit Dezimalkomma), per Dialog oder Ziehen und Ablegen
-- Bibliothek mit Segler- und Leitwerksprofilen (aus der UIUC-Profildatenbank) und NACA-4-Ziffern-Profile
-- Kennwerte: Dicke, Dickenrücklage, Wölbung, Wölbungsrücklage, Nasenradius, Endleistendicke
-- Dicke und Wölbung skalieren und in der Lage verschieben (wie XFOIL TFAC/HIGH), als abgeleitetes Profil speichern, als .dat exportieren
-- Wölbklappe um einen Drehpunkt drehen (Klappentiefe, Drehpunkt unten/Mitte/oben)
-- Profilpolaren Typ 1 (Re fest) und Typ 2 (Re·√Ca fest), für mehrere Profile, Re und Klappenstellungen auf einmal
-- Polaren vergleichen: Ca–Cw, Ca–α, Gleitzahl–Ca, Cm–α, Kennwerttabelle, Hüllkurve einer Klappenschar
+Alles läuft auf einem Bildschirm, dem Profil-Labor:
+
+- Profildatenbank links: .dat einlesen (Selig und Lednicer, auch mit Dezimalkomma, per Dialog oder Ziehen und Ablegen), Bibliothek mit Segler- und Leitwerksprofilen (UIUC) und NACA-4-Ziffern, umbenennen, als .dat exportieren, entfernen
+- Zwei Arbeitskarten A und B: Dicke, Dickenrücklage, Wölbung, Wölbungsrücklage und Wölbklappe mit Schiebern ändern (wie XFOIL TFAC/HIGH), Polaren rechnen sofort mit
+- Einsatzbereich (Thermik, Allround, Speed oder eigener Ca-Bereich), Flächenbelastung und Profiltiefe; Polaren Typ 2 (Re·√Ca fest)
+- Kennzahl Cw Mittel im Einsatzbereich, dazu E max, Ca^1,5/Cw, Ca max, Cm0; Vergleichstabelle mit wählbarem Bezug
+- Zustände merken, einblenden, in A oder B laden und als Profil speichern
+- Polaren im Detail: Reihen über Klappenstellungen oder Re·√Ca mit Hüllkurve, Anstellwinkelbereich, Diagramme gross, Punktetabelle mit Umschlagpunkten und Konfidenz
 - Projektdatei (`.mmpa.json`) speichern und öffnen; im Browser wird automatisch zwischengespeichert
 
 ## Polarenrechnung

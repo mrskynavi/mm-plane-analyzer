@@ -186,6 +186,16 @@ td.best{color:var(--good);font-weight:600}
 td .dash{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;background:repeating-linear-gradient(90deg,currentColor 0 4px,transparent 4px 7px)}
 .pol-log .vact{grid-column:2 / 4;margin-top:4px}
 .pol-log .nm input{font:600 .95rem var(--body);width:100%;padding:1px 4px;border:1px solid var(--accent);border-radius:4px;background:var(--bg);color:var(--fg)}
+.side{display:grid;gap:12px;align-content:start;min-width:0}
+#profList{max-height:44vh}
+.pol-log .badge{font:700 .7rem/1 var(--display);color:#fff;border-radius:4px;padding:3px 5px}
+.cbox .ct .zoom{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0 0 0 6px}
+.cbox .ct .zoom:hover{color:var(--accent)}
+.cbox.big{grid-column:1 / -1}
+.cbox.big .cv{height:min(560px,70vh)}
+.ptswrap{max-height:340px;overflow:auto}
+.ptswrap th{position:sticky;top:0;background:var(--panel)}
+tr.low td{color:var(--warn)}
 .legend i.dashc{background:none!important;border-top:2px dashed currentColor;height:0}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
 </style>
@@ -212,28 +222,27 @@ td .dash{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-al
     <p>Das Projekt wird im Browser zwischengespeichert. Mit „Speichern“ legst Du es als Datei ab.</p>
   </div>
 
-  <div class="tabbar">
-    <nav class="tabs" role="tablist" aria-label="Ansichten">
-      <button type="button" role="tab" class="tab" data-tab="labor" id="tab-labor" aria-controls="pane-labor">Profil-Labor</button>
-      <button type="button" role="tab" class="tab" data-tab="profile" id="tab-profile" aria-controls="pane-profile">Profile</button>
-      <button type="button" role="tab" class="tab" data-tab="polaren" id="tab-polaren" aria-controls="pane-polaren">Polaren</button>
-    </nav>
-  </div>
-
-  <!-- Profil-Labor -->
-  <div class="pane" role="tabpanel" id="pane-labor" data-tab="labor" aria-labelledby="tab-labor" hidden>
+  <!-- Profil-Labor: Hauptscreen für Profile -->
+  <div class="pane" id="pane-labor">
     <div class="pol">
-      <section class="pol-logs">
-        <div class="pol-lh"><h2>Zustände</h2><span class="pol-mini"><button type="button" id="varAll">Alle</button><button type="button" id="varNone">Keine</button></span></div>
-        <ul class="pol-list" id="varList"></ul>
-        <p class="hint" id="varHint"></p>
-      </section>
+      <div class="side">
+        <section class="pol-logs">
+          <div class="pol-lh"><h2>Profile</h2><span class="pol-mini"><button type="button" id="libBtn">Bibliothek …</button><button type="button" id="importBtn2">Import …</button></span></div>
+          <ul class="pol-list" id="profList"></ul>
+          <p class="hint">Name anklicken lädt das Profil in A. .dat-Dateien (Selig oder Lednicer) auch per Ziehen und Ablegen.</p>
+        </section>
+        <section class="pol-logs">
+          <div class="pol-lh"><h2>Zustände</h2><span class="pol-mini"><button type="button" id="varAll">Alle</button><button type="button" id="varNone">Keine</button></span></div>
+          <ul class="pol-list" id="varList"></ul>
+          <p class="hint" id="varHint"></p>
+        </section>
+      </div>
       <div class="pol-main">
         <section class="pol-box">
           <div class="pol-head"><h2 class="hi">Einsatz <button type="button" class="iconbtn sm" data-info="info-lab" aria-expanded="false" aria-controls="info-lab" aria-label="So wird verglichen">i</button></h2><span id="labRe" class="status"></span></div>
           <div class="infopop" id="info-lab" hidden>
             <p><b>Cw Mittel</b> ist der mittlere Profilwiderstand über den Ca-Bereich, in dem der Flügel fliegt. Kleiner ist besser. Die Zahl fasst die Polare dort zusammen, wo es zählt: Ein Profil, das nur bei einem Ca glänzt und daneben abfällt, schneidet schlechter ab. Erreicht ein Profil das obere Ca nicht, gibt es keinen Wert.</p>
-            <p>Gerechnet wird Typ 2: Re·√Ca folgt aus Flächenbelastung und Profiltiefe, so wie der Flügel bei jeder Geschwindigkeit fliegt. E max ist die beste Gleitzahl des Profils, Ca^1,5/Cw das beste Steigen, beide ohne induzierten Widerstand.</p>
+            <p>Gerechnet wird Typ 2: Re·√Ca folgt aus Flächenbelastung und Profiltiefe, so wie der Flügel bei jeder Geschwindigkeit fliegt. E max ist die beste Gleitzahl des Profils, Ca^1,5/Cw das beste Steigen, beide ohne induzierten Widerstand. Ncrit beschreibt die Turbulenz der Anströmung: 9 ist der Standard aus XFOIL, ruhige Luft eher 11 bis 14.</p>
             <p>Schieber ändern die Karte sofort. „Zustand merken“ legt den Stand links ab; dort kannst Du ihn einblenden, wieder in A oder B laden oder als Profil speichern. Ein Klick auf eine Zeile im Vergleich macht sie zum Bezug für die Prozentwerte.</p>
           </div>
           <div class="form">
@@ -246,89 +255,36 @@ td .dash{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-al
           </div>
         </section>
         <div class="lab-cards" id="labCards"></div>
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Polaren im Detail <button type="button" class="iconbtn sm" data-info="info-det" aria-expanded="false" aria-controls="info-det" aria-label="Zu den Reihen">i</button></h2><span id="labStatus" class="status"></span></div>
+          <div class="infopop" id="info-det" hidden><p>Eine Reihe rechnet das Profil einer Karte für mehrere Klappenstellungen oder mehrere Re·√Ca. Die Hüllkurve zeigt pro Ca die Klappenstellung mit dem kleinsten Widerstand; sie erscheint auch im Vergleich, mit ihrem Cw Mittel.</p><p>Mit ⤢ wird ein Diagramm gross. Die Punktetabelle unten zeigt alle Werte einer Kurve.</p></div>
+          <div class="form">
+            <div class="field"><span>Reihe</span><span class="seg" id="sKind"><button type="button" data-v="none">Keine</button><button type="button" data-v="flap">Klappen</button><button type="button" data-v="re">Re·√Ca</button></span></div>
+            <div class="field"><span>für Karte</span><span class="seg" id="sCard"><button type="button" data-v="A">A</button><button type="button" data-v="B">B</button></span></div>
+            <label class="field"><span id="sValsLbl">Werte</span><input class="txt" id="sVals"></label>
+            <label class="field"><span>Anstellwinkel von … bis</span><span class="row"><input class="num" id="lA0" type="number" step="0.5" min="-15" max="10"><span class="u">bis</span><input class="num" id="lA1" type="number" step="0.5" min="0" max="25"><span class="u">°</span></span></label>
+            <label class="field"><span>Winkelschritt</span><span class="row"><input class="num" id="lAS" type="number" step="0.25" min="0.25" max="2"><span class="u">°</span></span></label>
+            <div class="field"><span>Anzeige</span><span class="pol-ctrl"><label><input type="checkbox" id="sEnv"> Hüllkurve</label><label><input type="checkbox" id="sPts"> Punkte</label></span></div>
+          </div>
+        </section>
         <div class="legend" id="labLegend"></div>
         <div class="charts">
-          <div class="cbox"><div class="ct">Ca über Cw <span>Einsatzbereich hinterlegt</span></div><div class="cv"><canvas id="lCLCD"></canvas></div></div>
-          <div class="cbox"><div class="ct">Gleitzahl über Ca <span>Ca / Cw</span></div><div class="cv"><canvas id="lLD"></canvas></div></div>
-          <div class="cbox"><div class="ct">Ca über α <span>Auftrieb</span></div><div class="cv"><canvas id="lCLA"></canvas></div></div>
-          <div class="cbox"><div class="ct">Cm über α <span>Moment um l/4</span></div><div class="cv"><canvas id="lCM"></canvas></div></div>
+          <div class="cbox"><div class="ct">Ca über Cw <span>Einsatzbereich hinterlegt <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lCLCD"></canvas></div></div>
+          <div class="cbox"><div class="ct">Gleitzahl über Ca <span>bis Ca max <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lLD"></canvas></div></div>
+          <div class="cbox"><div class="ct">Ca über α <span>Auftrieb <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lCLA"></canvas></div></div>
+          <div class="cbox"><div class="ct">Cm über α <span>Moment um l/4 <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lCM"></canvas></div></div>
         </div>
         <section>
-          <div class="pol-head"><h2>Vergleich</h2><span id="labStatus" class="status"></span></div>
+          <h2>Vergleich</h2>
           <div class="tablewrap"><table id="labTable"></table></div>
+        </section>
+        <section class="pol-box">
+          <div class="pol-head"><h2>Punkte</h2><select class="sel" id="ptsSel" aria-label="Kurve für die Punktetabelle"></select></div>
+          <div class="tablewrap ptswrap"><table id="ptsTable"></table></div>
         </section>
         <section class="pol-box">
           <div class="pol-head"><h2>Konturen</h2></div>
           <div class="contour"><canvas id="labContour" aria-label="Konturen im Vergleich"></canvas></div>
-        </section>
-      </div>
-    </div>
-  </div>
-
-  <!-- Profile -->
-  <div class="pane" role="tabpanel" id="pane-profile" data-tab="profile" aria-labelledby="tab-profile" hidden>
-    <div class="pol">
-      <section class="pol-logs">
-        <div class="pol-lh"><h2>Profile</h2><span class="pol-mini"><button type="button" id="libBtn">Bibliothek …</button><button type="button" id="importBtn2">Import …</button></span></div>
-        <ul class="pol-list" id="profList"></ul>
-        <p class="hint">.dat-Dateien (Selig oder Lednicer) auch per Ziehen und Ablegen.</p>
-      </section>
-      <div class="pol-main">
-        <div class="kpis" id="profKpis"></div>
-        <section class="pol-box">
-          <div class="pol-head"><h2 class="hi" id="profTitle">Kontur</h2><span id="profInfo"></span></div>
-          <div class="contour"><canvas id="contour" aria-label="Profilkontur"></canvas></div>
-          <div class="legend" id="contourLegend"></div>
-          <div class="btnrow">
-            <button type="button" class="btn" id="toLabA">Im Labor als A öffnen</button>
-            <button type="button" class="btn ghost" id="toLabB">Als B vergleichen</button>
-            <button type="button" class="btn ghost" id="exportDat">Als .dat exportieren</button>
-          </div>
-        </section>
-      </div>
-    </div>
-  </div>
-
-  <!-- Polaren -->
-  <div class="pane" role="tabpanel" id="pane-polaren" data-tab="polaren" aria-labelledby="tab-polaren" hidden>
-    <div class="pol">
-      <section class="pol-logs">
-        <div class="pol-lh"><h2>Polaren</h2><span class="pol-mini"><button type="button" id="polAll">Alle</button><button type="button" id="polNone">Keine</button><button type="button" id="polClear">Leeren</button></span></div>
-        <ul class="pol-list" id="polList"></ul>
-        <p class="hint" id="polHint"></p>
-      </section>
-      <div class="pol-main">
-        <section class="pol-box">
-          <div class="pol-head"><h2 class="hi">Polaren rechnen <button type="button" class="iconbtn sm" data-info="info-pol" aria-expanded="false" aria-controls="info-pol" aria-label="So werden Polaren gerechnet">i</button></h2><span id="calcStatus" class="status"></span></div>
-          <div class="infopop" id="info-pol" hidden><p>Typ 1 rechnet mit fester Reynoldszahl. Typ 2 hält Re·√Ca konstant: So fliegt ein Flügel bei fester Flächenbelastung, und so rechnet auch Dein altes Rechenblatt. Für ein Modell mit 77 g/dm² und 170 mm Tiefe ist Re·√Ca etwa 150 000.</p><p>Ncrit beschreibt die Turbulenz der Anströmung: 9 ist der Standard aus XFOIL, ruhige Luft für Segler eher 11 bis 14.</p><p>Für jede Kombination aus Profil, Re und Klappenstellung entsteht eine Polare. Gleiche Einstellungen werden nicht doppelt gerechnet. Die Hüllkurve zeigt pro Ca die Klappenstellung mit dem kleinsten Widerstand.</p></div>
-          <div class="field"><span>Profile</span><div class="chips" id="calcProfiles"></div></div>
-          <div class="form">
-            <div class="field"><span>Polarentyp</span><span class="seg" id="cType"><button type="button" data-v="1" aria-pressed="true">Typ 1 · Re fest</button><button type="button" data-v="2">Typ 2 · Re·√Ca fest</button></span></div>
-            <label class="field"><span id="cReLbl">Reynoldszahlen</span><input class="txt" id="cRe" value="100000 200000 400000"></label>
-            <label class="field"><span>Klappenstellungen in °</span><input class="txt" id="cFlaps" value="0"></label>
-          </div>
-          <div class="form">
-            <label class="field"><span>Anstellwinkel von … bis</span><span class="row"><input class="num" id="cA0" type="number" value="-5" step="0.5"><span class="u">bis</span><input class="num" id="cA1" type="number" value="12" step="0.5"><span class="u">°</span></span></label>
-            <label class="field"><span>Winkelschritt</span><span class="row"><input class="num" id="cAS" type="number" value="0.5" step="0.25" min="0.1"><span class="u">°</span></span></label>
-            <label class="field"><span>Ncrit</span><span class="row"><input class="num" id="cN" type="number" value="9" step="0.5" min="1" max="16"></span></label>
-            <label class="field"><span>Klappentiefe</span><span class="row"><input class="num" id="cDepth" type="number" value="25" min="5" max="45"><span class="u">% l</span></span></label>
-            <label class="field"><span>Drehpunkt</span><select class="sel" id="cHinge"><option value="auto">Auto</option><option value="unten">Unten</option><option value="mitte">Mitte</option><option value="oben">Oben</option></select></label>
-          </div>
-          <div class="btnrow"><button type="button" class="btn" id="calcBtn">Polaren rechnen</button><span class="hint" id="calcCount"></span></div>
-        </section>
-        <div class="pol-ctrl">
-          <label><input type="checkbox" id="showEnv"> Hüllkurve der Klappen</label>
-          <label><input type="checkbox" id="showPts"> Punkte</label>
-        </div>
-        <div class="charts" id="charts">
-          <div class="cbox"><div class="ct">Ca über Cw <span>Polare</span></div><div class="cv"><canvas id="chCLCD"></canvas></div></div>
-          <div class="cbox"><div class="ct">Ca über α <span>Auftrieb</span></div><div class="cv"><canvas id="chCLA"></canvas></div></div>
-          <div class="cbox"><div class="ct">Gleitzahl über Ca <span>Ca / Cw</span></div><div class="cv"><canvas id="chLD"></canvas></div></div>
-          <div class="cbox"><div class="ct">Cm über α <span>Moment um l/4</span></div><div class="cv"><canvas id="chCM"></canvas></div></div>
-        </div>
-        <section>
-          <h2>Kennwerte</h2>
-          <div class="tablewrap"><table id="sumTable"></table></div>
         </section>
       </div>
     </div>
@@ -387,23 +343,10 @@ try { const s = store.get('mmpa.projekt'); project = s ? PR.parse(s) : defaultPr
 let saveTimer = null;
 function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); }
 
-const ui = {
-  tab: store.get('mmpa.tab') || 'labor',
-  sel: null, // gewähltes Profil im Tab Profile
-  calcSel: new Set(), polOff: new Set(), varOff: new Set(), type: 1,
-};
+const ui = { varOff: new Set(), ptsKey: 'A' };
 const profById = id => project.profiles.find(p => p.id === id);
 
-// ---------- Tabs und Info ----------
-function showTab(id) {
-  ui.tab = id; store.set('mmpa.tab', id);
-  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === id));
-  document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== id);
-  if (id === 'profile') drawContour();
-  else if (id === 'labor') { syncConditions(); syncCard('A'); syncCard('B'); renderLab(); }
-  else renderPolars();
-}
-document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+// ---------- Info ----------
 document.querySelectorAll('[data-info]').forEach(b => b.addEventListener('click', () => {
   const p = $(b.dataset.info), open = p.hidden;
   p.hidden = !open;
@@ -421,7 +364,7 @@ function importDat(name, text) {
 async function importFiles(files) {
   let last = null, n = 0;
   for (const f of files) { const p = importDat(f.name, await f.text()); if (p) { last = p; n++; } }
-  if (last) { selectProfile(last.id); persist(); renderAll(); toast(n === 1 ? `${last.name} eingelesen` : `${n} Profile eingelesen`); }
+  if (last) { persist(); offerToA(last); renderAll(); toast(n === 1 ? `${last.name} eingelesen` : `${n} Profile eingelesen`); }
 }
 $('importBtn').onclick = $('importBtn2').onclick = () => $('datFile').click();
 $('datFile').onchange = e => { importFiles([...e.target.files]); e.target.value = ''; };
@@ -444,7 +387,7 @@ $('openBtn').onclick = () => $('projFile').click();
 $('projFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
-  try { project = PR.parse(await f.text()); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`); }
+  try { project = PR.parse(await f.text()); ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`); }
   catch (err) { toast(err.message); }
 };
 
@@ -461,13 +404,13 @@ $('libClose').onclick = () => $('libDlg').close();
 $('libGrid').onclick = e => {
   const b = e.target.closest('.libitem'); if (!b || b.disabled) return;
   const p = PR.addProfile(project, { datText: LIB[b.dataset.k], source: 'bibliothek' });
-  selectProfile(p.id); persist(); renderAll(); renderLib();
+  persist(); offerToA(p); renderAll(); renderLib(); toast(`${p.name} hinzugefügt`);
 };
 $('nacaAdd').onclick = () => {
   const c = $('nacaCode').value.trim();
   if (!/^\d{4}$/.test(c)) { toast('Bitte vier Ziffern eingeben, z. B. 0009 oder 2412'); return; }
   const p = PR.addProfile(project, { name: 'NACA ' + c, coords: PF.naca4(c), source: 'naca' });
-  selectProfile(p.id); persist(); renderAll(); $('libDlg').close();
+  persist(); offerToA(p); renderAll(); $('libDlg').close(); toast(`${p.name} hinzugefügt`);
 };
 
 // Einstellungen
@@ -485,9 +428,9 @@ $('setTheme').onclick = e => {
 };
 $('setName').oninput = () => { project.name = $('setName').value || 'Projekt'; $('projName').textContent = project.name; persist(); };
 $('setClose').onclick = () => $('settingsDlg').close();
-$('newProj').onclick = () => { project = defaultProject(); ui.sel = null; ui.calcSel.clear(); ui.polOff.clear(); ui.varOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
+$('newProj').onclick = () => { project = defaultProject(); ui.varOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
 // Farben hängen am Thema: Diagramme neu aufbauen
-function retheme() { for (const id in charts) { charts[id].destroy(); delete charts[id]; } drawContour(); renderPolars(); renderLab(); }
+function retheme() { for (const id in charts) { charts[id].destroy(); delete charts[id]; } renderLab(); }
 new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', retheme);
 
@@ -495,53 +438,58 @@ const charts = {};
 // Gleitzahl über Ca nur bis Ca max: nach dem Abriss fällt Ca wieder, die Kurve liefe sonst als zweiter Ast zurück
 const preStall = pts => { let i = 0; pts.forEach((q, j) => { if (q.cl > pts[i].cl) i = j; }); return pts.slice(0, i + 1); };
 
-// ---------- Profile ----------
-function selectProfile(id) { ui.sel = id; }
+// ---------- Profildatenbank ----------
 const SRC_TAG = { abgeleitet: 'abgeleitet', labor: 'Labor', import: 'Import' };
+const profStats = new Map();
+function profStat(p) {
+  const k = PR.polarKey(p, null, null, '');
+  if (!profStats.has(k)) profStats.set(k, PF.stats(PR.geometry(p)));
+  return profStats.get(k);
+}
 function renderProfList() {
-  if (!profById(ui.sel)) selectProfile(project.profiles[0]?.id || null);
   $('profList').innerHTML = project.profiles.map(p => {
-    const s = PF.stats(PR.geometry(p));
+    const s = profStat(p);
     const base = p.baseId ? profById(p.baseId) : null;
-    const tag = SRC_TAG[p.source] ? `<span class="tag">${SRC_TAG[p.source]}</span>` : '';
-    return `<li class="pol-log ${p.id === ui.sel ? 'sel' : ''}" data-id="${p.id}">
-      <span class="sw" style="background:${p.id === ui.sel ? 'var(--accent)' : 'var(--line)'};margin-top:6px"></span>
-      <button type="button" class="nm" data-act="sel">${esc(p.name)} ${tag}</button>
-      <button type="button" class="x" data-act="del" aria-label="${esc(p.name)} entfernen" title="Entfernen">×</button>
-      <span class="meta">d ${pct(s.thickness)} % bei ${pct(s.xThickness, 0)} % · f ${pct(s.camber)} % bei ${pct(s.xCamber, 0)} %${base ? ' · aus ' + esc(base.name) : ''}</span></li>`;
+    const tag = SRC_TAG[p.source] ? ` <span class="tag">${SRC_TAG[p.source]}</span>` : '';
+    const inA = lab.A.profileId === p.id, inB = lab.B.on && lab.B.profileId === p.id;
+    const badges = (inA ? `<span class="badge" style="background:${CARD_COL.A}">A</span>` : '') + (inB ? `<span class="badge" style="background:${CARD_COL.B}">B</span>` : '');
+    return `<li class="pol-log ${inA || inB ? 'sel' : ''}" data-id="${p.id}">
+      <span class="sw" style="background:${inA ? CARD_COL.A : inB ? CARD_COL.B : 'var(--line)'};margin-top:6px"></span>
+      <button type="button" class="nm" data-act="A" title="In A laden"><span data-name>${esc(p.name)}</span>${tag}${badges}</button>
+      <button type="button" class="x" data-act="del" aria-label="${esc(p.name)} entfernen" title="Aus dem Projekt entfernen">×</button>
+      <span class="meta">d ${pct(s.thickness)} % bei ${pct(s.xThickness, 0)} % · f ${pct(s.camber)} % bei ${pct(s.xCamber, 0)} %${base ? ' · aus ' + esc(base.name) : ''}</span>
+      <span class="pol-mini vact"><button type="button" data-act="B">In B</button><button type="button" data-act="ren">Umbenennen</button><button type="button" data-act="dat">.dat</button></span></li>`;
   }).join('') || '<li class="hint">Noch keine Profile. Importiere eine .dat-Datei oder nimm eines aus der Bibliothek.</li>';
 }
 $('profList').onclick = e => {
   const li = e.target.closest('[data-id]'); if (!li) return;
+  const p = profById(li.dataset.id); if (!p) return;
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'del') {
-    const p = profById(li.dataset.id);
     const users = project.profiles.filter(q => q.baseId === p.id).length;
-    PR.removeProfile(project, p.id); ui.calcSel.delete(p.id);
+    PR.removeProfile(project, p.id);
     persist(); renderAll(); toast(`${p.name} entfernt` + (users ? ` (${users} abgeleitete Profile behalten ihre Koordinaten)` : ''));
-    return;
+  } else if (act === 'A' || act === 'B') {
+    labLoad(act, p);
+  } else if (act === 'dat') {
+    downloadDat(p.name, PR.geometry(p));
+  } else if (act === 'ren') {
+    renameInline(li.querySelector('.nm'), p.name, v => { p.name = v; persist(); renderAll(); });
   }
-  selectProfile(li.dataset.id); renderProfList(); renderProfile();
 };
-
-function renderProfile() {
-  const p = profById(ui.sel);
-  ['toLabA', 'toLabB', 'exportDat'].forEach(id => $(id).disabled = !p);
-  if (!p) { $('profKpis').innerHTML = ''; $('profTitle').textContent = 'Kontur'; $('profInfo').textContent = ''; drawContour(); return; }
-  const s = PF.stats(PR.geometry(p));
-  const k = (l, v, u) => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span></div>`;
-  $('profKpis').innerHTML = [
-    k('Dicke', pct(s.thickness), '%'), k('Dickenrücklage', pct(s.xThickness, 0), '%'),
-    k('Wölbung', pct(s.camber, 2), '%'), k('Wölbungsrücklage', pct(s.xCamber, 0), '%'),
-    k('Nasenradius', pct(s.leRadius, 2), '%'), k('Endleiste', pct(s.teThickness, 2), '%'),
-  ].join('');
-  $('profTitle').textContent = p.name;
-  $('profInfo').textContent = `${p.coords.length} Punkte im Original · gerechnet mit ${s.points}`;
-  drawContour();
+// Name an Ort und Stelle ändern: Enter übernimmt, Esc bricht ab
+function renameInline(el, value, done) {
+  const inp = document.createElement('input'); inp.value = value; inp.setAttribute('aria-label', 'Neuer Name');
+  el.replaceWith(inp); inp.focus(); inp.select();
+  inp.addEventListener('click', ev => ev.stopPropagation());
+  inp.addEventListener('blur', () => done(inp.value.trim() || value), { once: true });
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); if (ev.key === 'Escape') { inp.value = value; inp.blur(); } });
 }
+// Neu geholtes Profil gleich in A zeigen, ausser A ist gerade verändert
+function offerToA(p) { if (!cardChanged('A')) labLoad('A', p); }
 
 // Profilkonturen zeichnen: gleicher Massstab in x und y, Raster alle 10 % der Tiefe
-function drawFoils(cv, sets, { camber = null, padX = 28, padY = 14, empty = 'Kein Profil gewählt' } = {}) {
+function drawFoils(cv, sets, { padX = 28, padY = 14, empty = 'Kein Profil gewählt' } = {}) {
   if (!cv || cv.offsetParent === null) return;
   const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
@@ -556,34 +504,13 @@ function drawFoils(cv, sets, { camber = null, padX = 28, padY = 14, empty = 'Kei
   for (let i = 0; i <= 10; i++) { const x = X(i / 10); g.beginPath(); g.moveTo(x, padY / 2); g.lineTo(x, r.height - padY / 2); g.stroke(); }
   g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(1), Y(0)); g.stroke();
   if (!sets.length) { g.fillText(empty, X(0.4), r.height / 2); return; }
-  if (camber) {
-    const xs = PF.cosspace(80), cam = PF.thicknessCamber(camber, xs).c;
-    g.setLineDash([2, 3]); g.strokeStyle = css('--muted'); g.beginPath();
-    xs.forEach((x, i) => i ? g.lineTo(X(x), Y(cam[i])) : g.moveTo(X(x), Y(cam[i]))); g.stroke(); g.setLineDash([]);
-  }
   for (const s of sets) {
     g.strokeStyle = s.col; g.lineWidth = s.w || 1.6; g.setLineDash(s.dash || []); g.beginPath();
     s.c.forEach((q, i) => i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1])));
     g.stroke(); g.setLineDash([]);
   }
 }
-function drawContour() {
-  const p = profById(ui.sel), sets = [], legend = [];
-  if (p) {
-    const base = p.baseId && profById(p.baseId);
-    if (base) { sets.push({ c: PR.geometry(base), col: css('--ghost'), dash: [5, 4], w: 1.2 }); legend.push(`<span><i class="dash"></i>${esc(base.name)}</span>`); }
-    sets.push({ c: PR.geometry(p), col: css('--accent'), w: 2 }); legend.push(`<span><i style="background:${css('--accent')}"></i>${esc(p.name)}</span>`);
-    legend.push('<span>Skelettlinie gepunktet · Raster 10 % der Tiefe</span>');
-  }
-  drawFoils($('contour'), sets, { camber: sets.length ? sets[sets.length - 1].c : null });
-  $('contourLegend').innerHTML = legend.join('');
-}
-addEventListener('resize', () => { if (ui.tab === 'profile') drawContour(); if (ui.tab === 'labor') scheduleLab(); });
-
-$('exportDat').onclick = () => {
-  const p = profById(ui.sel);
-  downloadDat(p.name, PR.geometry(p));
-};
+addEventListener('resize', () => scheduleLab());
 function downloadDat(name, coords) {
   const blob = new Blob([PF.toDat(name, coords)], { type: 'text/plain' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -591,20 +518,19 @@ function downloadDat(name, coords) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-$('toLabA').onclick = () => { labLoad('A', profById(ui.sel)); showTab('labor'); };
-$('toLabB').onclick = () => { labLoad('B', profById(ui.sel)); showTab('labor'); };
 
 // ---------- Profil-Labor ----------
 // Zwei Arbeitskarten A und B: Profil wählen, Geometrie mit Schiebern ändern, Polaren und Kennzahl live.
 // Gemerkte Zustände liegen im Projekt (project.variants), die Polaren dazu nur im Speicher.
 const USES = { thermik: [0.6, 1.1], allround: [0.2, 1.0], speed: [0.05, 0.4] };
-const LAB_DEF = { cl0: 0.2, cl1: 1.0, ws: 77, chord: 170, nCrit: 9, depth: 25, ref: 'A0',
+const LAB_DEF = { cl0: 0.2, cl1: 1.0, ws: 77, chord: 170, nCrit: 9, depth: 25, ref: 'A0', a0: -5, a1: 15, as: 0.5,
+  series: { kind: 'none', card: 'A', flap: '-2 0 2 4 6 8', re: '' }, env: true, pts: false,
   A: { profileId: null, mod: null, flap: 0 }, B: { on: false, profileId: null, mod: null, flap: 0 } };
 const CARD_COL = { A: PALETTE[0], B: PALETTE[1] };
 let lab;
 try { lab = JSON.parse(store.get('mmpa.labor') || 'null'); } catch { lab = null; }
 lab = { ...LAB_DEF, ...(lab || {}) };
-lab.A = { ...LAB_DEF.A, ...lab.A }; lab.B = { ...LAB_DEF.B, ...lab.B };
+lab.A = { ...LAB_DEF.A, ...lab.A }; lab.B = { ...LAB_DEF.B, ...lab.B }; lab.series = { ...LAB_DEF.series, ...lab.series };
 let labSaveTimer = null;
 const saveLab = () => { clearTimeout(labSaveTimer); labSaveTimer = setTimeout(() => store.set('mmpa.labor', JSON.stringify(lab)), 300); };
 
@@ -617,11 +543,12 @@ function rawStats(src) {
 }
 const labFlap = deg => deg ? { deflection: deg, hingeX: 1 - lab.depth / 100, hinge: 'auto' } : null;
 const labRe = () => Math.round(POL.reSqrtCl(lab.ws, lab.chord) / 100) * 100;
-const labOpts = () => ({ type: 2, re: labRe(), alphaFrom: -5, alphaTo: 15, alphaStep: 0.5, nCrit: lab.nCrit });
+const labOpts = (re = labRe()) => ({ type: 2, re, alphaFrom: lab.a0, alphaTo: lab.a1, alphaStep: lab.as, nCrit: lab.nCrit });
+const parseList = s => String(s).split(/[\s;,]+/).map(v => parseFloat(v.replace(/'/g, ''))).filter(Number.isFinite);
 
 const polCache = new Map();
-function labPolar(src, mod, flap) {
-  const o = labOpts();
+function labPolar(src, mod, flap, re) {
+  const o = labOpts(re);
   const key = PR.hash(JSON.stringify([src.coords, mod, flap, o]));
   let r = polCache.get(key);
   if (!r) {
@@ -648,7 +575,7 @@ function labLoad(k, p, mod = null, flap = 0) {
   if (!p) return;
   lab[k].profileId = p.id; lab[k].mod = { ...(mod || p.mod) }; lab[k].flap = flap;
   if (k === 'B') lab.B.on = true;
-  saveLab(); syncCard(k); scheduleLab();
+  saveLab(); syncCard(k); renderProfList(); scheduleLab();
 }
 
 // Schieber zeigen absolute Profilwerte; gespeichert wird die Änderung als Faktor bzw. Lage
@@ -736,8 +663,7 @@ for (const k of ['A', 'B']) {
     const f = e.target.closest('button[data-f]')?.dataset.f; if (!f) return;
     const p = labProfile(k), c = lab[k];
     if (f === 'reset') { labLoad(k, p); return; }
-    if (f === 'open') { lab.B.on = true; saveLab(); syncCard('B'); scheduleLab(); return; }
-    if (f === 'close') { lab.B.on = false; saveLab(); syncCard('B'); scheduleLab(); return; }
+    if (f === 'open' || f === 'close') { lab.B.on = f === 'open'; saveLab(); syncCard('B'); syncSeries(); renderProfList(); scheduleLab(); return; }
     const name = autoName(p, c.mod, c.flap);
     if (f === 'keep') {
       PR.addVariant(project, p, c.mod, labFlap(c.flap), name);
@@ -745,7 +671,7 @@ for (const k of ['A', 'B']) {
     }
     if (f === 'asProf') {
       const n = PR.variantToProfile(project, { baseId: p.id, baseName: p.name, coords: p.coords, mod: c.mod, flap: labFlap(c.flap) }, name);
-      persist(); renderProfList(); syncCard('A'); syncCard('B'); renderCalcProfiles(); toast(`Als Profil gespeichert: ${n.name}`);
+      persist(); renderAll(); toast(`Als Profil gespeichert: ${n.name}`);
     }
   });
 }
@@ -786,12 +712,66 @@ function labCurves() {
     if (cardChanged(k)) out.push({ key: k + '0', name: `${k} Ausgang · ${p.name}`, color: col, dash: true, ...labPolar(p, p.mod, null) });
     out.push({ key: k, name: `${k} · ${cardChanged(k) ? autoName(p, c.mod, c.flap) : p.name}`, color: col, main: true, ...labPolar(p, c.mod, labFlap(c.flap)) });
   }
+  out.push(...seriesCurves());
   project.variants.forEach((v, i) => {
     if (ui.varOff.has(v.id)) return;
     out.push({ key: v.id, name: v.name, color: varColor(i), ...labPolar(v, v.mod, v.flap) });
   });
   for (const c of out) c.m = POL.metrics(c.points, lab.cl0, lab.cl1);
   return out;
+}
+
+// Reihe: Profil einer Karte für mehrere Klappenstellungen oder Re·√Ca, Farben als Abstufung der Kartenfarbe
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255];
+  const mix = t < 0.5 ? c.map(v => v * (0.7 + t * 0.6)) : c.map(v => v + (255 - v) * (t - 0.5) * 1.2);
+  return '#' + mix.map(v => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('');
+}
+function seriesVals() {
+  const S = lab.series;
+  return S.kind === 'flap' ? parseList(S.flap).slice(0, 12) : S.kind === 're' ? parseList(S.re).filter(v => v >= 5000).slice(0, 12) : [];
+}
+function seriesCurves() {
+  const S = lab.series, k = S.card === 'B' && lab.B.on ? 'B' : 'A';
+  const vals = seriesVals(), p = labProfile(k);
+  if (!vals.length || !p) return [];
+  const c = lab[k], out = [];
+  vals.forEach((v, i) => {
+    const col = shade(CARD_COL[k], vals.length > 1 ? i / (vals.length - 1) : 0.5);
+    if (S.kind === 'flap') out.push({ key: 'S' + i, name: `${k} · Klappe ${v > 0 ? '+' : ''}${fmt(v, 1)}°`, color: col, series: v, ...labPolar(p, c.mod, labFlap(v)) });
+    else out.push({ key: 'S' + i, name: `${k} · Re·√Ca ${fmtRe(v)}`, color: col, series: v, ...labPolar(p, c.mod, labFlap(c.flap), v) });
+  });
+  if (S.kind === 'flap' && lab.env && out.length > 1) {
+    const env = POL.envelope(out.map(o => ({ flap: o.series, points: o.points })), -0.3, 1.6, 0.02);
+    out.unshift({ key: 'ENV', name: `${k} · Hüllkurve Klappen`, color: css('--fg'), env: true, dash: true,
+      points: env.map(e => ({ cl: e.cl, cd: e.cd, flap: e.flap, alpha: NaN, cm: NaN })) });
+  }
+  return out;
+}
+function syncSeries() {
+  const S = lab.series;
+  $('sKind').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.kind));
+  $('sCard').querySelectorAll('button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.v === S.card); b.disabled = b.dataset.v === 'B' && !lab.B.on; });
+  $('sVals').disabled = S.kind === 'none';
+  $('sValsLbl').textContent = S.kind === 're' ? 'Re·√Ca, mehrere' : 'Klappenstellungen in °';
+  if (S.kind === 're' && !S.re) { const r = labRe(); S.re = [0.6, 1, 1.6].map(f => Math.round(r * f / 1000) * 1000).join(' '); }
+  $('sVals').value = S.kind === 're' ? S.re : S.flap;
+  $('sEnv').checked = lab.env; $('sEnv').disabled = S.kind !== 'flap';
+  $('sPts').checked = lab.pts;
+  $('lA0').value = lab.a0; $('lA1').value = lab.a1; $('lAS').value = lab.as;
+}
+$('sKind').onclick = e => { const b = e.target.closest('button'); if (!b) return; lab.series.kind = b.dataset.v; syncSeries(); saveLab(); scheduleLab(); };
+$('sCard').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; lab.series.card = b.dataset.v; syncSeries(); saveLab(); scheduleLab(); };
+$('sVals').addEventListener('change', () => { if (lab.series.kind === 're') lab.series.re = $('sVals').value; else lab.series.flap = $('sVals').value; saveLab(); scheduleLab(); });
+$('sEnv').addEventListener('change', () => { lab.env = $('sEnv').checked; saveLab(); scheduleLab(); });
+$('sPts').addEventListener('change', () => { lab.pts = $('sPts').checked; saveLab(); scheduleLab(); });
+for (const [id, key, lo, hi] of [['lA0', 'a0', -15, 10], ['lA1', 'a1', 0, 25], ['lAS', 'as', 0.25, 2]]) {
+  $(id).addEventListener('change', () => {
+    const v = parseFloat($(id).value);
+    if (Number.isFinite(v)) lab[key] = Math.min(hi, Math.max(lo, v));
+    if (lab.a1 < lab.a0 + 2) lab.a1 = lab.a0 + 2;
+    syncSeries(); saveLab(); scheduleLab();
+  });
 }
 
 let labRaf = 0;
@@ -855,7 +835,6 @@ function liveChart(id, xLabel, yLabel, datasets, lim = {}, band = null) {
 }
 
 function renderLab() {
-  if (ui.tab !== 'labor') return;
   const t0 = performance.now();
   const re = labRe();
   $('labRe').textContent = `Re·√Ca ${fmtRe(re)} · Re ${fmtRe(re / Math.sqrt(Math.max(lab.cl1, 0.05)))} bis ${fmtRe(re / Math.sqrt(Math.max(lab.cl0, 0.05)))} im Einsatzbereich`;
@@ -863,18 +842,21 @@ function renderLab() {
   for (const k of ['A', 'B']) { renderScore(k, curves); drawMini(k, curves); }
   renderLabTable(curves);
   renderVarList(curves);
+  renderPoints(curves);
   $('labLegend').innerHTML = curves.map(c => `<span style="color:${c.color}"><i class="${c.dash ? 'dashc' : ''}" style="background:${c.color}"></i><span style="color:var(--muted)">${esc(c.name)}</span></span>`).join('');
   if (typeof Chart !== 'undefined') {
     const ds = (c, map) => ({ label: c.name, data: c.points.map(map), showLine: true, borderColor: c.color, backgroundColor: c.color,
-      borderWidth: c.main ? 2.4 : c.dash ? 1.3 : 1.6, borderDash: c.dash ? [5, 4] : [], pointRadius: 0, pointHoverRadius: 4, order: c.main ? 0 : 1 });
+      borderWidth: c.main ? 2.4 : c.env ? 2.6 : c.dash ? 1.3 : 1.6, borderDash: c.env ? [7, 4] : c.dash ? [5, 4] : [], pointRadius: lab.pts && !c.env ? 2 : 0, pointHoverRadius: 4,
+      pointStyle: c.points.map(q => q.conf < 0.5 ? 'crossRot' : 'circle'), order: c.env ? -1 : c.main ? 0 : 1 });
+    const withAlpha = curves.filter(c => !c.env);
     const band = (axis) => ({ axis, from: lab.cl0, to: lab.cl1, color: css('--accent-soft') });
     const cdMin = Math.min(...curves.flatMap(c => c.points.map(q => q.cd)));
     liveChart('lCLCD', 'Cw', 'Ca', curves.map(c => ds(c, q => ({ x: q.cd, y: q.cl }))), Number.isFinite(cdMin) ? { x: { min: 0, max: Math.max(0.03, Math.ceil(cdMin * 4 * 200) / 200) } } : {}, band('y'));
     liveChart('lLD', 'Ca', 'Ca/Cw', curves.map(c => ds({ ...c, points: preStall(c.points) }, q => ({ x: q.cl, y: q.cl / q.cd }))), { x: { min: 0 }, y: { min: 0 } }, band('x'));
-    liveChart('lCLA', 'α [°]', 'Ca', curves.map(c => ds(c, q => ({ x: q.alpha, y: q.cl }))), {}, band('y'));
-    liveChart('lCM', 'α [°]', 'Cm', curves.map(c => ds(c, q => ({ x: q.alpha, y: q.cm }))));
+    liveChart('lCLA', 'α [°]', 'Ca', withAlpha.map(c => ds(c, q => ({ x: q.alpha, y: q.cl }))), {}, band('y'));
+    liveChart('lCM', 'α [°]', 'Cm', withAlpha.map(c => ds(c, q => ({ x: q.alpha, y: q.cm }))));
   }
-  drawFoils($('labContour'), curves.map(c => ({ c: c.geo, col: c.color, w: c.main ? 2 : 1.3, dash: c.dash ? [5, 4] : null })));
+  drawFoils($('labContour'), curves.filter(c => c.geo).map(c => ({ c: c.geo, col: c.color, w: c.main ? 2 : 1.3, dash: c.dash ? [5, 4] : null })));
   $('labStatus').textContent = `${curves.length} Polare${curves.length === 1 ? '' : 'n'} · ${Math.round(performance.now() - t0)} ms`;
 }
 
@@ -890,9 +872,20 @@ function renderLabTable(curves) {
       const rel = isRef ? '<span class="tag">Bezug</span>' : Number.isFinite(m.cdMean) && Number.isFinite(ref.m.cdMean) ? (() => { const dv = (m.cdMean / ref.m.cdMean - 1) * 100; return `<span class="d ${dv < -0.05 ? 'up' : dv > 0.05 ? 'dn' : ''}">${signed(dv, 1)} %</span>`; })() : '–';
       return `<tr data-key="${c.key}" title="Als Bezug wählen"><td><span style="color:${c.color}">${c.dash ? '<i class="dash"></i>' : '<span class="sw" style="background:' + c.color + '"></span>'}</span>${esc(c.name)}</td>
         ${td(m.cdMean, 4, bCd)}<td>${rel}</td>${td(m.ldMax, 1, bLd)}<td>${fmt(m.clAtLdMax)}</td>${td(m.climbMax, 1, bCl)}<td>${fmt(m.clAtClimbMax)}</td>${td(m.clMax, 2, bMax)}<td>${fmt(m.cm0, 3)}</td>
-        <td>${pct(c.stats.thickness, 2)} %</td><td>${pct(c.stats.camber, 2)} %</td></tr>`;
+        <td>${c.stats ? pct(c.stats.thickness, 2) + ' %' : '–'}</td><td>${c.stats ? pct(c.stats.camber, 2) + ' %' : '–'}</td></tr>`;
     }).join('') + '</tbody>';
 }
+// Punktetabelle einer Kurve
+function renderPoints(curves) {
+  const opts = curves.filter(c => !c.env);
+  if (!opts.some(c => c.key === ui.ptsKey)) ui.ptsKey = opts[0]?.key;
+  $('ptsSel').innerHTML = opts.map(c => `<option value="${c.key}" ${c.key === ui.ptsKey ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  const c = opts.find(x => x.key === ui.ptsKey);
+  if (!c) { $('ptsTable').innerHTML = ''; return; }
+  $('ptsTable').innerHTML = `<thead><tr><th>α</th><th>Ca</th><th>Cw</th><th>Cm</th><th>Ca/Cw</th><th>Ca^1,5/Cw</th><th>Re</th><th>Umschlag oben</th><th>Umschlag unten</th><th>Konfidenz</th></tr></thead><tbody>` +
+    c.points.map(q => `<tr class="${q.conf < 0.5 ? 'low' : ''}"><td>${fmt(q.alpha, 1)}°</td><td>${fmt(q.cl, 3)}</td><td>${fmt(q.cd, 5)}</td><td>${fmt(q.cm, 4)}</td><td>${fmt(q.cl / q.cd, 1)}</td><td>${q.cl > 0 ? fmt(Math.pow(q.cl, 1.5) / q.cd, 1) : '–'}</td><td>${fmtRe(q.re)}</td><td>${pct(q.xtrTop, 0)} %</td><td>${pct(q.xtrBot, 0)} %</td><td>${pct(q.conf, 0)} %</td></tr>`).join('') + '</tbody>';
+}
+$('ptsSel').addEventListener('change', () => { ui.ptsKey = $('ptsSel').value; scheduleLab(); });
 $('labTable').onclick = e => { const tr = e.target.closest('tr[data-key]'); if (!tr) return; lab.ref = tr.dataset.key; saveLab(); scheduleLab(); };
 
 function renderVarList(curves = []) {
@@ -917,17 +910,10 @@ $('varList').onclick = e => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (e.target.matches('input[type=checkbox]')) { ui.varOff.has(v.id) ? ui.varOff.delete(v.id) : ui.varOff.add(v.id); scheduleLab(); return; }
   if (act === 'del') { project.variants = project.variants.filter(x => x !== v); persist(); scheduleLab(); return; }
-  if (act === 'ren') {
-    const inp = document.createElement('input'); inp.value = v.name; inp.setAttribute('aria-label', 'Name des Zustands');
-    e.target.replaceWith(inp); inp.focus(); inp.select();
-    const done = () => { v.name = inp.value.trim() || v.name; persist(); scheduleLab(); };
-    inp.addEventListener('blur', done, { once: true });
-    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); if (ev.key === 'Escape') { inp.value = v.name; inp.blur(); } });
-    return;
-  }
+  if (act === 'ren') { renameInline(e.target.closest('[data-act]'), v.name, n => { v.name = n; persist(); scheduleLab(); }); return; }
   if (act === 'A' || act === 'B') {
     let p = profById(v.baseId);
-    if (!p) { p = PR.addProfile(project, { name: v.baseName, coords: v.coords, source: 'labor' }); persist(); renderProfList(); toast(`${v.baseName} war nicht mehr im Projekt und wurde wieder angelegt`); }
+    if (!p) { p = PR.addProfile(project, { name: v.baseName, coords: v.coords, source: 'labor' }); persist(); toast(`${v.baseName} war nicht mehr im Projekt und wurde wieder angelegt`); }
     labLoad(act, p, v.mod, v.flap ? v.flap.deflection : 0);
     if (v.flap) { lab.depth = Math.round((1 - v.flap.hingeX) * 100); syncConditions(); }
     syncCard('A'); syncCard('B');
@@ -935,97 +921,13 @@ $('varList').onclick = e => {
   }
   if (act === 'prof') {
     const n = PR.variantToProfile(project, v);
-    persist(); renderProfList(); syncCard('A'); syncCard('B'); renderCalcProfiles(); toast(`Als Profil gespeichert: ${n.name}`);
+    persist(); renderAll(); toast(`Als Profil gespeichert: ${n.name}`);
   }
 };
 $('varAll').onclick = () => { ui.varOff.clear(); scheduleLab(); };
 $('varNone').onclick = () => { project.variants.forEach(v => ui.varOff.add(v.id)); scheduleLab(); };
 
-// ---------- Polaren ----------
-const parseList = s => String(s).split(/[\s;,]+/).map(v => parseFloat(v.replace(/'/g, ''))).filter(Number.isFinite);
-function renderCalcProfiles() {
-  for (const id of [...ui.calcSel]) if (!profById(id)) ui.calcSel.delete(id);
-  if (!ui.calcSel.size && project.profiles[0]) ui.calcSel.add(project.profiles[0].id);
-  $('calcProfiles').innerHTML = project.profiles.map(p => `<button type="button" class="chip" data-id="${p.id}" aria-pressed="${ui.calcSel.has(p.id)}">${esc(p.name)}</button>`).join('');
-  updateCalcCount();
-}
-$('calcProfiles').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; const id = b.dataset.id; ui.calcSel.has(id) ? ui.calcSel.delete(id) : ui.calcSel.add(id); b.setAttribute('aria-pressed', ui.calcSel.has(id)); updateCalcCount(); };
-$('cType').onclick = e => {
-  const b = e.target.closest('button'); if (!b) return;
-  ui.type = +b.dataset.v;
-  $('cType').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
-  $('cReLbl').textContent = ui.type === 2 ? 'Re·√Ca' : 'Reynoldszahlen';
-  if (ui.type === 2 && $('cRe').value === '100000 200000 400000') $('cRe').value = '100000 150000';
-  if (ui.type === 1 && $('cRe').value === '100000 150000') $('cRe').value = '100000 200000 400000';
-  updateCalcCount();
-};
-['cRe', 'cFlaps'].forEach(id => $(id).addEventListener('input', updateCalcCount));
-function updateCalcCount() {
-  const n = ui.calcSel.size * parseList($('cRe').value).length * Math.max(1, parseList($('cFlaps').value).length);
-  $('calcCount').textContent = n ? `${n} Polare${n === 1 ? '' : 'n'}` : 'Profil, Re und Klappe wählen';
-  $('calcBtn').disabled = !n;
-}
-$('calcBtn').onclick = () => {
-  const res = parseList($('cRe').value).filter(v => v >= 1000);
-  const flaps = parseList($('cFlaps').value);
-  if (!flaps.length) flaps.push(0);
-  const opts = { type: ui.type, alphaFrom: +$('cA0').value, alphaTo: +$('cA1').value, alphaStep: Math.max(0.1, +$('cAS').value), nCrit: +$('cN').value || 9 };
-  if (!(opts.alphaTo > opts.alphaFrom)) { toast('Der Anstellwinkel „bis“ muss grösser als „von“ sein'); return; }
-  const hingeX = 1 - Math.min(45, Math.max(5, +$('cDepth').value || 25)) / 100, hinge = $('cHinge').value;
-  const t0 = performance.now();
-  let made = 0, cached = 0;
-  for (const id of ui.calcSel) {
-    const p = profById(id);
-    for (const fl of flaps) {
-      const flap = fl ? { deflection: fl, hingeX, hinge } : null;
-      const geo = PR.geometry(p, flap);
-      for (const re of res) {
-        const o = { ...opts, re };
-        const res1 = POL.compute(geo, o);
-        const before = project.polars.length;
-        const pol = PR.storePolar(project, p, flap, res1);
-        if (project.polars.length > before) made++; else cached++;
-        ui.polOff.delete(pol.id);
-      }
-    }
-  }
-  const ms = Math.round(performance.now() - t0);
-  $('calcStatus').textContent = `${made} neu gerechnet${cached ? `, ${cached} schon vorhanden` : ''} · ${ms} ms`;
-  persist(); renderPolars();
-};
-
-function polarLabel(pol) {
-  const p = profById(pol.profileId);
-  const re = pol.opts.type === 2 ? `Re√Ca ${fmtRe(pol.opts.re)}` : `Re ${fmtRe(pol.opts.re)}`;
-  const fl = pol.flap ? ` · Klappe ${pol.flap.deflection > 0 ? '+' : ''}${fmt(pol.flap.deflection, 1)}°` : '';
-  return `${p ? p.name : '?'} · ${re}${fl}`;
-}
-const polColor = pol => PALETTE[project.polars.indexOf(pol) % PALETTE.length];
-const visiblePolars = () => project.polars.filter(p => !ui.polOff.has(p.id) && profById(p.profileId));
-
-function renderPolList() {
-  $('polList').innerHTML = project.polars.map(pol => {
-    const s = pol.summary, on = !ui.polOff.has(pol.id);
-    const warn = s.lowConfidence ? ` · <span style="color:var(--warn)">${s.lowConfidence} unsicher</span>` : '';
-    return `<li class="pol-log ${on ? '' : 'off'}" data-id="${pol.id}">
-      <input type="checkbox" ${on ? 'checked' : ''} aria-label="${esc(polarLabel(pol))} anzeigen">
-      <span class="nm" style="display:block"><span class="sw" style="background:${polColor(pol)}"></span>${esc(polarLabel(pol))}</span>
-      <button type="button" class="x" data-act="del" aria-label="Polare entfernen" title="Entfernen">×</button>
-      <span class="meta">Typ ${pol.opts.type} · Ncrit ${fmt(pol.opts.nCrit, 0)} · E ${fmt(s.ldMax, 0)} bei Ca ${fmt(s.clAtLdMax)}${warn}</span></li>`;
-  }).join('');
-  $('polHint').textContent = project.polars.length ? 'Haken setzen, um Polaren zu vergleichen.' : 'Noch keine Polaren. Wähle rechts Profile und Re und klicke „Polaren rechnen“.';
-}
-$('polList').onclick = e => {
-  const li = e.target.closest('[data-id]'); if (!li) return;
-  const id = li.dataset.id;
-  if (e.target.closest('[data-act="del"]')) { project.polars = project.polars.filter(p => p.id !== id); persist(); renderPolars(); return; }
-  if (e.target.matches('input') || e.target.closest('.nm')) { ui.polOff.has(id) ? ui.polOff.delete(id) : ui.polOff.add(id); renderPolars(); }
-};
-$('polAll').onclick = () => { ui.polOff.clear(); renderPolars(); };
-$('polNone').onclick = () => { project.polars.forEach(p => ui.polOff.add(p.id)); renderPolars(); };
-$('polClear').onclick = () => { project.polars = []; ui.polOff.clear(); persist(); renderPolars(); };
-['showEnv', 'showPts'].forEach(id => $(id).addEventListener('change', renderPolars));
-
+// ---------- Diagramme ----------
 function chart(id, xLabel, yLabel, datasets, lim = {}) {
   const grid = css('--line'), tick = css('--muted');
   const axis = (title) => ({ type: 'linear', title: { display: true, text: title, color: tick, font: { family: css('--body') } }, grid: { color: grid }, ticks: { color: tick, font: { family: css('--mono'), size: 11 } } });
@@ -1042,60 +944,18 @@ function chart(id, xLabel, yLabel, datasets, lim = {}) {
   if (charts[id]) { charts[id].destroy(); }
   charts[id] = new Chart($(id), cfg);
 }
-
-function renderPolars() {
-  renderCalcProfiles();
-  renderPolList();
-  if (ui.tab !== 'polaren' || typeof Chart === 'undefined') { renderSumTable(); return; }
-  const vis = visiblePolars();
-  const pts = $('showPts').checked;
-  const ds = (pol, map) => ({
-    label: polarLabel(pol), data: pol.points.map(map), showLine: true, borderColor: polColor(pol), backgroundColor: polColor(pol),
-    borderWidth: 1.8, pointRadius: pts ? 2.5 : 0, pointHoverRadius: 4,
-    pointStyle: pol.points.map(q => q.conf < 0.5 ? 'crossRot' : 'circle'),
-  });
-  const clcd = vis.map(p => ds(p, q => ({ x: q.cd, y: q.cl })));
-  if ($('showEnv').checked) {
-    // pro Profil und Re eine Hüllkurve, wenn mehrere Klappenstellungen sichtbar sind
-    const groups = new Map();
-    for (const p of vis) { const k = p.profileId + '|' + p.opts.type + '|' + p.opts.re + '|' + p.opts.nCrit; (groups.get(k) || groups.set(k, []).get(k)).push(p); }
-    for (const g of groups.values()) {
-      if (g.length < 2) continue;
-      const env = POL.envelope(g.map(p => ({ flap: p.flap ? p.flap.deflection : 0, points: p.points })), -0.3, 1.6, 0.02);
-      clcd.push({ label: 'Hüllkurve ' + polarLabel(g[0]).replace(/ · Klappe.*$/, ''), data: env.map(e => ({ x: e.cd, y: e.cl })), showLine: true, borderColor: css('--fg'), borderDash: [6, 4], borderWidth: 2.5, pointRadius: 0, order: -1 });
-    }
-  }
-  // Cw-Achse auf den brauchbaren Bereich begrenzen, sonst drücken die Punkte nach dem Abriss alles zusammen
-  const cdMin = Math.min(...vis.map(p => p.summary.cdMin));
-  chart('chCLCD', 'Cw', 'Ca', clcd, Number.isFinite(cdMin) ? { x: { min: 0, max: Math.max(0.03, Math.ceil(cdMin * 5 * 200) / 200) } } : {});
-  chart('chCLA', 'α [°]', 'Ca', vis.map(p => ds(p, q => ({ x: q.alpha, y: q.cl }))));
-  chart('chLD', 'Ca', 'Ca/Cw', vis.map(p => { const d = ds(p, q => ({ x: q.cl, y: q.cl / q.cd })), n = preStall(p.points).length; d.data = d.data.slice(0, n); d.pointStyle = d.pointStyle.slice(0, n); return d; }), { y: { min: 0 }, x: { min: 0 } });
-  chart('chCM', 'α [°]', 'Cm', vis.map(p => ds(p, q => ({ x: q.alpha, y: q.cm }))));
-  renderSumTable();
-}
-
-function renderSumTable() {
-  const vis = visiblePolars();
-  if (!vis.length) { $('sumTable').innerHTML = '<tr><td class="empty">Keine Polare ausgewählt.</td></tr>'; return; }
-  $('sumTable').innerHTML = `<thead><tr><th>Polare</th><th>Ca max</th><th>bei α</th><th>Cw min</th><th>bei Ca</th><th>E max</th><th>bei Ca</th><th>α₀</th><th>Cm₀</th><th>dCa/dα</th></tr></thead><tbody>` +
-    vis.map(p => { const s = p.summary; return `<tr><td><span class="sw" style="background:${polColor(p)}"></span>${esc(polarLabel(p))}</td>
-      <td>${fmt(s.clMax)}</td><td>${fmt(s.alphaClMax, 1)}°</td><td>${fmt(s.cdMin, 4)}</td><td>${fmt(s.clAtCdMin)}</td>
-      <td>${fmt(s.ldMax, 1)}</td><td>${fmt(s.clAtLdMax)}</td><td>${fmt(s.alpha0, 2)}°</td><td>${fmt(s.cm0, 3)}</td><td>${fmt(s.slopePerDeg, 3)}/°</td></tr>`; }).join('') + '</tbody>';
-}
+document.querySelectorAll('.cbox .zoom').forEach(b => b.addEventListener('click', () => {
+  const box = b.closest('.cbox'); box.classList.toggle('big');
+  b.setAttribute('aria-label', box.classList.contains('big') ? 'Diagramm klein' : 'Diagramm gross');
+  if (box.classList.contains('big')) box.scrollIntoView({ block: 'nearest' });
+}));
 
 // ---------- Start ----------
 function renderAll() {
   $('projName').textContent = project.name;
-  renderProfList(); renderProfile(); renderPolars();
-  syncConditions(); syncCard('A'); syncCard('B'); renderVarList(); renderLab();
+  syncConditions(); syncSeries(); syncCard('A'); syncCard('B');
+  renderProfList(); renderLab();
 }
-// Erster Start: eine Polare zum E374, damit der Tab Polaren nicht leer ist
-if (!project.polars.length && project.profiles.length && !store.get('mmpa.projekt')) {
-  const p = project.profiles[0];
-  for (const re of [100000, 200000, 400000]) PR.storePolar(project, p, null, POL.compute(PR.geometry(p), { re }));
-  persist();
-}
-selectProfile(project.profiles[0]?.id || null);
 renderAll();
-showTab(['labor', 'profile', 'polaren'].includes(ui.tab) ? ui.tab : 'labor');
 </script>
+
