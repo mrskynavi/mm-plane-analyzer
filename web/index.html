@@ -435,7 +435,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <div class="cbox"><div class="ct">Sinken je Klappe <span>mit Hüllkurve <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flSink"></canvas></div></div>
           </div>
           <span class="legend" id="flLegend"></span>
-          <div class="tablewrap" id="flEnvWrap" hidden><table id="flEnv"></table></div>
+          <div id="flEnvWrap" hidden><h3 class="sub">Klappenplan für den Mischer</h3><p class="hint">Je Ca die Klappe, die stetig mit dem Ca mitgeht und der Hüllkurve am nächsten kommt. Die reine Hüllkurve springt dort hin und her, wo sich die Klappen um weniger als ein Prozent unterscheiden. Mit der Klappe ändert sich auch das nötige Höhenruder: Klappe nach unten braucht etwas Tiefe.</p><div class="tablewrap"><table id="flEnv"></table></div></div>
         </section>
         <section class="pol-box">
           <div class="pol-head"><h2 class="hi">Strak-Optimierer <button type="button" class="iconbtn sm" data-info="info-opt" aria-expanded="false" aria-controls="info-opt" aria-label="So arbeitet der Optimierer">i</button></h2><span id="oStatus" class="status"></span></div>
@@ -1572,7 +1572,7 @@ $('flRun').onclick = () => {
     setTimeout(() => {
       try { fs.next(); } catch (err) { $('flRun').disabled = false; $('flStatus').textContent = err.message; return; }
       if (!fs.done) return tick();
-      series = { id: m.id, key, fs, env: fs.envelope() };
+      series = { id: m.id, key, fs, env: fs.envelope(), plan: fs.envelope({ monotone: true }) };
       $('flRun').disabled = false;
       $('flStatus').textContent = `${ds.length} Stellungen · ${fmt((performance.now() - t0) / 1000, 1)} s`;
       renderSeries();
@@ -1596,8 +1596,8 @@ function renderSeries() {
   liveChart('flSink', 'V [km/h]', 'Sinken [m/s]', sets.map((q, i) => line(`Klappe ${fmt(q.flap, 1)}°`, okT(q.r).map(t => ({ x: t.v * 3.6, y: -t.sink })), col(i)))
     .concat([line('Hüllkurve', env.map(t => ({ x: t.v * 3.6, y: -t.sink })), fg, { borderWidth: 2.6, borderDash: [6, 4] })]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
   $('flLegend').innerHTML = sets.map((q, i) => `<span><i style="background:${col(i)}"></i>${fmt(q.flap, 1)}°</span>`).join('') + `<span><i class="dashc" style="color:${fg}"></i>Hüllkurve</span>` + (stale ? '<span class="tag warn">Modell seither geändert, neu rechnen</span>' : '');
-  const rows = env.filter(t => Math.abs(t.cl * 10 - Math.round(t.cl * 10)) < 1e-6);
-  $('flEnv').innerHTML = `<thead><tr><th>Ca</th><th>V km/h</th><th>beste Klappe °</th><th>Gleitzahl</th><th>Sinken m/s</th><th title="EWD bei Deinem Schwerpunkt">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten. Bauart und Bezug unter Höhenleitwerk">Höhenruder °</th><th>α °</th></tr></thead><tbody>` +
+  const rows = series.plan.filter(t => Math.abs(t.cl * 10 - Math.round(t.cl * 10)) < 1e-6);
+  $('flEnv').innerHTML = `<thead><tr><th>Ca</th><th>V km/h</th><th title="Klappenplan für den Mischer: steigt mit Ca nie ab und kommt der Hüllkurve so nahe wie möglich">Klappe °</th><th>Gleitzahl</th><th>Sinken m/s</th><th title="EWD bei Deinem Schwerpunkt">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten. Bauart und Bezug unter Höhenleitwerk">Höhenruder °</th><th>α °</th></tr></thead><tbody>` +
     rows.map(t => `<tr><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.flap, 1)}</td><td>${fmt(t.E, 1)}</td><td>${fmt(t.sink, 3)}</td><td>${fmt(t.ewdCur, 2)}</td><td>${fmtEl(elevAt(m, t.ewdCur))}</td><td>${fmt(t.alpha, 2)}</td></tr>`).join('') + '</tbody>';
 }
 

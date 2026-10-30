@@ -542,14 +542,38 @@
       res.push({ flap: d, r });
       return i >= deltas.length;
     };
-    const envelope = () => {
+    const envelope = ({ monotone = false } = {}) => {
       const map = new Map();
       for (const { flap, r } of res) for (const t of r.table) {
         if (t.stall || !Number.isFinite(t.E)) continue;
         const k = t.cl.toFixed(2), o = map.get(k);
         if (!o || t.E > o.E) map.set(k, { ...t, flap });
       }
-      return [...map.values()].sort((a, b) => a.cl - b.cl);
+      const best = [...map.values()].sort((a, b) => a.cl - b.cl);
+      if (!monotone) return best;
+      // Klappenplan für einen Mischer: Klappe steigt mit Ca nie ab. Unter dieser Bedingung die Summe von E/E_best
+      // maximal (dynamische Programmierung), so verschwinden die Sprünge, wo sich die Klappen kaum unterscheiden.
+      const flaps = res.map(q => q.flap).sort((a, b) => a - b);
+      const rows = best.map(b => flaps.map(f => {
+        const q = res.find(x => x.flap === f), t = q.r.table.find(x => x.cl.toFixed(2) === b.cl.toFixed(2));
+        return t && !t.stall && Number.isFinite(t.E) ? { ...t, flap: f, s: t.E / b.E } : null;
+      }));
+      const score = [], from = [];
+      rows.forEach((row, k) => {
+        score[k] = []; from[k] = [];
+        let run = k ? -Infinity : 0, arg = -1;
+        row.forEach((c, j) => {
+          if (k && score[k - 1][j] > run) { run = score[k - 1][j]; arg = j; }
+          score[k][j] = c && run > -Infinity ? run + c.s : -Infinity; from[k][j] = arg;
+        });
+      });
+      const last = rows.length - 1;
+      if (last < 0) return best;
+      let j = score[last].indexOf(Math.max(...score[last]));
+      if (!(score[last][j] > -Infinity)) return best;
+      const out = [];
+      for (let k = last; k >= 0; k--) { out.unshift(rows[k][j]); j = from[k][j]; }
+      return out;
     };
     return { next, results: res, envelope, get done() { return i >= deltas.length; } };
   }

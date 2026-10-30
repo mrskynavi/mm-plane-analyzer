@@ -101,6 +101,11 @@ test('Klappenschar: Hüllkurve nimmt je Ca die beste Stellung', () => {
     const all = fs.results.map(q => q.r.table.find(x => Math.abs(x.cl - t.cl) < 1e-9)).filter(x => x && !x.stall);
     assert.strictEqual(t.E, Math.max(...all.map(x => x.E)));
   }
+  // Mischer-Plan: Klappe steigt mit Ca, kaum schlechter als die Hüllkurve
+  const mono = fs.envelope({ monotone: true });
+  assert.strictEqual(mono.length, env.length);
+  mono.slice(1).forEach((t, i) => assert.ok(t.flap >= mono[i].flap, [mono[i].flap, t.flap]));
+  mono.forEach((t, i) => assert.ok(t.E >= env[i].E * 0.97, [t.cl, t.E, env[i].E]));
 });
 
 test('Höhenruder: Wirksamkeit wie dünne Profiltheorie, Ausschlag gedämpft und Pendel', () => {
