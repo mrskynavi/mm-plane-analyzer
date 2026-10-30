@@ -1885,12 +1885,16 @@ $('flBest').onclick = () => { $('flHint').textContent = 'suche …'; setTimeout(
 
 // Klappenschar mit der normalen Modellrechnung, eine Stellung nach der anderen
 let series = null;
+const FL_MAX = 25;
 $('flSeries').addEventListener('change', () => { flapsOf(curModel()).series = $('flSeries').value.trim(); persist(); });
 $('flRun').onclick = () => {
   const m = curModel(), F = flapsOf(m);
   F.series = $('flSeries').value.trim() || '-4 -2 0 2 4 6 8'; persist();
-  const ds = [...new Set(F.series.replace(/,/g, ' ').split(/[\s;]+/).map(v => parseFloat(v.replace('−', '-'))).filter(Number.isFinite))].sort((a, b) => a - b).slice(0, 10);
-  if (!ds.length) { toast('Klappenwinkel eintragen, zum Beispiel -4 -2 0 2 4 6'); return; }
+  const all = [...new Set(F.series.replace(/,/g, ' ').split(/[\s;]+/).map(v => parseFloat(v.replace('−', '-'))).filter(Number.isFinite))].sort((a, b) => a - b);
+  if (!all.length) { toast('Klappenwinkel eintragen, zum Beispiel -4 -2 0 2 4 6'); return; }
+  // zu viele Stellungen gleichmässig ausdünnen, die kleinste und die grösste bleiben immer drin
+  const ds = all.length <= FL_MAX ? all : [...new Set(Array.from({ length: FL_MAX }, (_, i) => all[Math.round(i * (all.length - 1) / (FL_MAX - 1))]))];
+  if (ds.length < all.length) toast(`Höchstens ${FL_MAX} Stellungen, gerechnet werden ${ds.map(d => fmt(d, 1)).join(' ')}°`);
   if (!hasFlaps(m)) { toast('Der Flügel hat keine Wölbklappen'); return; }
   const fs = SK.flapSeries(m, project.profiles, ds, { nCrit: lab.nCrit }), key = modelKey(m), t0 = performance.now();
   $('flRun').disabled = true;
