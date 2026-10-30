@@ -120,6 +120,7 @@
       id: uid(), name, notes: '', mass: 1800,
       wing: { incidence: 0, stations: [w(0, 220, 0), w(600, 210, 3), w(950, 170, 15), w(1250, 100, 50)] },
       tail: { x: 950, z: 30, stations: [t(0, 130, 0), t(300, 80, 35)] },
+      fuselage: { type: 'keule-klein', nose: 400, diameter: null, fin: null },
       cg: { mode: 'sigma', sigma: 0.2, x: 60 }, clDesign: 0.4,
     };
   }

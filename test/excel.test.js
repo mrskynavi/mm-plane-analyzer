@@ -25,7 +25,8 @@ test('Excel-Import SB-10: Geometrie, Gewicht und Schwerpunkt wie im Blatt', () =
   assert.ok(Math.abs(r.tail.area / 1e4 - 7.1156899) < 0.01, r.tail.area);         // C5
   // Handrechnung trifft den Neutralpunkt des Blatts: (B51 + F49·B49)·10 = 81.8 mm
   assert.ok(Math.abs(r.hand.xNP - 81.8) < 0.3, r.hand.xNP);
-  assert.ok(Math.abs(r.xNP - r.hand.xNP) < 3, [r.xNP, r.hand.xNP]);
+  assert.ok(Math.abs(r.xNP0 - r.hand.xNP) < 3, [r.xNP0, r.hand.xNP]); // Blatt ohne Rumpf
+  assert.ok(r.xNP < r.xNP0, 'Rumpf schiebt den Neutralpunkt nach vorn');
 });
 
 test('Excel-Import Lak 19: Randbogen wird zur letzten Station, leere Spalten fallen weg', () => {

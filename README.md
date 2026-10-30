@@ -11,7 +11,16 @@ Modell (P1):
 - Flügel und Höhenleitwerk als Stationen wie in XFLR5: Spannweite, Tiefe, Versatz, V-Form, Schränkung, Profil mit eigener Dicke und Wölbung, Klappentiefe und -ausschlag
 - Wirbelgitterverfahren (VLM, `web/core/vlm.js`): Neutralpunkt, Schwerpunkt aus Stabilitätsmass oder Lage, Trimm auf ein Ca mit Anstellwinkel, Leitwerkseinstellung und EWD, Auftriebsverteilung mit örtlichem Ca max der Profile
 - Gegenprobe mit der Handrechnung aus dem bisherigen Excel-Blatt
+- Arbeitstabelle: pro Ca die EWD bei σ 15/20/25 % (oder festem Schwerpunkt), Schwerpunkt für ein unbelastetes Leitwerk, Gleitzahl und Sinken
+- Excel-Import aus dem Blatt „Masse, SP“
 - mehrere Modelle pro Projekt
+
+Rumpf und Gesamtpolare (P2):
+
+- Rumpf als feste Form (Stabrumpf, Keulenrumpf mit kleinem oder grossem Stirnwiderstand) mit Länge vor dem Flügel, Durchmesser und Seitenleitwerksfläche (`web/core/rumpf.js`)
+- Rumpfwiderstand aus benetzter Fläche, Plattenreibung und Formfaktor nach Hoerner; Seitenleitwerk mit dem Leitwerksprofil
+- Rumpfmoment nach Multhopp mit dem Auf- und Abwind aus dem Wirbelgitter: verschiebt Neutralpunkt, Trimm und EWD
+- Gesamtpolare mit induziertem Widerstand aus der Trefftz-Ebene: Geschwindigkeitspolare, Gleitzahl über V, Widerstandsanteile, Ca über Cw; weitere Modelle zum Vergleich
 
 Profil-Labor:
 
@@ -36,7 +45,9 @@ web/core/neuralfoil.js  NeuralFoil: Kulfan-Anpassung und Netz
 web/core/nf-gewichte.js Netzgewichte (erzeugt)
 web/core/polare.js      Polaren Typ 1/2, Kennwerte, Hüllkurve
 web/core/vlm.js         Wirbelgitter: Panels, Hufeisenwirbel, Lösung, Beiwerte
-web/core/modell.js      Modellrechnung: Neutralpunkt, Trimm, EWD, Handrechnung
+web/core/modell.js      Modellrechnung: Neutralpunkt, Trimm, EWD, Handrechnung, Arbeitstabelle, Gesamtpolare
+web/core/rumpf.js       Rumpfform, Rumpf- und Seitenleitwerkswiderstand, Rumpfmoment
+web/core/excel.js       Modell aus dem Excel-Blatt „Masse, SP“
 web/core/projekt.js     Projektdatei, Fingerabdruck der Polaren, Modell-Grundgerüst für P1
 web/core/bibliothek.js  mitgelieferte Profile (erzeugt aus web/profile/*.dat)
 ```
