@@ -197,18 +197,31 @@
     const xCG = model.cg.mode === 'sigma' ? xNP - model.cg.sigma * wing.mac : model.cg.x;
     const sigma = sigmaOf(xCG);
 
-    // Trimm: CL = Auslegungs-Ca, Moment um den Schwerpunkt = 0
-    const CL = model.clDesign;
-    const target = -CL * xCG / wing.mac; // Cm um die Nasenleiste der Wurzel
-    let alpha = 0, it = 0;
-    for (let k = 0; k < 3; k++) {
-      const r = k === 0 ? r0 : run(alpha, it);
-      const dC = CL - r.CL, dM = target - r.Cm;
-      const det = cA * mI - cI * mA;
-      alpha += (dC * mI - cI * dM) / det;
-      it += (cA * dM - dC * mA) / det;
+    // Trimm, Moment um den Schwerpunkt = 0. Entweder ist das Ca vorgegeben und die EWD folgt daraus, oder die
+    // gebaute EWD ist vorgegeben (Leitwerkseinstellung fest) und das Ca stellt sich ein: dann nur α suchen.
+    // dCm/dα um den Schwerpunkt = −CLα·σ; bei σ ≤ 0 gibt es kein stabiles Gleichgewicht.
+    let CL = model.clDesign, alpha = 0, it = 0, byEwd = null;
+    if (model.trimBy === 'ewd' && Number.isFinite(model.ewd)) {
+      it = (W.incidence || 0) - model.ewd;
+      const dF = mA + cA * xCG / wing.mac;
+      for (let k = 0; k < 4; k++) { const r = run(alpha, it); alpha -= (r.Cm + r.CL * xCG / wing.mac) / dF; }
+      const cl = run(alpha, it).CL;
+      byEwd = { ewd: model.ewd, cl, stable: sigma > 0.005, ok: sigma > 0.005 && cl >= 0.05 && cl <= 1.6 };
+      if (byEwd.ok) CL = cl;
+      else { CL = Math.min(1.6, Math.max(0.05, Number.isFinite(cl) ? cl : model.clDesign)); alpha = 0; it = 0; }
+    }
+    if (!byEwd || !byEwd.ok) {
+      const target = -CL * xCG / wing.mac; // Cm um die Nasenleiste der Wurzel
+      for (let k = 0; k < 3; k++) {
+        const r = k === 0 ? r0 : run(alpha, it);
+        const dC = CL - r.CL, dM = target - r.Cm;
+        const det = cA * mI - cI * mA;
+        alpha += (dC * mI - cI * dM) / det;
+        it += (cA * dM - dC * mA) / det;
+      }
     }
     const trim = run(alpha, it);
+    if (byEwd && byEwd.ok) CL = trim.CL;
     const ws = model.mass / (wing.area / 1e4); // g/dm²
     const speed = Math.sqrt(2 * model.mass / 1000 * G / (RHO * wing.area / 1e6 * CL));
     const clTail = (trim.lift[1] || 0) / (0.5 * tail.area);
@@ -296,14 +309,30 @@
     // innen (bis 50 % der Halbspannweite) gutmütig, aussen ab 75 % kritisch. Liegt aussen fast dieselbe
     // Ausnutzung an wie am höchsten Punkt innen (weniger als 3 Punkte Abstand), gilt es als neutral.
     const stallAt = stallLocation(strips.filter(s => Number.isFinite(s.clMax) && s.clMax > 0).map(s => ({ y: s.y, ratio: s.cl / s.clMax, eta: s.y / (wing.projSpan / 2) })));
+    const zone = trimZone({ CL, stall, table, best, minSink, byEwd });
     return {
       wing, tail, xNP, xCG, sigma, CLalpha: cA * 180 / Math.PI,
-      trim: { CL, alpha, tailIncidence: it, ewd: (W.incidence || 0) - it, clWing, clTail, speed, re: speed * wing.mac / 1000 / NU },
+      trim: { CL, alpha, tailIncidence: it, ewd: (W.incidence || 0) - it, clWing, clTail, speed, re: speed * wing.mac / 1000 / NU, by: byEwd ? 'ewd' : 'ca', byEwd, zone },
       wingLoading: ws, tailVolume, table, sigmas, best, minSink, xNP0,
       fuselage: { ...fus, fin: finA, dNP: xNP - xNP0 }, strips, tailStrips, segments: seg, stall, stallAt, hand,
       profiles: { wing: wingGeo.map(g => g && g.name), tail: tailGeo.map(g => g && g.name) },
       panels: sys.panels.length,
     };
+  }
+
+  // Wo liegt der Trimmpunkt in der Polare? keine (kein Gleichgewicht), abriss (über Ca max), hoch (über 90 %
+  // Ca max), langsam (über dem geringsten Sinken), thermik, gleiten (um die beste Gleitzahl), schnell.
+  function trimZone({ CL, stall, table, best, minSink, byEwd }) {
+    if (byEwd && !byEwd.stable) return { key: 'keine', warn: true };
+    if (byEwd && !byEwd.ok) return { key: 'keine', warn: true, cl: byEwd.cl };
+    const okMax = table.filter(t => !t.stall).reduce((m, t) => Math.max(m, t.cl), 0);
+    if (stall >= 1 || (table.some(t => t.stall) && CL > okMax + 0.025)) return { key: 'abriss', warn: true };
+    if (stall > 0.9) return { key: 'hoch', warn: true };
+    if (!best || !minSink) return { key: 'unbekannt' };
+    const tol = 0.05;
+    if (CL > minSink.cl + tol) return { key: 'langsam' };
+    if (CL < best.cl - tol) return { key: 'schnell' };
+    return { key: Math.abs(CL - minSink.cl) < Math.abs(CL - best.cl) ? 'thermik' : 'gleiten' };
   }
 
   // Höhenruder: Bauart „gedaempft“ (feste Flosse mit Ruder) oder „pendel“ (ganzes Leitwerk dreht), dazu die
@@ -331,7 +360,7 @@
     return tau > 0.05 ? (ref - ewd) / tau : null;
   }
 
-  const api = { analyze, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
+  const api = { analyze, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);

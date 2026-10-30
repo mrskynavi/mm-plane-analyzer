@@ -123,7 +123,8 @@ section{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
 .field .row{display:flex;gap:6px 8px;align-items:center;min-width:0;flex-wrap:nowrap}
 .field input[type=range]{flex:1 1 auto;min-width:0;accent-color:var(--accent)}
 input.num,input.txt,select.sel{font:500 .9rem var(--mono);height:32px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0}
-.field .seg{height:32px}
+.field .seg{height:32px;display:flex}
+.field .seg button{flex:1 1 0;min-width:0}
 input.num{width:9ch;text-align:right;flex:none}
 input.txt{width:100%}
 .field .row input.txt{flex:1 1 8em;width:auto}
@@ -362,18 +363,22 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           <div class="infopop" id="info-mod" hidden>
             <p>Gerechnet wird wie in XFLR5 mit dem Wirbelgitterverfahren (VLM): Flügel und Höhenleitwerk werden in Panels mit Hufeisenwirbeln zerlegt. So sind Pfeilung, Zuspitzung, V-Form, Schränkung, Klappen und der Abwind am Leitwerk enthalten. Die Wölbung kommt aus der Skelettlinie der Profile an jeder Station, mit der Dicke und Wölbung, die Du dort einträgst.</p>
             <p>Der Neutralpunkt folgt aus dCm/dCa des ganzen Modells. Den Schwerpunkt gibst Du als Stabilitätsmass (Abstand zum Neutralpunkt in % der mittleren Tiefe) oder als Lage vor. Für das Trimm-Ca rechnet die App Anstellwinkel und Leitwerkseinstellung so, dass das Moment um den Schwerpunkt null ist. Daraus folgt die EWD = Einstellwinkel Flügel − Einstellwinkel Leitwerk.</p>
+            <p>Unter „Vorgabe“ lässt sich die Rechnung umdrehen: Du gibst die gebaute EWD vor, die Leitwerkseinstellung ist damit fest, und die App sucht das Ca, bei dem das Moment um den Schwerpunkt null ist. Bei diesem Ca und dieser Fahrt fliegt das Modell ohne Höhenruderausschlag. Die App sagt dazu, ob das im Schnellflug, um die beste Gleitzahl, im Thermikbereich (geringstes Sinken) oder schon nahe am Abriss liegt. Die Polare und die Arbeitstabelle bleiben gültig, die anderen Fahrten fliegst Du mit Höhenruder oder Wölbklappen. Passen EWD und Schwerpunkt nicht zusammen, gibt es kein Gleichgewicht mit positivem Auftrieb; dann rechnet die App mit dem nächstliegenden Ca weiter und warnt.</p>
             <p>Alle Längen in mm ab der Nasenleiste der Flügelwurzel. y ist die Spannweite entlang der Fläche ab Rumpfmitte wie in XFLR5. V-Form und Klappe gelten bis zur nächsten Station. Der Rumpf ist noch nicht berücksichtigt; er verschiebt den Neutralpunkt erfahrungsgemäss etwas nach vorne.</p>
           </div>
           <div class="form">
             <label class="field"><span>Name</span><input class="txt" id="mName"></label>
             <label class="field"><span>Fluggewicht</span><span class="row"><input class="num" id="mMass" type="number" step="10" min="10"><span class="u">g</span></span></label>
-            <label class="field"><span>Trimm-Ca</span><span class="row"><input class="num" id="mCl" type="number" step="0.05" min="0.05" max="1.4"></span></label>
+            <div class="field"><span>Vorgabe</span><span class="seg" id="mTrimBy"><button type="button" data-v="ca" title="Trimm-Ca vorgeben, die App rechnet die nötige EWD">Trimm-Ca</button><button type="button" data-v="ewd" title="Gebaute EWD vorgeben, die App rechnet, bei welchem Ca und welcher Fahrt das Modell getrimmt fliegt">EWD</button></span></div>
+            <label class="field" id="mClF"><span>Trimm-Ca</span><span class="row"><input class="num" id="mCl" type="number" step="0.05" min="0.05" max="1.4"></span></label>
+            <label class="field" id="mEwdF"><span>EWD gebaut</span><span class="row"><input class="num" id="mEwd" type="number" step="0.05" min="-5" max="10"><span class="u">°</span></span></label>
             <div class="field"><span>Schwerpunkt aus</span><span class="seg" id="mCgMode"><button type="button" data-v="sigma">Stabilitätsmass</button><button type="button" data-v="x">Lage</button></span></div>
             <label class="field"><span id="mCgLbl">Stabilitätsmass</span><span class="row"><input class="num" id="mCg" type="number" step="0.5"><span class="u" id="mCgU">%</span></span></label>
             <label class="field"><span>Einstellwinkel Flügel</span><span class="row"><input class="num" id="mInc" type="number" step="0.25"><span class="u">°</span></span></label>
             <label class="field"><span>Leitwerk hinter Nasenleiste</span><span class="row"><input class="num" id="mTx" type="number" step="5"><span class="u">mm</span></span></label>
             <label class="field"><span>Leitwerk Höhe</span><span class="row"><input class="num" id="mTz" type="number" step="5"><span class="u">mm</span></span></label>
           </div>
+          <p class="hint" id="mTrimInfo"></p>
         </section>
         <section class="pol-box">
           <div class="pol-head"><h2 class="hi">Rumpf <button type="button" class="iconbtn sm" data-info="info-fus" aria-expanded="false" aria-controls="info-fus" aria-label="So wird der Rumpf gerechnet">i</button></h2><span id="fusInfo" class="status"></span></div>
@@ -412,7 +417,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           <div class="infopop" id="info-ops" hidden>
             <p>Für jedes Arbeits-Ca: Geschwindigkeit, Anstellwinkel, Gleitzahl und Sinken, dazu die EWD, die bei verschiedenen Schwerpunkten zum Trimm nötig ist. Der Schwerpunkt hängt nur vom Stabilitätsmass ab, darum steht er im Spaltenkopf; die EWD wählt das Ca.</p>
             <p>„Leitwerk ohne Last“ ist die Rechnung aus Deinem Excel-Blatt mit Ca HLW = 0: der Schwerpunkt, bei dem das Leitwerk bei diesem Ca nichts trägt, mit σ und EWD dazu.</p>
-            <p>Die Gleitzahl enthält Profilwiderstand von Flügel und Leitwerk (Polaren der Stationen bei der passenden Re), induzierten Widerstand (Trefftz-Ebene), Rumpf, Seitenleitwerk und die Zusatzwiderstände. Zeile anklicken übernimmt das Ca als Trimm-Ca.</p>
+            <p>Die Gleitzahl enthält Profilwiderstand von Flügel und Leitwerk (Polaren der Stationen bei der passenden Re), induzierten Widerstand (Trefftz-Ebene), Rumpf, Seitenleitwerk und die Zusatzwiderstände. Zeile anklicken übernimmt das Ca als Trimm-Ca, bei Vorgabe EWD die EWD Deines Schwerpunkts für dieses Ca.</p>
           </div>
           <div class="tablewrap"><table id="mOps"></table></div>
         </section>
@@ -1325,6 +1330,9 @@ $('mDup').onclick = () => {
 function syncModelForm() {
   const m = curModel();
   $('mName').value = m.name; $('mMass').value = m.mass; $('mCl').value = m.clDesign;
+  const byEwd = m.trimBy === 'ewd';
+  $('mTrimBy').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === (byEwd ? 'ewd' : 'ca')));
+  $('mClF').hidden = byEwd; $('mEwdF').hidden = !byEwd; $('mEwd').value = Number.isFinite(m.ewd) ? m.ewd : '';
   $('mInc').value = m.wing.incidence || 0; $('mTx').value = m.tail.x; $('mTz').value = m.tail.z || 0;
   $('mCgMode').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === m.cg.mode));
   const sig = m.cg.mode === 'sigma';
@@ -1367,8 +1375,8 @@ $('xGaps').onclick = e => { const b = e.target.closest('button'); if (b) setExtr
 // Höhenruder: Bauart und Bezugs-EWD; die Rudertiefe ist die Klappentiefe in der Leitwerkstabelle
 function elevatorInfo(m) {
   const el = MD.elevatorOf(m), tau = MD.elevatorTau(m.tail.stations), d = m.tail.stations.slice(0, -1).map(s => s.flapDepth || 0);
-  const ref = el.ewd ?? (lastModel && lastModelId === m.id ? lastModel.trim.ewd : null);
-  const at = ref != null ? `Ruder neutral bei EWD ${fmt(ref, 2)}°${el.ewd == null ? ' (EWD beim Trimm-Ca)' : ''}. ` : '';
+  const ref = el.ewd ?? autoRef(m, null);
+  const at = ref != null ? `Ruder neutral bei EWD ${fmt(ref, 2)}°${el.ewd == null ? (m.trimBy === 'ewd' ? ' (gebaute EWD)' : ' (EWD beim Trimm-Ca)') : ''}. ` : '';
   $('eEwd').placeholder = ref != null && el.ewd == null ? fmt(ref, 2) : 'auto';
   $('eInfo').textContent = el.type === 'pendel' ? `${at}Ausschlag = Verdrehung des ganzen Leitwerks gegenüber dieser Stellung, positiv = Endleiste nach unten.`
     : tau ? `${at}Rudertiefe ${[...new Set(d)].map(v => fmt(v, 0)).join('/')} % (Spalte Kl.-tiefe oben). 1° Ruder wirkt wie ${fmt(tau, 2)}° Einstellwinkel (Wirbelgitter, reibungsfrei; echte Ruder wirken bei grossen Ausschlägen etwas schwächer). Positiv = Endleiste nach unten.`
@@ -1376,8 +1384,13 @@ function elevatorInfo(m) {
 }
 $('eType').onclick = e => { const b = e.target.closest('button'); if (!b) return; const m = curModel(); m.tail.elevator = { ...MD.elevatorOf(m), type: b.dataset.v }; persist(); syncModelForm(); renderModes(); renderSeries(); };
 $('eEwd').addEventListener('change', () => { const m = curModel(), v = parseFloat($('eEwd').value); m.tail.elevator = { ...MD.elevatorOf(m), ewd: Number.isFinite(v) ? Math.min(10, Math.max(-10, v)) : null }; persist(); syncModelForm(); renderModes(); renderSeries(); });
-const elevAt = (m, ewd) => MD.elevatorDeflection(m, ewd, lastModel && lastModelId === m.id ? lastModel.trim.ewd : NaN);
-const MFORM = { mMass: ['mass', 10, 100000], mCl: ['clDesign', 0.05, 1.5], mInc: ['wing.incidence', -10, 10], mTx: ['tail.x', 50, 5000], mTz: ['tail.z', -500, 1000] };
+// Bezugs-EWD ohne Eintrag: die gebaute EWD, sonst die EWD beim Trimm-Ca
+function autoRef(m, none) {
+  if (m.trimBy === 'ewd' && Number.isFinite(m.ewd)) return m.ewd;
+  return lastModel && lastModelId === m.id ? lastModel.trim.ewd : none;
+}
+const elevAt = (m, ewd) => MD.elevatorDeflection(m, ewd, autoRef(m, NaN));
+const MFORM = { mMass: ['mass', 10, 100000], mCl: ['clDesign', 0.05, 1.5], mEwd: ['ewd', -5, 10], mInc: ['wing.incidence', -10, 10], mTx: ['tail.x', 50, 5000], mTz: ['tail.z', -500, 1000] };
 for (const [id, [path, lo, hi]] of Object.entries(MFORM)) {
   $(id).addEventListener('change', () => {
     const v = parseFloat($(id).value); if (!Number.isFinite(v)) return syncModelForm();
@@ -1386,6 +1399,15 @@ for (const [id, [path, lo, hi]] of Object.entries(MFORM)) {
     persist(); scheduleModel();
   });
 }
+// Vorgabe umschalten: den aktuellen Trimmpunkt übernehmen, damit sich beim Umschalten nichts ändert
+$('mTrimBy').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const m = curModel(), r = lastModel && lastModelId === m.id ? lastModel : null;
+  if (b.dataset.v === 'ewd' && r) m.ewd = +r.trim.ewd.toFixed(2);
+  if (b.dataset.v === 'ca' && r) m.clDesign = Math.min(1.5, Math.max(0.05, +r.trim.CL.toFixed(2)));
+  if (b.dataset.v === 'ewd' && !Number.isFinite(m.ewd)) m.ewd = 1;
+  m.trimBy = b.dataset.v; persist(); syncModelForm(); scheduleModel();
+};
 $('mName').addEventListener('change', () => { curModel().name = $('mName').value.trim() || 'Modell'; persist(); renderModelList(); });
 $('mCgMode').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -1545,7 +1567,7 @@ function renderOps(m, r) {
     cols.map((c, i) => `<th class="${i ? '' : 'grp '}${c.cur ? 'cur' : ''}" title="${c.sub}">${c.h}<br><small>${c.sub}</small></th>`).join('') +
     `<th class="grp">SP mm</th><th>σ %</th><th>EWD °</th></tr></thead>`;
   const body = T.map(t => {
-    const isCur = Math.abs(t.cl - m.clDesign) < 1e-6;
+    const isCur = Math.abs(t.cl - r.trim.CL) < 0.05 + 1e-6 && T.every(q => Math.abs(q.cl - r.trim.CL) >= Math.abs(t.cl - r.trim.CL) - 1e-9);
     const st = t.stall;
     return `<tr data-cl="${t.cl}" class="${isCur ? 'cur ' : ''}${st ? 'stall' : ''}"><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.alpha, 2)}</td>` +
       `<td class="${t === r.best ? 'best' : ''}">${st ? 'Abriss' : fmt(t.E, 1)}</td><td class="${t === r.minSink ? 'best' : ''}">${st ? '–' : fmt(t.sink, 3)}</td><td>${fmt(t.clTail, 3)}</td>` +
@@ -1558,7 +1580,13 @@ function renderOps(m, r) {
 $('mOps').onclick = e => {
   const tr = e.target.closest('tr[data-cl]');
   if (!tr) return;
-  const m = curModel(); m.clDesign = +tr.dataset.cl; persist(); syncModelForm(); scheduleModel();
+  const m = curModel(), cl = +tr.dataset.cl;
+  if (m.trimBy === 'ewd') {
+    const t = lastModel && lastModelId === m.id && lastModel.table.find(q => Math.abs(q.cl - cl) < 1e-6);
+    if (!t) return;
+    m.ewd = +t.ewdCur.toFixed(2);
+  } else m.clDesign = cl;
+  persist(); syncModelForm(); scheduleModel();
 };
 // Gesamtpolare: aktuelles Modell und angehakte Vergleichsmodelle
 const cmpCache = new Map();
@@ -1587,6 +1615,31 @@ function renderPolars(m, r) {
   $('gpCdLeg').innerHTML = parts.map(([, l], i) => `<span><i style="background:${PALETTE[i]}"></i>${l}</span>`).join('');
   $('gpLegend').innerHTML = sets.map(q => `<span><i style="background:${q.col}"></i>${esc(q.m.name)}</span>`).join('');
 }
+// Trimmpunkt in Worten: wo in der Polare das Modell ohne Höhenruderausschlag fliegt
+const ZONE = { keine: 'kein Gleichgewicht', abriss: 'über Ca max', hoch: 'nahe Abriss', langsam: 'langsamer als min. Sinken', thermik: 'Thermik', gleiten: 'beste Gleitzahl', schnell: 'Schnellflug', unbekannt: '' };
+function trimText(r) {
+  const t = r.trim, z = t.zone.key, at = `Ca ${fmt(t.CL, 2)} (${fmt(t.speed * 3.6, 0)} km/h)`;
+  const ref = (r.best ? `Beste Gleitzahl bei Ca ${fmt(r.best.cl, 2)}` : '') + (r.minSink ? `, geringstes Sinken bei Ca ${fmt(r.minSink.cl, 2)}.` : '.');
+  const warn = s => `<b style="color:var(--warn)">Achtung:</b> ${s}`;
+  if (t.by !== 'ewd') {
+    if (z === 'abriss') return warn(`Das Trimm-Ca liegt über dem Ca max des Flügels. ${ref}`);
+    if (z === 'hoch') return warn(`Das Trimm-Ca liegt nahe am Abriss (${fmt(r.stall * 100, 0)} % Ca max). ${ref}`);
+    return '';
+  }
+  const e = `Mit EWD ${fmt(t.byEwd.ewd, 2)}° und Schwerpunkt ${fmt(r.xCG, 1)} mm`;
+  if (z === 'keine' && !t.byEwd.stable) return warn(`Der Schwerpunkt liegt am oder hinter dem Neutralpunkt (σ ${fmt(r.sigma * 100, 1)} %). Mit fester EWD gibt es so kein stabiles Gleichgewicht. Die Werte unten gelten für Ca ${fmt(t.CL, 2)} und zeigen die dafür nötige EWD.`);
+  if (z === 'keine') return warn(`${e} käme das Gleichgewicht erst bei Ca ${fmt(t.byEwd.cl, 2)}, das fliegt so nicht. ${t.byEwd.cl < 0.05 ? 'Die EWD ist zu klein oder der Schwerpunkt zu weit hinten.' : 'Die EWD ist zu gross oder der Schwerpunkt zu weit vorne.'} Die Werte unten gelten für Ca ${fmt(t.CL, 2)} mit der dafür nötigen EWD ${fmt(t.ewd, 2)}°.`);
+  const where = {
+    abriss: warn(`${e} trimmt das Modell bei ${at}, das liegt über dem Ca max des Flügels: Es würde ohne Ruder abreissen. EWD kleiner oder Schwerpunkt weiter hinten.`),
+    hoch: warn(`${e} trimmt das Modell bei ${at}, nahe am Abriss (${fmt(r.stall * 100, 0)} % Ca max). Für Thermik knapp, für Gleitflug zu langsam.`),
+    langsam: `${e} trimmt das Modell bei ${at}, langsamer als das geringste Sinken. Gut für enges Kreisen, für den Gleitflug brauchst Du Tiefe.`,
+    thermik: `${e} trimmt das Modell bei ${at}, nahe dem geringsten Sinken: passt für Thermik.`,
+    gleiten: `${e} trimmt das Modell bei ${at}, nahe der besten Gleitzahl: passt für Gleitflug und Strecke.`,
+    schnell: `${e} trimmt das Modell bei ${at}, schneller als die beste Gleitzahl: Schnellflug. Für Thermik brauchst Du Höhe oder Wölbklappen positiv.`,
+    unbekannt: `${e} trimmt das Modell bei ${at}.`,
+  }[z];
+  return `${where} ${z === 'unbekannt' ? '' : ref}`;
+}
 function renderModelResults() {
   const m = curModel(), r = lastModel;
   drawPlan(m, r);
@@ -1598,7 +1651,8 @@ function renderModelResults() {
     k('Neutralpunkt', fmt(r.xNP, 1), 'mm', `${fmt((r.xNP - r.wing.xMac) / r.wing.mac * 100, 1)} % l<sub>μ</sub> · Rumpf ${signed(r.fuselage.dNP, 1)}`),
     k('Schwerpunkt', fmt(r.xCG, 1), 'mm', `${fmt((r.xCG - r.wing.xMac) / r.wing.mac * 100, 1)} % l<sub>μ</sub>`),
     k('Stabilitätsmass', fmt(r.sigma * 100, 1), '%'),
-    k('EWD', fmt(t.ewd, 2), '°', `Leitwerk ${t.tailIncidence >= 0 ? '+' : ''}${fmt(t.tailIncidence, 2)}°`),
+    k(t.by === 'ewd' ? 'EWD gebaut' : 'EWD', fmt(t.by === 'ewd' ? t.byEwd.ewd : t.ewd, 2), '°', t.zone.key === 'keine' ? `nötig ${fmt(t.ewd, 2)}° für Ca ${fmt(t.CL, 2)}` : `Leitwerk ${t.tailIncidence >= 0 ? '+' : ''}${fmt(t.tailIncidence, 2)}°`),
+    `<div class="kpi"><span class="l">Trimm-Ca</span><span class="v">${t.zone.key === 'keine' ? '–' : fmt(t.CL, 2)}</span><span class="d ${t.zone.warn ? 'dn' : ['gleiten', 'thermik'].includes(t.zone.key) ? 'up' : ''}">${ZONE[t.zone.key] || ''}</span></div>`,
     k('Anstellwinkel', fmt(t.alpha, 2), '°', 'Rumpf zur Anströmung'),
     k('Ca Leitwerk', fmt(t.clTail, 3), '', `Flügel ${fmt(t.clWing, 3)}`),
     k('Fluggeschw.', fmt(t.speed, 1), 'm/s', `${fmt(t.speed * 3.6, 0)} km/h · Re ${fmtRe(t.re)}`),
@@ -1613,6 +1667,7 @@ function renderModelResults() {
   $('wingInfo').textContent = `Fläche ${fmt(r.wing.area / 1e4, 2)} dm² · Streckung ${fmt(r.wing.aspect, 1)} · l_μ ${fmt(r.wing.mac, 1)} mm bei y ${fmt(r.wing.yMac, 0)}`;
   $('tailInfo').textContent = `Fläche ${fmt(r.tail.area / 1e4, 2)} dm² · Streckung ${fmt(r.tail.aspect, 1)} · l_μ ${fmt(r.tail.mac, 1)} mm`;
   renderOps(m, r);
+  $('mTrimInfo').innerHTML = trimText(r);
   $('fusInfo').textContent = `${r.fuselage.typeName} · Länge ${fmt(r.fuselage.length, 0)} mm · Ø ${fmt(r.fuselage.D, 0)} mm · benetzt ${fmt(r.fuselage.swet / 1e4, 1)} dm² · SLW ${fmt(r.fuselage.fin, 1)} dm² · Neutralpunkt ${signed(r.fuselage.dNP, 1)} mm`;
   const xb = r.best;
   $('xdInfo').textContent = xb && xb.cdBase ? `bei bester Gleitzahl ${signed((xb.cd / xb.cdBase - 1) * 100, 0)} % Widerstand · Gleitzahl ohne Zuschläge ${fmt(xb.cl / xb.cdBase, 1)}` : '';
