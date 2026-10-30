@@ -2,7 +2,7 @@
 
 Auslegung von Modellflugzeugen von Mächler Modelle: Profile, Polaren, Schwerpunkt, EWD und Festigkeit.
 
-Stand: **P0** (Rechenkern und Profile). Konzept und Roadmap: siehe Projekt „Plane Analyzer“.
+Stand: **P3** (Wölbklappen und Strak-Optimierer). Konzept und Roadmap: siehe Projekt „Plane Analyzer“.
 
 ## Was P0 kann
 
@@ -21,6 +21,17 @@ Rumpf und Gesamtpolare (P2):
 - Rumpfwiderstand aus benetzter Fläche, Plattenreibung und Formfaktor nach Hoerner; Seitenleitwerk mit dem Leitwerksprofil
 - Rumpfmoment nach Multhopp mit dem Auf- und Abwind aus dem Wirbelgitter: verschiebt Neutralpunkt, Trimm und EWD
 - Gesamtpolare mit induziertem Widerstand aus der Trefftz-Ebene: Geschwindigkeitspolare, Gleitzahl über V, Widerstandsanteile, Ca über Cw; weitere Modelle zum Vergleich
+
+Wölbklappen und Strak-Optimierer (P3):
+
+- Flugzustände je Modell (z. B. Speed, Gleiten, Thermik) mit Ca, Klappenwinkel und Gewicht: Geschwindigkeit, EWD, Gleitzahl, Sinken und Abrissreserve; „Beste Klappe suchen“ je Zustand
+- Wölbanteil je Klappe (Querruder z. B. 60 %); die Stationspolaren werden mit ausgeschlagener Klappe gerechnet
+- Klappenschar: Gesamtpolare für mehrere Klappenwinkel mit Hüllkurve und Tabelle beste Klappe, EWD je Ca
+- Strak-Optimierer (`web/core/strak.js`): Wurzelprofil vorgegeben, Dicke, Dickenrücklage, Wölbung und Wölbungsrücklage je Station und Klappenwinkel je Flugzustand gemeinsam gesucht (CMA-ES im Web Worker). Ziel: kleinster gewichteter Gesamtwiderstand, jeder Zustand getrimmt. Randbedingungen: Mindestdicke in % und mm, Abstand zum Abriss, Cm0-Grenze, glatter Strak
+- Ergebnis als Vorher/Nachher-Tabelle mit Gegenprobe durch die normale Modellrechnung; Übernahme ins Modell oder als neues Modell erst auf Knopfdruck
+- Stationen haben dazu Dicken- und Wölbungsrücklage
+
+Damit eine Bewertung nur etwa 30 bis 60 ms braucht, rechnet der Optimierer vereinfacht: Das Gleichungssystem des Wirbelgitters wird einmal zerlegt (Wölbung und Klappe ändern nur die rechte Seite), die Klappe ist ein Knick der Skelettlinie auf festen x-Stellen (Kulfan-Anpassung als Matrixprodukt) und pro Station und Zustand gibt es nur wenige NeuralFoil-Punkte um das örtliche Ca. Die Tests vergleichen das mit der normalen Modellrechnung (Gleitzahl auf 3 %).
 
 Profil-Labor:
 
@@ -48,6 +59,8 @@ web/core/vlm.js         Wirbelgitter: Panels, Hufeisenwirbel, Lösung, Beiwerte
 web/core/modell.js      Modellrechnung: Neutralpunkt, Trimm, EWD, Handrechnung, Arbeitstabelle, Gesamtpolare
 web/core/rumpf.js       Rumpfform, Rumpf- und Seitenleitwerkswiderstand, Rumpfmoment
 web/core/excel.js       Modell aus dem Excel-Blatt „Masse, SP“
+web/core/strak.js       Strak-Optimierer, Flugzustände, Klappenschar
+web/core/strak-worker.js  Optimierer im Hintergrund (Web Worker)
 web/core/projekt.js     Projektdatei, Fingerabdruck der Polaren, Modell-Grundgerüst für P1
 web/core/bibliothek.js  mitgelieferte Profile (erzeugt aus web/profile/*.dat)
 ```

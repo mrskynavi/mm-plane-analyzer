@@ -23,6 +23,9 @@
     const mod = { ...p.mod };
     if (st.thickness != null && raw.thickness > 0) mod.thickness = st.thickness / raw.thickness;
     if (st.camber != null && raw.camber > 1e-4) mod.camber = st.camber / raw.camber;
+    // Rücklagen absolut (Bruchteil der Tiefe), null = wie das Profil
+    if (st.xThickness != null) mod.xThickness = st.xThickness;
+    if (st.xCamber != null) mod.xCamber = st.xCamber;
     return { profile: p, mod, coords: p.coords };
   }
   const cache = new Map();
@@ -38,15 +41,33 @@
     });
   }
 
-  // Polare einer Station (Typ 2 aus Flächenbelastung und örtlicher Tiefe) für Ca max, α0 und Cm0
-  function stationPolar(st, profiles, wingLoading, nCrit = 9) {
+  // Polare einer Station (Typ 2 aus Flächenbelastung und örtlicher Tiefe) für Ca max, α0 und Cm0.
+  // flap: Ausschlag der Klappe des angrenzenden Segments in Grad, flapDepth in % der Tiefe.
+  function stationPolar(st, profiles, wingLoading, nCrit = 9, flap = 0, flapDepth = 25) {
     const g = stationGeometry(st, profiles);
     if (!g) return null;
     const re = Math.round(POL.reSqrtCl(wingLoading, st.chord) / 100) * 100;
-    return cached('p' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, re, nCrit])), () => {
-      const r = POL.compute(g.geo, { type: 2, re, alphaFrom: -6, alphaTo: 16, alphaStep: 1, nCrit });
-      return { re, ...r.summary, pts: r.points };
+    flap = Math.round((flap || 0) * 100) / 100;
+    return cached('p' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, re, nCrit, flap, flap ? flapDepth : 0])), () => {
+      const geo = flap ? P.flap(g.geo, flap, 1 - flapDepth / 100) : g.geo;
+      const r = POL.compute(geo, { type: 2, re, alphaFrom: -6, alphaTo: 16, alphaStep: 1, nCrit });
+      return { re, flap, ...r.summary, pts: r.points };
     });
+  }
+
+  // Klappe eines Segments (gilt von Station i bis i+1)
+  const segFlap = s => (s.flapDepth > 0 && s.flap ? s.flap : 0);
+  // Polaren an beiden Enden jedes Segments, mit der Klappe dieses Segments: [[innen, aussen], …]
+  const segmentPolars = (stations, profiles, ws, nCrit) => stations.slice(0, -1).map((s, i) =>
+    [s, stations[i + 1]].map(q => stationPolar(q, profiles, ws, nCrit, segFlap(s), s.flapDepth || 25)));
+
+  // Modell mit einer Wölbklappenstellung: jede Flügelklappe bekommt δ mal ihren Wölbanteil (flapMix, Standard 1)
+  function withFlap(model, delta) {
+    const m = JSON.parse(JSON.stringify(model));
+    m.wing.stations.forEach((s, i) => {
+      if (i < m.wing.stations.length - 1 && s.flapDepth > 0) s.flap = Math.round(delta * (s.flapMix ?? 1) * 100) / 100;
+    });
+    return m;
   }
 
   // Polare einer Leitwerksstation bei fester Re (die Leitwerks-Ca folgt nicht der Flügel-Ca)
@@ -69,15 +90,16 @@
     return cl < lo.cl ? lo.cd : NaN;
   };
 
-  // Profilwiderstand einer Fläche aus den Streifen: Cw zwischen den Stationen linear verteilt
-  function profileDrag(strips, stations, pols, sRef) {
+  // Profilwiderstand einer Fläche aus den Streifen: Cw zwischen den Stationen linear verteilt.
+  // seg[i] = [Polare innen, Polare aussen] des Segments i (mit dessen Klappe)
+  function profileDrag(strips, stations, seg, sRef) {
     const P0 = V.stationPoints(stations);
     let D = 0;
     for (const s of strips) {
       let i = 1;
       while (i < P0.length - 1 && s.y > P0[i].le[1]) i++;
       const y0 = P0[i - 1].le[1], y1 = P0[i].le[1], t = Math.min(1, Math.max(0, (s.y - y0) / (y1 - y0 || 1)));
-      const cd = cdOf(pols[i - 1], s.cl) * (1 - t) + cdOf(pols[i], s.cl) * t;
+      const cd = cdOf(seg[i - 1][0], s.cl) * (1 - t) + cdOf(seg[i - 1][1], s.cl) * t;
       D += cd * s.chord * s.width;
     }
     return 2 * D / sRef;
@@ -113,6 +135,27 @@
     return s ? se / s : 1;
   };
 
+  // Rumpf: Moment nach Multhopp mit dem Auf- und Abwind des Wirbelgitters entlang der Rumpfachse.
+  // Die Einflusszahlen der Panels auf die Rumpfpunkte hängen nur von der Geometrie ab (nicht von Wölbung
+  // und Klappen); zurück kommt cmFus(α, G).
+  function fuselageMoment(model, fus, wing, sys) {
+    const W = model.wing, T = model.tail;
+    const P0w = V.stationPoints(W.stations), rootLe = P0w[0].le[0], rootTe = rootLe + W.stations[0].chord;
+    const tailLe = T.x + (T.stations[0]?.offset || 0);
+    const pts = [];
+    for (let i = 1; i < fus.pts.length; i++) {
+      const a = fus.pts[i - 1], b = fus.pts[i], x = (a.x + b.x) / 2;
+      if ((x > rootLe && x < rootTe) || x > tailLe) continue;
+      const w = a.r + b.r;
+      pts.push({ k: Math.PI / 2 * w * w * (b.x - a.x) / (wing.area * wing.mac), inf: sys.panels.map(p => V.horseshoe([x, 0, 0], p.A, p.B, sys.far)[2]) });
+    }
+    return (alpha, G) => pts.reduce((m, q) => {
+      let vz = 0;
+      for (let j = 0; j < G.length; j++) vz += q.inf[j] * G[j];
+      return m + q.k * (alpha * V.RAD + vz);
+    }, 0);
+  }
+
   // Hauptrechnung. Gibt alles zurück, was die Oberfläche zeigt.
   function analyze(model, profiles, { ny = 30, nx = 8, nyTail = 10, nxTail = 5, nCrit = 9 } = {}) {
     const W = model.wing, T = model.tail;
@@ -126,26 +169,8 @@
       return V.build(pw.concat(pt));
     });
     const ref = { sRef: wing.area, cRef: wing.mac, xRef: 0 };
-    // Rumpf: Moment nach Multhopp mit dem Auf- und Abwind des Wirbelgitters entlang der Rumpfachse.
-    // Die Einflusszahlen der Panels auf die Rumpfpunkte rechnen wir einmal pro Geometrie.
     const fus = F.shape(model);
-    const P0w = V.stationPoints(W.stations), rootLe = P0w[0].le[0], rootTe = rootLe + W.stations[0].chord;
-    const tailLe = T.x + (T.stations[0]?.offset || 0);
-    const fusInf = cached('f' + geoKey + PR.hash(JSON.stringify(fus.pts)), () => {
-      const pts = [];
-      for (let i = 1; i < fus.pts.length; i++) {
-        const a = fus.pts[i - 1], b = fus.pts[i], x = (a.x + b.x) / 2;
-        if ((x > rootLe && x < rootTe) || x > tailLe) continue;
-        const w = a.r + b.r;
-        pts.push({ k: Math.PI / 2 * w * w * (b.x - a.x) / (wing.area * wing.mac), inf: sys.panels.map(p => V.horseshoe([x, 0, 0], p.A, p.B, sys.far)[2]) });
-      }
-      return pts;
-    });
-    const cmFus = (alpha, G) => fusInf.reduce((m, q) => {
-      let vz = 0;
-      for (let j = 0; j < G.length; j++) vz += q.inf[j] * G[j];
-      return m + q.k * (alpha * V.RAD + vz);
-    }, 0);
+    const cmFus = cached('f' + geoKey + PR.hash(JSON.stringify(fus.pts)), () => fuselageMoment(model, fus, wing, sys));
     const run = (alpha, it) => {
       const r = V.solve(sys, alpha, { ...ref, extra: it ? p => (p.surf === 1 ? it : 0) : null });
       r.cmF = cmFus(alpha, r.G); r.Cm += r.cmF;
@@ -178,13 +203,14 @@
     const clWing = (trim.lift[0] || 0) / (0.5 * wing.area);
 
     // Profilpolaren der Flügelstationen: örtliches Ca max entlang der Spannweite
-    const pols = W.stations.map(s => stationPolar(s, profiles, ws, nCrit));
+    // (an beiden Enden jedes Segments mit dessen Klappe)
+    const seg = segmentPolars(W.stations, profiles, ws, nCrit);
     const P0 = V.stationPoints(W.stations);
     const clMaxAt = y => {
       for (let i = 1; i < P0.length; i++) {
         const y0 = P0[i - 1].le[1], y1 = P0[i].le[1];
         if (y <= y1 + 1e-9) {
-          const a = pols[i - 1], b = pols[i], t = (y - y0) / (y1 - y0 || 1);
+          const [a, b] = seg[i - 1], t = (y - y0) / (y1 - y0 || 1);
           if (!a || !b) return NaN;
           return a.clMax + (b.clMax - a.clMax) * t;
         }
@@ -197,7 +223,7 @@
     let sw = 0, a0 = 0, c0 = 0;
     for (let i = 1; i < W.stations.length; i++) {
       const a = (W.stations[i - 1].chord + W.stations[i].chord) / 2 * (W.stations[i].y - W.stations[i - 1].y);
-      for (const q of [pols[i - 1], pols[i]]) if (q && Number.isFinite(q.alpha0)) { sw += a / 2; a0 += q.alpha0 * a / 2; c0 += q.cm0 * a / 2; }
+      for (const q of seg[i - 1]) if (q && Number.isFinite(q.alpha0)) { sw += a / 2; a0 += q.alpha0 * a / 2; c0 += q.cm0 * a / 2; }
     }
     const hand = handMethod(wing, tail, { tailEff: tailEffOf(T.stations), xCG, CL, alpha0: sw ? a0 / sw : 0, cm0: sw ? c0 / sw : 0 });
 
@@ -229,7 +255,7 @@
       const reT = v * tail.mac / 1000 / NU;
       const tpols = T.stations.map(q => tailPolar(q, profiles, reT, nCrit));
       const cdi = V.trefftz(r.strips, wing.area);
-      const cdw = profileDrag(sw, W.stations, pols, wing.area), cdt = profileDrag(st, T.stations, tpols, wing.area);
+      const cdw = profileDrag(sw, W.stations, seg, wing.area), cdt = profileDrag(st, T.stations, tpols.slice(0, -1).map((q, i) => [q, tpols[i + 1]]), wing.area);
       const cdf = F.drag(fus, v, wing.area), cdv = F.finDrag(finA, v, wing.area, finCd0);
       const cd = cdi + cdw + cdt + cdf + cdv, E = cl / cd;
       const stall = over || !Number.isFinite(cdw); // Ca einer Station über ihrem Ca max
@@ -258,13 +284,13 @@
       wing, tail, xNP, xCG, sigma, CLalpha: cA * 180 / Math.PI,
       trim: { CL, alpha, tailIncidence: it, ewd: (W.incidence || 0) - it, clWing, clTail, speed, re: speed * wing.mac / 1000 / NU },
       wingLoading: ws, tailVolume, table, sigmas, best, minSink, xNP0,
-      fuselage: { ...fus, fin: finA, dNP: xNP - xNP0 }, strips, tailStrips, stations: pols, stall, hand,
+      fuselage: { ...fus, fin: finA, dNP: xNP - xNP0 }, strips, tailStrips, segments: seg, stall, hand,
       profiles: { wing: wingGeo.map(g => g && g.name), tail: tailGeo.map(g => g && g.name) },
       panels: sys.panels.length,
     };
   }
 
-  const api = { analyze, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile };
+  const api = { analyze, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, RHO, NU, G };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);
