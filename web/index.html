@@ -15,6 +15,7 @@
 <script src="core/rumpf.js"></script>
 <script src="core/modell.js"></script>
 <script src="core/excel.js"></script>
+<script src="core/strak.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -206,7 +207,7 @@ tr.low td{color:var(--warn)}
 .plan canvas{position:absolute;inset:0;width:100%;height:100%}
 .st-table td,.st-table th{padding:3px 3px}
 .st-table th{white-space:normal;line-height:1.15;vertical-align:bottom;font-size:.66rem;letter-spacing:.03em}
-.st-table input.num{width:7ch;height:28px;padding:2px 4px;font-size:.82rem}
+.st-table input.num{width:6.4ch;height:28px;padding:2px 4px;font-size:.82rem}
 .st-table input.num{-moz-appearance:textfield;appearance:textfield}
 .st-table input.num::-webkit-inner-spin-button,.st-table input.num::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .st-table select.sel{height:28px;padding:2px 3px;max-width:130px;font-size:.82rem}
@@ -216,6 +217,21 @@ tr.low td{color:var(--warn)}
 .st-table th small{text-transform:none;letter-spacing:0}
 td.warn{color:var(--warn);font-weight:600}
 .legend i.dashc{background:none!important;border-top:2px dashed currentColor;height:0}
+.progress{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+h3.sub{font:600 .95rem/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;margin:6px 0 0;color:var(--muted)}
+#oResult{display:grid;gap:10px}
+#oResult[hidden]{display:none}
+#flModes td,#flModes th,#oPoints td,#oPoints th,#oStations td,#oStations th,#flEnv td,#flEnv th{padding:5px 9px}
+#flModes input.num{width:7ch;height:28px;padding:2px 4px;font-size:.82rem}
+#flModes input.txt{width:11ch;height:28px;padding:2px 6px;font-size:.82rem}
+#flModes .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem}
+#flModes .x:hover{color:var(--bad)}
+td.gain{color:var(--good)} td.loss{color:var(--warn)}
+#oPoints .grp,#oStations .grp{border-left:1px solid var(--line)}
+#oStations th,#oPoints th{text-transform:none;letter-spacing:.02em;line-height:1.2;vertical-align:bottom}
+#oStations th small,#oPoints th small{color:var(--muted);font-size:.66rem}
+#oStations tr>:first-child,#oPoints tr>:first-child{position:sticky;left:0;background:var(--panel);z-index:1}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
 </style>
 
@@ -381,6 +397,11 @@ td.warn{color:var(--warn);font-weight:600}
           <div class="pol-head"><h2>Höhenleitwerk</h2><span class="status" id="tailInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="tailTable"></table></div>
           <div class="btnrow"><button type="button" class="btn ghost sm" data-add="tail">Station anfügen</button><span class="hint">V-Leitwerk: V-Form eintragen, z. B. 40°. Profil leer lassen für eine ebene Platte.</span></div>
+          <div class="form">
+            <div class="field"><span>Bauart</span><span class="seg" id="eType"><button type="button" data-v="gedaempft">gedämpft (Flosse + Ruder)</button><button type="button" data-v="pendel">Pendel</button></span></div>
+            <label class="field"><span>Ruder neutral bei EWD</span><span class="row"><input class="num" id="eEwd" type="number" step="0.1" placeholder="auto"><span class="u">°</span></span></label>
+          </div>
+          <p class="hint" id="eInfo"></p>
         </section>
         <div class="charts">
           <div class="cbox"><div class="ct">Auftriebsverteilung <span>örtliches Ca und Ca max <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div></div>
@@ -394,6 +415,59 @@ td.warn{color:var(--warn);font-weight:600}
             <div class="cbox"><div class="ct">Gleitzahl <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpE"></canvas></div></div>
             <div class="cbox"><div class="ct">Widerstandsanteile <span><span id="gpCdLeg" class="legend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpCd"></canvas></div></div>
             <div class="cbox"><div class="ct">Polare <span>Ca über Cw <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpPol"></canvas></div></div>
+          </div>
+        </section>
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Wölbklappen <button type="button" class="iconbtn sm" data-info="info-flap" aria-expanded="false" aria-controls="info-flap" aria-label="So werden die Klappen gerechnet">i</button></h2><span id="flInfo" class="status"></span></div>
+          <div class="infopop" id="info-flap" hidden>
+            <p>Flugzustände: für jeden Zustand ein Ca und ein Wölbklappenwinkel. Die App trimmt das Modell mit Deinem Schwerpunkt und zeigt Geschwindigkeit, EWD, Gleitzahl und Sinken. „Beste Klappe suchen“ sucht für jeden Zustand den Winkel mit dem kleinsten Widerstand, mit mindestens 10 % Abstand zum Abriss. Die Gewichte brauchst Du nur für den Strak-Optimierer.</p>
+            <p>Jede Flügelklappe schlägt mit ihrem Wölbanteil aus der Flügeltabelle aus (Standard 100 %, Querruder zum Beispiel 60 %). Positiv heisst nach unten. Die Profilpolaren der Stationen werden mit der ausgeschlagenen Klappe gerechnet.</p>
+            <p>Klappenschar: die Gesamtpolare für mehrere Klappenwinkel mit der normalen Modellrechnung, dazu die Hüllkurve, also für jedes Ca der Winkel mit der besten Gleitzahl.</p>
+          </div>
+          <div class="tablewrap"><table id="flModes"></table></div>
+          <div class="btnrow"><button type="button" class="btn ghost sm" id="flAdd">Zustand anfügen</button><button type="button" class="btn ghost sm" id="flBest">Beste Klappe suchen</button><span class="hint" id="flHint"></span></div>
+          <div class="form">
+            <label class="field"><span>Klappenschar</span><span class="row"><input class="txt" id="flSeries" placeholder="-4 -2 0 2 4 6 8"><span class="u">°</span></span></label>
+            <div class="field"><span>&nbsp;</span><span class="row"><button type="button" class="btn sm" id="flRun">Schar rechnen</button><span class="status" id="flStatus"></span></span></div>
+          </div>
+          <div class="charts" id="flCharts" hidden>
+            <div class="cbox"><div class="ct">Gleitzahl je Klappe <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flE"></canvas></div></div>
+            <div class="cbox"><div class="ct">Sinken je Klappe <span>mit Hüllkurve <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flSink"></canvas></div></div>
+          </div>
+          <span class="legend" id="flLegend"></span>
+          <div id="flEnvWrap" hidden><h3 class="sub">Klappenplan für den Mischer</h3><p class="hint">Je Ca die Klappe, die stetig mit dem Ca mitgeht und der Hüllkurve am nächsten kommt. Die reine Hüllkurve springt dort hin und her, wo sich die Klappen um weniger als ein Prozent unterscheiden. Mit der Klappe ändert sich auch das nötige Höhenruder: Klappe nach unten braucht etwas Tiefe.</p><div class="tablewrap"><table id="flEnv"></table></div></div>
+        </section>
+        <section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Strak-Optimierer <button type="button" class="iconbtn sm" data-info="info-opt" aria-expanded="false" aria-controls="info-opt" aria-label="So arbeitet der Optimierer">i</button></h2><span id="oStatus" class="status"></span></div>
+          <div class="infopop" id="info-opt" hidden>
+            <p>Du gibst das Wurzelprofil vor. Der Optimierer sucht an jeder weiteren Station Dicke, Dickenrücklage, Wölbung und Wölbungsrücklage und dazu den Klappenwinkel für jeden Flugzustand oben, alles gemeinsam. Ziel ist der kleinste Gesamtwiderstand, gewichtet über die Flugzustände, jeder Zustand getrimmt mit Deinem Schwerpunkt. Das Wirbelgitter liefert das örtliche Ca jeder Station, NeuralFoil den Profilwiderstand bei der örtlichen Re. So arbeitet der Aussenflügel bei seiner kleinen Re und seinem eigenen Ca.</p>
+            <p>Randbedingungen: Mindestdicke in % und als Höhe in mm (Holm, Verbinder), Abstand zum Abriss beim langsamsten Zustand, Cm0 der Profile nicht stärker negativ als die Grenze (leer = Wert der Wurzel), glatter Strak über die Spannweite. Gesucht wird mit CMA-ES, einer ableitungsfreien Suche. Das dauert je nach Modell und Rechentiefe 30 Sekunden bis drei Minuten.</p>
+            <p>Der Optimierer rechnet schneller als die normale Modellrechnung: Klappe als Knick der Skelettlinie, pro Station nur wenige Punkte um das örtliche Ca. Darum rechnet die App das Ergebnis danach noch einmal mit der normalen Modellrechnung nach. Übernommen wird nur, was Du bestätigst. NeuralFoil ist bei sehr kleinen Unterschieden zwischen zwei Profilen ungenau; das Ergebnis später mit XFOIL gegenprüfen.</p>
+          </div>
+          <div class="form">
+            <label class="field"><span>Wurzelprofil</span><select class="sel" id="oRoot"></select></label>
+            <label class="field"><span>Mindestdicke</span><span class="row"><input class="num" id="oMinT" type="number" step="0.5" min="3" max="20"><span class="u">%</span></span></label>
+            <label class="field"><span>Mindesthöhe Holm</span><span class="row"><input class="num" id="oMinH" type="number" step="0.5" min="0" placeholder="aus"><span class="u">mm</span></span></label>
+            <label class="field"><span>Abstand zum Abriss</span><span class="row"><input class="num" id="oStall" type="number" step="1" min="0" max="40"><span class="u">%</span></span></label>
+            <label class="field"><span>Cm0 nicht unter</span><span class="row"><input class="num" id="oCm0" type="number" step="0.005" max="0.05" placeholder="auto"></span></label>
+            <label class="field"><span>Klappe von … bis</span><span class="row"><input class="num" id="oFlapLo" type="number" step="0.5"><input class="num" id="oFlapHi" type="number" step="0.5"><span class="u">°</span></span></label>
+            <div class="field"><span>Glatter Strak</span><span class="seg" id="oSmooth"><button type="button" data-v="0">aus</button><button type="button" data-v="0.0005">leicht</button><button type="button" data-v="0.002">mittel</button><button type="button" data-v="0.01">stark</button></span></div>
+            <div class="field"><span>Rechentiefe</span><span class="seg" id="oDepth"><button type="button" data-v="600">schnell</button><button type="button" data-v="1500">normal</button><button type="button" data-v="3000">gründlich</button></span></div>
+          </div>
+          <div class="field"><span>Stellgrössen</span><div class="chips" id="oVars"><button type="button" class="chip" data-v="thickness">Dicke</button><button type="button" class="chip" data-v="xThickness">Dickenrücklage</button><button type="button" class="chip" data-v="camber">Wölbung</button><button type="button" class="chip" data-v="xCamber">Wölbungsrücklage</button><button type="button" class="chip" data-v="flap">Klappenwinkel</button></div></div>
+          <div class="btnrow"><button type="button" class="btn" id="oRun">Optimieren</button><button type="button" class="btn ghost" id="oStop" hidden>Abbrechen</button><span class="hint" id="oHint"></span></div>
+          <div class="progress" id="oBar" hidden><i></i></div>
+          <div id="oResult" hidden>
+            <div class="kpis" id="oKpis"></div>
+            <h3 class="sub">Flugzustände vorher und nachher</h3>
+            <div class="tablewrap"><table id="oPoints"></table></div>
+            <h3 class="sub">Stationen vorher und nachher</h3>
+            <div class="tablewrap"><table id="oStations"></table></div>
+            <div class="charts">
+              <div class="cbox"><div class="ct">Strak <span>Dicke und Wölbung über die Spannweite <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="oStrak"></canvas></div></div>
+              <div class="cbox"><div class="ct">Profile nachher <span id="oFoilLeg" class="legend"></span></div><div class="contour"><canvas id="oFoils" aria-label="Profile der Stationen nach der Optimierung"></canvas></div></div>
+            </div>
+            <div class="btnrow"><button type="button" class="btn" id="oApply">Ins Modell übernehmen</button><button type="button" class="btn ghost" id="oApplyNew">Als neues Modell übernehmen</button><button type="button" class="btn ghost" id="oDiscard">Verwerfen</button><span class="hint">Übernimmt Profile und Kennwerte aller Stationen und die Klappenwinkel der Flugzustände.</span></div>
           </div>
         </section>
         <section>
@@ -1047,8 +1121,10 @@ $('varNone').onclick = () => { project.variants.forEach(v => ui.varOff.add(v.id)
 const MD = window.MMPA.modell, FU = window.MMPA.rumpf;
 const COLS = [
   ['y', 'y', 'mm', 5], ['chord', 'Tiefe', 'mm', 1], ['offset', 'Versatz', 'mm', 1], ['dihedral', 'V-Form', '°', 0.5], ['twist', 'Schränk.', '°', 0.25, 'Schränkung'],
-  ['profileId', 'Profil'], ['thickness', 'Dicke', '%', 0.1], ['camber', 'Wölb.', '%', 0.05, 'Wölbung'], ['flapDepth', 'Kl.-tiefe', '%', 1, 'Klappentiefe'], ['flap', 'Klappe', '°', 0.5],
+  ['profileId', 'Profil'], ['thickness', 'Max. Dicke', '%', 0.1, 'Grösste Dicke in % der Tiefe'], ['xThickness', 'Dicken­rücklage', '%', 0.5, 'Lage der grössten Dicke in % der Tiefe ab Nase'], ['camber', 'Max. Wölbung', '%', 0.05, 'Grösste Wölbung in % der Tiefe'], ['xCamber', 'Wölbungs­rücklage', '%', 0.5, 'Lage der grössten Wölbung in % der Tiefe ab Nase'],
+  ['flapDepth', 'Kl.-tiefe', '%', 1, 'Klappentiefe'], ['flap', 'Klappe', '°', 0.5], ['flapMix', 'Wölb.-anteil', '%', 5, 'Anteil der Wölbklappenstellung an dieser Klappe (Querruder z. B. 60 %)'],
 ];
+const PCT_KEYS = ['thickness', 'camber', 'xThickness', 'xCamber'];
 function curModel() {
   if (!project.models.length) {
     const prof = name => project.profiles.find(p => p.name.toUpperCase().startsWith(name))?.id || null;
@@ -1135,6 +1211,10 @@ function syncModelForm() {
   $('fType').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === f.type));
   $('fNose').value = f.nose;
   $('fD').value = f.diameter ?? ''; $('fD').placeholder = sh.D;
+  const el = MD.elevatorOf(m);
+  $('eType').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === el.type));
+  $('eEwd').value = el.ewd ?? '';
+  elevatorInfo(m);
   $('fFin').value = f.fin ?? ''; $('fFin').placeholder = FU.finArea(m, window.MMPA.vlm.planform(m.tail.stations).area);
 }
 // Rumpf: Form und Parameter; leere Felder = automatisch
@@ -1143,6 +1223,19 @@ $('fType').onclick = e => { const b = e.target.closest('button'); if (b) setFus(
 $('fNose').addEventListener('change', () => { const v = parseFloat($('fNose').value); Number.isFinite(v) ? setFus('nose', Math.min(5000, Math.max(0, v))) : syncModelForm(); });
 $('fD').addEventListener('change', () => { const v = parseFloat($('fD').value); setFus('diameter', Number.isFinite(v) && v > 0 ? Math.min(1000, v) : null); });
 $('fFin').addEventListener('change', () => { const v = parseFloat($('fFin').value); setFus('fin', Number.isFinite(v) && v >= 0 ? Math.min(500, v) : null); });
+// Höhenruder: Bauart und Bezugs-EWD; die Rudertiefe ist die Klappentiefe in der Leitwerkstabelle
+function elevatorInfo(m) {
+  const el = MD.elevatorOf(m), tau = MD.elevatorTau(m.tail.stations), d = m.tail.stations.slice(0, -1).map(s => s.flapDepth || 0);
+  const ref = el.ewd ?? (lastModel && lastModelId === m.id ? lastModel.trim.ewd : null);
+  const at = ref != null ? `Ruder neutral bei EWD ${fmt(ref, 2)}°${el.ewd == null ? ' (EWD beim Trimm-Ca)' : ''}. ` : '';
+  $('eEwd').placeholder = ref != null && el.ewd == null ? fmt(ref, 2) : 'auto';
+  $('eInfo').textContent = el.type === 'pendel' ? `${at}Ausschlag = Verdrehung des ganzen Leitwerks gegenüber dieser Stellung, positiv = Endleiste nach unten.`
+    : tau ? `${at}Rudertiefe ${[...new Set(d)].map(v => fmt(v, 0)).join('/')} % (Spalte Kl.-tiefe oben). 1° Ruder wirkt wie ${fmt(tau, 2)}° Einstellwinkel (Wirbelgitter, reibungsfrei; echte Ruder wirken bei grossen Ausschlägen etwas schwächer). Positiv = Endleiste nach unten.`
+      : 'Für den Ruderausschlag in der Leitwerkstabelle eine Klappentiefe eintragen.';
+}
+$('eType').onclick = e => { const b = e.target.closest('button'); if (!b) return; const m = curModel(); m.tail.elevator = { ...MD.elevatorOf(m), type: b.dataset.v }; persist(); syncModelForm(); renderModes(); renderSeries(); };
+$('eEwd').addEventListener('change', () => { const m = curModel(), v = parseFloat($('eEwd').value); m.tail.elevator = { ...MD.elevatorOf(m), ewd: Number.isFinite(v) ? Math.min(10, Math.max(-10, v)) : null }; persist(); syncModelForm(); renderModes(); renderSeries(); });
+const elevAt = (m, ewd) => MD.elevatorDeflection(m, ewd, lastModel && lastModelId === m.id ? lastModel.trim.ewd : NaN);
 const MFORM = { mMass: ['mass', 10, 100000], mCl: ['clDesign', 0.05, 1.5], mInc: ['wing.incidence', -10, 10], mTx: ['tail.x', 50, 5000], mTz: ['tail.z', -500, 1000] };
 for (const [id, [path, lo, hi]] of Object.entries(MFORM)) {
   $(id).addEventListener('change', () => {
@@ -1170,20 +1263,24 @@ $('mCg').addEventListener('change', () => {
 function stationTable(which) {
   const m = curModel(), st = m[which].stations;
   const profOpts = sel => `<option value="">${which === 'tail' ? 'ebene Platte' : '– kein Profil –'}</option>` + project.profiles.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
-  const head = '<thead><tr><th>#</th>' + COLS.map(([k, l, u, , t]) => `<th${t ? ` title="${t}"` : ''}>${l}${u ? ` <small>${u}</small>` : ''}</th>`).join('') + '<th></th></tr></thead>';
+  const cols = which === 'tail' ? COLS.filter(c => c[0] !== 'flapMix') : COLS;
+  const head = '<thead><tr><th>#</th>' + cols.map(([k, l, u, , t]) => `<th${t ? ` title="${t}"` : ''}>${l}${u ? ` <small>${u}</small>` : ''}</th>`).join('') + '<th></th></tr></thead>';
   const body = st.map((s, i) => {
     const sp = MD.stationGeometry(s, project.profiles);
     const raw = s.profileId && profById(s.profileId) ? profStat(profById(s.profileId)) : null;
     const last = i === st.length - 1;
-    const cells = COLS.map(([k, , , step]) => {
+    const cells = cols.map(([k, , , step]) => {
       if (k === 'profileId') return `<td><select class="sel" data-k="${k}" aria-label="Profil Station ${i + 1}">${profOpts(s.profileId)}</select></td>`;
-      if (k === 'thickness' || k === 'camber') {
-        const ph = raw ? pct(raw[k], 2) : '';
+      if (PCT_KEYS.includes(k)) {
+        // Rücklagen wie profil.modify sie misst (Bezug für die Verschiebung)
+        const ref = raw && k[0] === 'x' ? window.MMPA.strak.prepareBase(profById(s.profileId)).stats : raw;
+        const ph = raw ? pct(ref[k], k[0] === 'x' ? 1 : 2) : '';
         const v = s[k] != null ? +(s[k] * 100).toFixed(2) : '';
         return `<td><input class="num" type="number" step="${step}" data-k="${k}" value="${v}" placeholder="${ph}" ${raw ? '' : 'disabled'} aria-label="${k} Station ${i + 1}"></td>`;
       }
       // V-Form und Klappe gelten bis zur nächsten Station
-      const off = last && ['dihedral', 'flapDepth', 'flap'].includes(k);
+      const off = last && ['dihedral', 'flapDepth', 'flap', 'flapMix'].includes(k);
+      if (k === 'flapMix') return `<td><input class="num" type="number" step="${step}" min="-100" max="200" data-k="${k}" value="${off || s.flapMix == null ? '' : +(s.flapMix * 100).toFixed(1)}" placeholder="${off ? '' : 100}" ${off ? 'disabled' : ''} aria-label="Wölbanteil Station ${i + 1}"></td>`;
       const ro = i === 0 && k === 'y';
       return `<td><input class="num" type="number" step="${step}" data-k="${k}" value="${off ? '' : s[k]}" ${off || ro ? 'disabled' : ''} aria-label="${k} Station ${i + 1}"></td>`;
     }).join('');
@@ -1197,8 +1294,10 @@ for (const which of ['wing', 'tail']) {
   tb.addEventListener('change', e => {
     const tr = e.target.closest('tr[data-i]'), k = e.target.dataset.k; if (!tr || !k) return;
     const m = curModel(), st = m[which].stations, i = +tr.dataset.i, s = st[i];
-    if (k === 'profileId') { s.profileId = e.target.value || null; s.thickness = null; s.camber = null; }
+    if (k === 'profileId') { s.profileId = e.target.value || null; s.thickness = null; s.camber = null; s.xThickness = null; s.xCamber = null; }
     else if (k === 'thickness' || k === 'camber') { const v = parseFloat(e.target.value); s[k] = Number.isFinite(v) && v >= 0 ? v / 100 : null; }
+    else if (k === 'xThickness' || k === 'xCamber') { const v = parseFloat(e.target.value); s[k] = Number.isFinite(v) && v > 5 && v < 90 ? v / 100 : null; }
+    else if (k === 'flapMix') { const v = parseFloat(e.target.value); s.flapMix = Number.isFinite(v) ? Math.min(2, Math.max(-1, v / 100)) : null; }
     else {
       const v = parseFloat(e.target.value); if (!Number.isFinite(v)) { stationTable(which); return; }
       s[k] = k === 'chord' ? Math.max(5, v) : v;
@@ -1281,17 +1380,18 @@ function drawPlan(m, r) {
   $('planLegend').innerHTML = `<span><i style="background:${css('--fg')}"></i>l<sub>μ</sub> ${fmt(r.wing.mac, 0)} mm</span><span>Klappen gestrichelt</span>`;
 }
 
-let lastModel = null, modelTimer = null;
+let lastModel = null, lastModelId = null, modelTimer = null;
 function scheduleModel() { clearTimeout(modelTimer); modelTimer = setTimeout(computeModel, 60); }
 function computeModel() {
   const m = curModel(), t0 = performance.now();
-  try { lastModel = MD.analyze(m, project.profiles, { nCrit: lab.nCrit }); }
-  catch (err) { lastModel = null; $('mStatus').textContent = 'Rechnung nicht möglich: ' + err.message; }
+  try { lastModel = MD.analyze(m, project.profiles, { nCrit: lab.nCrit }); lastModelId = m.id; elevatorInfo(m); }
+  catch (err) { lastModel = null; lastModelId = null; $('mStatus').textContent = 'Rechnung nicht möglich: ' + err.message; }
   if (lastModel) $('mStatus').textContent = `${lastModel.panels} Panels · ${Math.round(performance.now() - t0)} ms`;
   renderModelResults();
+  scheduleModes();
 }
 function renderModel() {
-  renderModelList(); syncModelForm(); stationTable('wing'); stationTable('tail'); computeModel();
+  renderModelList(); syncModelForm(); stationTable('wing'); stationTable('tail'); syncOpt(); computeModel(); renderSeries(); renderOptResult();
 }
 // Arbeitstabelle: EWD je Ca und Schwerpunkt, Gleitzahl, Leitwerk ohne Last
 function renderOps(m, r) {
@@ -1396,6 +1496,288 @@ function renderModelResults() {
   }
 }
 addEventListener('resize', () => { if (ui.tab === 'modell') drawPlan(curModel(), lastModel); });
+
+// ---------- Wölbklappen und Strak-Optimierer (P3) ----------
+// Flugzustände je Modell (m.flaps.modes): Ca, Klappenwinkel, Gewicht für den Optimierer. Schnelle Bewertung
+// mit core/strak.js, Klappenschar und Gegenprobe mit der normalen Modellrechnung.
+const SK = window.MMPA.strak;
+const DEF_MODES = () => [{ name: 'Speed', cl: 0.15, flap: 0, weight: 1 }, { name: 'Gleiten', cl: 0.45, flap: 0, weight: 2 }, { name: 'Thermik', cl: 0.8, flap: 0, weight: 1 }];
+function flapsOf(m) {
+  if (!m.flaps || !Array.isArray(m.flaps.modes) || !m.flaps.modes.length) m.flaps = { series: '-4 -2 0 2 4 6 8', ...(m.flaps || {}), modes: DEF_MODES() };
+  return m.flaps;
+}
+const hasFlaps = m => m.wing.stations.slice(0, -1).some(s => s.flapDepth > 0 && (s.flapMix ?? 1) !== 0);
+const modelKey = m => PR.hash(JSON.stringify([{ ...m, name: '', notes: '', flaps: null, opt: null }, lab.nCrit, project.profiles.map(p => [p.id, p.mod])]));
+
+let modeRes = null, modeTimer = null;
+function scheduleModes() { clearTimeout(modeTimer); modeTimer = setTimeout(() => computeModes(false), 250); }
+function computeModes(best) {
+  const m = curModel(), F = flapsOf(m), o = optOf(m);
+  try {
+    modeRes = SK.flightModes(m, project.profiles, F.modes.map(q => ({ ...q, flap: hasFlaps(m) ? q.flap : 0 })), { nCrit: lab.nCrit, best: best && hasFlaps(m), flapMin: o.flapLo, flapMax: o.flapHi });
+    if (best) { modeRes.forEach((r, k) => { if (!F.modes[k].fixed) F.modes[k].flap = r.flap; }); persist(); }
+    $('flInfo').textContent = `Schwerpunkt ${fmt(modeRes[0].xCG, 1)} mm · schnelle Rechnung`;
+  } catch (err) { modeRes = null; $('flInfo').textContent = 'Rechnung nicht möglich: ' + err.message; }
+  renderModes();
+}
+const fmtEl = v => v == null ? '–' : (v > 0.005 ? '+' : v < -0.005 ? '−' : '') + fmt(Math.abs(v), 1);
+function renderModes() {
+  const m = curModel(), F = flapsOf(m), fl = hasFlaps(m);
+  const head = `<thead><tr><th>Zustand</th><th>Ca</th><th title="Gewicht im Strak-Optimierer">Gewicht</th><th>Klappe °</th><th title="Klappenwinkel fest, wird nicht gesucht">fest</th><th class="grp">V km/h</th><th>α °</th><th>EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten">Höhenruder °</th><th>Ca HLW</th><th>Gleitzahl</th><th>Sinken m/s</th><th title="höchstes örtliches Ca im Verhältnis zum Ca max der Profile">Ca/Ca max</th><th></th></tr></thead>`;
+  const body = F.modes.map((q, i) => {
+    const r = modeRes && modeRes[i];
+    const st = r && r.stall > 0.9 ? 'warn' : '';
+    return `<tr data-i="${i}"><td><input class="txt" data-k="name" value="${esc(q.name)}" aria-label="Name Zustand ${i + 1}"></td>` +
+      `<td><input class="num" type="number" step="0.05" min="0.05" max="1.4" data-k="cl" value="${q.cl}" aria-label="Ca ${esc(q.name)}"></td>` +
+      `<td><input class="num" type="number" step="0.5" min="0" data-k="weight" value="${q.weight ?? 1}" aria-label="Gewicht ${esc(q.name)}"></td>` +
+      `<td><input class="num" type="number" step="0.25" data-k="flap" value="${fl ? +(+q.flap || 0).toFixed(2) : ''}" ${fl ? '' : 'disabled'} aria-label="Klappe ${esc(q.name)}"></td>` +
+      `<td><input type="checkbox" data-k="fixed" ${q.fixed ? 'checked' : ''} ${fl ? '' : 'disabled'} aria-label="Klappe ${esc(q.name)} fest"></td>` +
+      (r ? `<td class="grp">${fmt(r.v * 3.6, 0)}</td><td>${fmt(r.alpha, 2)}</td><td>${fmt(r.ewd, 2)}</td><td>${fmtEl(elevAt(m, r.ewd))}</td><td>${fmt(r.clTail, 3)}</td><td>${r.ok ? fmt(r.E, 1) : 'Abriss'}</td><td>${r.ok ? fmt(r.sink, 3) : '–'}</td><td class="${st}">${fmt(r.stall * 100, 0)} %</td>`
+        : '<td class="grp" colspan="8">–</td>') +
+      `<td>${F.modes.length > 1 ? `<button type="button" class="x" data-del="${i}" aria-label="${esc(q.name)} entfernen" title="Entfernen">×</button>` : ''}</td></tr>`;
+  }).join('');
+  $('flModes').innerHTML = head + '<tbody>' + body + '</tbody>';
+  $('flHint').textContent = fl ? '' : 'Der Flügel hat keine Wölbklappen (Klappentiefe in der Flügeltabelle eintragen).';
+  $('flBest').disabled = !fl;
+  $('flSeries').value = F.series || '';
+}
+$('flModes').addEventListener('change', e => {
+  const tr = e.target.closest('tr[data-i]'), k = e.target.dataset.k; if (!tr || !k) return;
+  const q = flapsOf(curModel()).modes[+tr.dataset.i];
+  if (k === 'name') q.name = e.target.value.trim() || 'Zustand';
+  else if (k === 'fixed') q.fixed = e.target.checked;
+  else { const v = parseFloat(e.target.value); if (Number.isFinite(v)) q[k] = k === 'cl' ? Math.min(1.4, Math.max(0.05, v)) : k === 'weight' ? Math.max(0, v) : Math.min(20, Math.max(-15, v)); }
+  persist(); scheduleModes();
+});
+$('flModes').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  flapsOf(curModel()).modes.splice(+b.dataset.del, 1); persist(); computeModes(false);
+});
+$('flAdd').onclick = () => { const F = flapsOf(curModel()); F.modes.push({ name: 'Zustand ' + (F.modes.length + 1), cl: 0.6, flap: 0, weight: 1 }); persist(); computeModes(false); };
+$('flBest').onclick = () => { $('flHint').textContent = 'suche …'; setTimeout(() => computeModes(true), 20); };
+
+// Klappenschar mit der normalen Modellrechnung, eine Stellung nach der anderen
+let series = null;
+$('flSeries').addEventListener('change', () => { flapsOf(curModel()).series = $('flSeries').value.trim(); persist(); });
+$('flRun').onclick = () => {
+  const m = curModel(), F = flapsOf(m);
+  F.series = $('flSeries').value.trim() || '-4 -2 0 2 4 6 8'; persist();
+  const ds = [...new Set(F.series.replace(/,/g, ' ').split(/[\s;]+/).map(v => parseFloat(v.replace('−', '-'))).filter(Number.isFinite))].sort((a, b) => a - b).slice(0, 10);
+  if (!ds.length) { toast('Klappenwinkel eintragen, zum Beispiel -4 -2 0 2 4 6'); return; }
+  if (!hasFlaps(m)) { toast('Der Flügel hat keine Wölbklappen'); return; }
+  const fs = SK.flapSeries(m, project.profiles, ds, { nCrit: lab.nCrit }), key = modelKey(m), t0 = performance.now();
+  $('flRun').disabled = true;
+  const tick = () => {
+    $('flStatus').textContent = `rechne Klappe ${fmt(ds[fs.results.length], 1)}° (${fs.results.length + 1} von ${ds.length}) …`;
+    setTimeout(() => {
+      try { fs.next(); } catch (err) { $('flRun').disabled = false; $('flStatus').textContent = err.message; return; }
+      if (!fs.done) return tick();
+      series = { id: m.id, key, fs, env: fs.envelope(), plan: fs.envelope({ monotone: true }) };
+      $('flRun').disabled = false;
+      $('flStatus').textContent = `${ds.length} Stellungen · ${fmt((performance.now() - t0) / 1000, 1)} s`;
+      renderSeries();
+    }, 0);
+  };
+  tick();
+};
+function renderSeries() {
+  const m = curModel(), ok = series && series.id === m.id;
+  $('flCharts').hidden = !ok; $('flEnvWrap').hidden = !ok; $('flLegend').innerHTML = '';
+  if (!ok || typeof Chart === 'undefined') return;
+  const stale = series.key !== modelKey(m);
+  const sets = series.fs.results, n = sets.length;
+  const col = i => n > 1 ? `hsl(${Math.round(220 - 200 * i / (n - 1))} 65% 48%)` : PALETTE[0];
+  const okT = r => r.table.filter(t => !t.stall && Number.isFinite(t.E));
+  const line = (label, data, c, o = {}) => ({ label, data, showLine: true, borderColor: c, backgroundColor: c, borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 4, ...o });
+  const env = series.env, fg = css('--fg');
+  const vmax = Math.max(...sets.flatMap(q => okT(q.r).map(t => t.v * 3.6)));
+  liveChart('flE', 'V [km/h]', 'Gleitzahl', sets.map((q, i) => line(`Klappe ${fmt(q.flap, 1)}°`, okT(q.r).map(t => ({ x: t.v * 3.6, y: t.E })), col(i)))
+    .concat([line('Hüllkurve', env.map(t => ({ x: t.v * 3.6, y: t.E })), fg, { borderWidth: 2.6, borderDash: [6, 4] })]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
+  liveChart('flSink', 'V [km/h]', 'Sinken [m/s]', sets.map((q, i) => line(`Klappe ${fmt(q.flap, 1)}°`, okT(q.r).map(t => ({ x: t.v * 3.6, y: -t.sink })), col(i)))
+    .concat([line('Hüllkurve', env.map(t => ({ x: t.v * 3.6, y: -t.sink })), fg, { borderWidth: 2.6, borderDash: [6, 4] })]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
+  $('flLegend').innerHTML = sets.map((q, i) => `<span><i style="background:${col(i)}"></i>${fmt(q.flap, 1)}°</span>`).join('') + `<span><i class="dashc" style="color:${fg}"></i>Hüllkurve</span>` + (stale ? '<span class="tag warn">Modell seither geändert, neu rechnen</span>' : '');
+  const rows = series.plan.filter(t => Math.abs(t.cl * 10 - Math.round(t.cl * 10)) < 1e-6);
+  $('flEnv').innerHTML = `<thead><tr><th>Ca</th><th>V km/h</th><th title="Klappenplan für den Mischer: steigt mit Ca nie ab und kommt der Hüllkurve so nahe wie möglich">Klappe °</th><th>Gleitzahl</th><th>Sinken m/s</th><th title="EWD bei Deinem Schwerpunkt">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten. Bauart und Bezug unter Höhenleitwerk">Höhenruder °</th><th>α °</th></tr></thead><tbody>` +
+    rows.map(t => `<tr><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.flap, 1)}</td><td>${fmt(t.E, 1)}</td><td>${fmt(t.sink, 3)}</td><td>${fmt(t.ewdCur, 2)}</td><td>${fmtEl(elevAt(m, t.ewdCur))}</td><td>${fmt(t.alpha, 2)}</td></tr>`).join('') + '</tbody>';
+}
+
+// Strak-Optimierer: Einstellungen je Modell (m.opt)
+function optOf(m) {
+  const d = { rootId: null, minThick: 7, minHeight: null, stall: 10, cm0Min: null, flapLo: -5, flapHi: 10, smooth: 0.002, maxEvals: 1500, vars: { ...SK.DEFAULTS.vars } };
+  m.opt = { ...d, ...(m.opt || {}), vars: { ...d.vars, ...((m.opt && m.opt.vars) || {}) } };
+  if (!m.opt.rootId || !profById(m.opt.rootId)) m.opt.rootId = m.wing.stations[0].profileId;
+  return m.opt;
+}
+function syncOpt() {
+  const m = curModel(), o = optOf(m);
+  $('oRoot').innerHTML = project.profiles.map(p => `<option value="${p.id}" ${p.id === o.rootId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  $('oMinT').value = o.minThick; $('oMinH').value = o.minHeight ?? ''; $('oStall').value = o.stall; $('oCm0').value = o.cm0Min ?? '';
+  $('oFlapLo').value = o.flapLo; $('oFlapHi').value = o.flapHi;
+  $('oSmooth').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === o.smooth));
+  $('oDepth').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === o.maxEvals));
+  $('oVars').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', !!o.vars[b.dataset.v]));
+}
+const setOpt = (k, v) => { optOf(curModel())[k] = v; persist(); syncOpt(); };
+$('oRoot').onchange = () => setOpt('rootId', $('oRoot').value);
+for (const [id, k, lo, hi, nul] of [['oMinT', 'minThick', 2, 25], ['oMinH', 'minHeight', 0, 100, true], ['oStall', 'stall', 0, 50], ['oCm0', 'cm0Min', -0.3, 0.1, true], ['oFlapLo', 'flapLo', -15, 5], ['oFlapHi', 'flapHi', -5, 20]]) {
+  $(id).addEventListener('change', () => {
+    const v = parseFloat($(id).value);
+    if (!Number.isFinite(v)) { if (nul) setOpt(k, null); else syncOpt(); return; }
+    setOpt(k, Math.min(hi, Math.max(lo, v)));
+  });
+}
+$('oSmooth').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('smooth', +b.dataset.v); };
+$('oDepth').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('maxEvals', +b.dataset.v); };
+$('oVars').onclick = e => { const b = e.target.closest('button'); if (!b) return; const o = optOf(curModel()); o.vars[b.dataset.v] = !o.vars[b.dataset.v]; persist(); syncOpt(); };
+
+let optJob = null, optRes = null;
+function optSettings(m) {
+  const o = optOf(m), F = flapsOf(m);
+  return {
+    rootId: o.rootId, points: F.modes.map(q => ({ name: q.name, cl: +q.cl, weight: +(q.weight ?? 1) || 0, flap: q.fixed ? +q.flap || 0 : null })),
+    vars: o.vars, flapMin: Math.min(o.flapLo, o.flapHi), flapMax: Math.max(o.flapLo, o.flapHi), minThick: o.minThick / 100, minHeight: o.minHeight || 0,
+    stallMargin: o.stall / 100, cm0Min: o.cm0Min, smooth: o.smooth, maxEvals: o.maxEvals, nCrit: lab.nCrit,
+  };
+}
+function optRunning(on) {
+  $('oRun').disabled = on; $('oStop').hidden = !on; $('oBar').hidden = !on;
+  if (!on) optJob = null;
+}
+function optProgress(p, dims) {
+  $('oBar').firstElementChild.style.width = Math.min(100, 100 * p.evals / p.maxEvals) + '%';
+  $('oHint').textContent = `${dims} Stellgrössen · ${p.evals} von ${p.maxEvals} Bewertungen · ${fmt(p.seconds, 0)} s · bisher ${p.gain > 0 ? '−' : ''}${fmt(Math.abs(p.gain) * 100, 1)} % Widerstand`;
+}
+function optDone(m, snap, res) {
+  optRunning(false);
+  optRes = { id: m.id, snap, res, check: null };
+  $('oHint').textContent = `fertig nach ${fmt(res.seconds, 0)} s und ${res.evals} Bewertungen · rechne Gegenprobe …`;
+  renderOptResult();
+  optCheck(optRes);
+}
+$('oRun').onclick = () => {
+  const m = curModel(), settings = optSettings(m), snap = JSON.parse(JSON.stringify(m));
+  if (!settings.points.length) { toast('Zuerst Flugzustände eintragen'); return; }
+  const profiles = JSON.parse(JSON.stringify(project.profiles));
+  optRunning(true); $('oHint').textContent = 'starte …'; $('oBar').firstElementChild.style.width = '0';
+  const fail = msg => { optRunning(false); $('oHint').textContent = msg; };
+  // im Hintergrund (Web Worker); geht das nicht (z. B. Datei direkt geöffnet), dann in Schritten auf der Seite
+  const inPage = () => {
+    let opt;
+    const job = { stop() { job.stopped = true; } };
+    optJob = job;
+    setTimeout(() => {
+      try { opt = SK.optimizer(snap, profiles, settings); } catch (err) { fail(err.message); return; }
+      const tick = () => {
+        if (job.stopped) return;
+        let p;
+        try { p = opt.step(); } catch (err) { fail(err.message); return; }
+        optProgress(p, opt.dims);
+        if (opt.done) optDone(m, snap, opt.result()); else setTimeout(tick, 0);
+      };
+      tick();
+    }, 30);
+  };
+  let w = null;
+  try { w = new Worker('core/strak-worker.js'); } catch (err) { w = null; }
+  if (!w) { inPage(); return; }
+  let started = false;
+  optJob = { stop() { w.terminate(); } };
+  w.onmessage = e => {
+    const d = e.data; started = true;
+    if (d.type === 'progress') optProgress(d.progress, d.dims);
+    else if (d.type === 'done') { w.terminate(); optDone(m, snap, d.result); }
+    else if (d.type === 'error') { w.terminate(); fail(d.message); }
+  };
+  w.onerror = e => { e.preventDefault(); w.terminate(); if (!started) inPage(); else fail('Rechnung abgebrochen: ' + (e.message || 'Fehler im Hintergrund')); };
+  w.postMessage({ model: snap, profiles, settings });
+};
+$('oStop').onclick = () => { if (optJob) optJob.stop(); optRunning(false); $('oHint').textContent = 'abgebrochen'; };
+
+// Gegenprobe: Vorher und Nachher mit der normalen Modellrechnung (volle Polaren, echte Klappengeometrie)
+function tableAt(r, cl) {
+  const T = r.table;
+  for (let i = 1; i < T.length; i++) if (T[i].cl >= cl - 1e-9) {
+    const a = T[i - 1], b = T[i], f = (cl - a.cl) / (b.cl - a.cl);
+    if (a.stall || b.stall) return null;
+    const L = k => a[k] + f * (b[k] - a[k]);
+    return { E: L('E'), sink: L('sink'), ewd: L('ewdCur') };
+  }
+  return null;
+}
+function optCheck(job) {
+  const after = SK.apply(job.snap, job.res), jobs = [];
+  for (const [k, mm, pts] of [['before', job.snap, job.res.before.points], ['after', after, job.res.after.points]]) pts.forEach((p, i) => jobs.push({ k, i, mm, p }));
+  job.check = { before: [], after: [] };
+  const next = () => {
+    if (optRes !== job) return;
+    const q = jobs.shift();
+    if (!q) { $('oHint').textContent = `fertig nach ${fmt(job.res.seconds, 0)} s und ${job.res.evals} Bewertungen · Gegenprobe gerechnet`; return; }
+    try { job.check[q.k][q.i] = tableAt(MD.analyze(window.MMPA.modell.withFlap(q.mm, q.p.flap), project.profiles, { nCrit: lab.nCrit }), q.p.cl); } catch (err) { job.check[q.k][q.i] = null; }
+    renderOptResult();
+    setTimeout(next, 0);
+  };
+  setTimeout(next, 30);
+}
+function renderOptResult() {
+  const m = curModel(), ok = optRes && optRes.id === m.id;
+  $('oResult').hidden = !ok;
+  if (!ok) return;
+  const { res, check } = optRes, B = res.before, A = res.after;
+  const dp = (a, b, d = 1, better = 1) => { if (!Number.isFinite(a) || !Number.isFinite(b) || !a) return ''; const x = (b / a - 1) * 100; return `<span class="d ${x * better > 0.05 ? 'up' : x * better < -0.05 ? 'dn' : ''}">${x >= 0 ? '+' : '−'}${fmt(Math.abs(x), d)} %</span>`; };
+  const k = (l, v, u, d = '') => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d ? `<span class="d">${d}</span>` : ''}</div>`;
+  $('oKpis').innerHTML = k('Widerstand gewichtet', (res.gain > 0 ? '−' : '+') + fmt(Math.abs(res.gain) * 100, 1), '%', `${res.evals} Bewertungen · ${fmt(res.seconds, 0)} s`) +
+    A.points.map((p, i) => k(`Gleitzahl ${esc(p.name)}`, fmt(p.E, 1), '', `vorher ${fmt(B.points[i].E, 1)} ${dp(B.points[i].E, p.E)}`)).join('') +
+    k('Wurzelprofil', esc(res.rootName), '', `Cm0 ≥ ${fmt(res.limits.cm0Min, 3)} · Ca/Ca max ≤ ${fmt(res.limits.stallLimit * 100, 0)} %`);
+  const fullE = (kk, i) => { const c = check && check[kk][i]; return c === undefined || !check ? '…' : c ? fmt(c.E, 1) : '–'; };
+  $('oPoints').innerHTML = `<thead><tr><th rowspan="2">Zustand</th><th rowspan="2">Ca</th><th rowspan="2">V km/h</th><th class="grp" colspan="2">Klappe °</th><th class="grp" colspan="2">EWD °</th><th class="grp" colspan="3">Gleitzahl</th><th class="grp" colspan="2">Sinken m/s</th><th class="grp" colspan="2" title="normale Modellrechnung mit vollen Polaren">Gegenprobe Gleitzahl</th><th class="grp" rowspan="2" title="beim langsamsten Zustand">Ca/Ca max</th></tr>` +
+    `<tr><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th></th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th></tr></thead><tbody>` +
+    A.points.map((p, i) => { const b = B.points[i]; return `<tr><td>${esc(p.name)}</td><td>${fmt(p.cl, 2)}</td><td>${fmt(p.v * 3.6, 0)}</td>` +
+      `<td class="grp">${fmt(b.flap, 2)}</td><td>${fmt(p.flap, 2)}</td><td class="grp">${fmt(b.ewd, 2)}</td><td>${fmt(p.ewd, 2)}</td>` +
+      `<td class="grp">${fmt(b.E, 1)}</td><td>${fmt(p.E, 1)}</td><td>${dp(b.E, p.E)}</td><td class="grp">${fmt(b.sink, 3)}</td><td>${fmt(p.sink, 3)}</td>` +
+      `<td class="grp">${fullE('before', i)}</td><td>${fullE('after', i)}</td><td class="grp">${p.stall != null ? `${fmt(b.stall * 100, 0)} → ${fmt(p.stall * 100, 0)} %` : ''}</td></tr>`; }).join('') + '</tbody>';
+  const pc = (v, d = 2) => fmt(v * 100, d);
+  const H = (l, u, t) => `<th class="grp" colspan="2" title="${t}">${l}<br><small>${u}</small></th>`;
+  $('oStations').innerHTML = `<thead><tr><th rowspan="2">Station</th><th rowspan="2" title="Abstand von der Rumpfmitte entlang der Fläche">Lage y<br><small>mm</small></th><th rowspan="2" title="Profiltiefe an der Station">Tiefe<br><small>mm</small></th><th rowspan="2">Profil vorher</th>` +
+    H('Max. Dicke', '% der Tiefe', 'Grösste Profildicke in Prozent der Profiltiefe') + H('Dickenrücklage', '% der Tiefe ab Nase', 'Lage der grössten Dicke, gemessen von der Nasenleiste') +
+    H('Max. Wölbung', '% der Tiefe', 'Grösste Wölbung der Skelettlinie in Prozent der Profiltiefe') + H('Wölbungsrücklage', '% der Tiefe ab Nase', 'Lage der grössten Wölbung, gemessen von der Nasenleiste') +
+    H('Bauhöhe', 'mm', 'Grösste Profildicke in mm (Dicke mal Tiefe), Platz für Holm und Verbinder') + H('Cm0', 'Nullmoment', 'Momentenbeiwert um l/4 bei Ca 0, ohne Klappe') + `</tr>` +
+    `<tr>${'<th class="grp">vorher</th><th>nachher</th>'.repeat(6)}</tr></thead><tbody>` +
+    A.stations.map((s, i) => { const b = B.stations[i]; return `<tr><td>${i + 1}${i ? '' : ' (Wurzel)'}</td><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td>${esc(b.profile)}</td>` +
+      `<td class="grp">${pc(b.thickness)}</td><td>${pc(s.thickness)}</td><td class="grp">${pc(b.xThickness, 1)}</td><td>${pc(s.xThickness, 1)}</td>` +
+      `<td class="grp">${pc(b.camber)}</td><td>${pc(s.camber)}</td><td class="grp">${pc(b.xCamber, 1)}</td><td>${pc(s.xCamber, 1)}</td>` +
+      `<td class="grp">${fmt(b.height, 1)}</td><td>${fmt(s.height, 1)}</td><td class="grp">${fmt(b.cm0, 3)}</td><td>${fmt(s.cm0, 3)}</td></tr>`; }).join('') + '</tbody>';
+  if (typeof Chart !== 'undefined') {
+    const line = (label, data, c, o = {}) => ({ label, data, showLine: true, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, ...o });
+    const ser = (S, key) => S.stations.map(s => ({ x: s.y, y: s[key] * 100 }));
+    liveChart('oStrak', 'y [mm]', '% der Tiefe', [
+      line('Dicke nachher', ser(A, 'thickness'), PALETTE[0]), line('Dicke vorher', ser(B, 'thickness'), PALETTE[0], { borderDash: [6, 4], borderWidth: 1.4 }),
+      line('Wölbung nachher', ser(A, 'camber'), PALETTE[1]), line('Wölbung vorher', ser(B, 'camber'), PALETTE[1], { borderDash: [6, 4], borderWidth: 1.4 }),
+    ], { x: { min: 0 }, y: { min: 0 } });
+  }
+  const n = A.stations.length, col = i => `hsl(${Math.round(220 - 180 * i / Math.max(1, n - 1))} 65% 46%)`;
+  const prof = id => profById(id);
+  drawFoils($('oFoils'), A.stations.map((s, i) => prof(s.profileId) ? { c: SK.coordsOf({ prof: prof(s.profileId), q: s }), col: col(i), w: 1.4 } : null).filter(Boolean));
+  $('oFoilLeg').innerHTML = A.stations.map((s, i) => `<span><i style="background:${col(i)}"></i>${i + 1}</span>`).join('');
+}
+function applyOpt(asNew) {
+  const m = curModel();
+  if (!optRes || optRes.id !== m.id) return;
+  if (m.wing.stations.length !== optRes.snap.wing.stations.length) { toast('Die Stationen haben sich seit der Rechnung geändert. Bitte neu optimieren.'); return; }
+  const n = SK.apply(m, optRes.res);
+  if (asNew) {
+    n.id = Math.random().toString(36).slice(2, 10); n.name = m.name + ' Strak';
+    project.models.push(n); store.set('mmpa.model', n.id);
+    store.set('mmpa.cmp', [...new Set(cmpIds().concat(m.id))].join(','));
+    toast(`${n.name} angelegt. ${m.name} ist in der Gesamtpolare zum Vergleich eingeblendet.`);
+  } else {
+    m.wing.stations = n.wing.stations; m.flaps = n.flaps;
+    toast('Profile und Klappenwinkel ins Modell übernommen');
+  }
+  optRes = null; persist(); renderModel();
+}
+$('oApply').onclick = () => applyOpt(false);
+$('oApplyNew').onclick = () => applyOpt(true);
+$('oDiscard').onclick = () => { optRes = null; renderOptResult(); $('oHint').textContent = ''; };
 
 // ---------- Tabs ----------
 function showTab(id) {

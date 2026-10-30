@@ -112,7 +112,7 @@
   // Modell: Flügel und Höhenleitwerk als Stationen wie in XFLR5. Längen in mm, Masse in g, Winkel in Grad.
   // Eine Station: y (Spannweite entlang der Fläche ab Mitte), Tiefe, Versatz der Nasenleiste, V-Form und Klappe
   // bis zur nächsten Station, Schränkung, Profil mit eigener Dicke und Wölbung (null = wie das Profil).
-  const station = (y, chord, offset, o = {}) => ({ y, chord, offset, dihedral: 0, twist: 0, profileId: null, thickness: null, camber: null, flapDepth: 25, flap: 0, ...o });
+  const station = (y, chord, offset, o = {}) => ({ y, chord, offset, dihedral: 0, twist: 0, profileId: null, thickness: null, camber: null, xThickness: null, xCamber: null, flapDepth: 25, flap: 0, flapMix: null, ...o });
   function createModel(name = 'Neues Modell', wingProfileId = null, tailProfileId = null) {
     const w = (y, c, off, o) => station(y, c, off, { dihedral: 3, profileId: wingProfileId, ...o });
     const t = (y, c, off) => station(y, c, off, { profileId: tailProfileId });

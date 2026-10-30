@@ -23,9 +23,10 @@
       let Re = o.type === 2 && pts.length ? pts[pts.length - 1].re : o.re;
       let r = at(alpha, Re, o.nCrit, o.xtrTop, o.xtrBot);
       if (o.type === 2) {
-        // Re hängt von Ca ab: einige Festpunkt-Schritte; unter Ca 0.05 bleibt Re bei re/√0.05
+        // Re hängt vom Betrag von Ca ab (negatives Ca fliegt genauso schnell wie positives): einige Festpunkt-Schritte;
+        // unter |Ca| 0.05 bleibt Re bei re/√0.05
         for (let k = 0; k < 8; k++) {
-          const ReNew = o.re / Math.sqrt(Math.max(r.cl, 0.05));
+          const ReNew = o.re / Math.sqrt(Math.max(Math.abs(r.cl), 0.05));
           if (Math.abs(ReNew - Re) < 1) break;
           Re = ReNew;
           r = at(alpha, Re, o.nCrit, o.xtrTop, o.xtrBot);
