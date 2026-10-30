@@ -280,11 +280,22 @@
 
     const tailVolume = tail.area * tailEffOf(T.stations) * ((tail.xMac + tail.mac / 4) - xCG) / (wing.area * wing.mac);
     const stall = strips.filter(s => Number.isFinite(s.clMax)).reduce((m, s) => Math.max(m, s.cl / s.clMax), 0);
+    // Wo beginnt der Abriss? Streifen mit der höchsten Ausnutzung Ca/Ca max und Bewertung nach seiner Lage:
+    // innen (bis 50 % der Halbspannweite) gutmütig, aussen ab 75 % kritisch. Liegt aussen fast dieselbe
+    // Ausnutzung an wie am höchsten Punkt innen (weniger als 3 Punkte Abstand), gilt es als neutral.
+    const used = strips.filter(s => Number.isFinite(s.clMax) && s.clMax > 0).map(s => ({ y: s.y, ratio: s.cl / s.clMax, eta: s.y / (wing.projSpan / 2) }));
+    let stallAt = null;
+    if (used.length) {
+      const top = used.reduce((m, s) => (s.ratio > m.ratio ? s : m));
+      const outer = used.filter(s => s.eta >= 0.75).reduce((m, s) => Math.max(m, s.ratio), 0);
+      const rating = top.eta >= 0.75 ? 'kritisch' : top.eta >= 0.5 || top.ratio - outer < 0.03 ? 'neutral' : 'gutmütig';
+      stallAt = { ...top, outer, rating };
+    }
     return {
       wing, tail, xNP, xCG, sigma, CLalpha: cA * 180 / Math.PI,
       trim: { CL, alpha, tailIncidence: it, ewd: (W.incidence || 0) - it, clWing, clTail, speed, re: speed * wing.mac / 1000 / NU },
       wingLoading: ws, tailVolume, table, sigmas, best, minSink, xNP0,
-      fuselage: { ...fus, fin: finA, dNP: xNP - xNP0 }, strips, tailStrips, segments: seg, stall, hand,
+      fuselage: { ...fus, fin: finA, dNP: xNP - xNP0 }, strips, tailStrips, segments: seg, stall, stallAt, hand,
       profiles: { wing: wingGeo.map(g => g && g.name), tail: tailGeo.map(g => g && g.name) },
       panels: sys.panels.length,
     };

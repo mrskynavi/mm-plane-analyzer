@@ -227,6 +227,10 @@ h3.sub{font:600 .95rem/1.2 var(--display);letter-spacing:.04em;text-transform:up
 #flModes input.txt{width:11ch;height:28px;padding:2px 6px;font-size:.82rem}
 #flModes .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem}
 #flModes .x:hover{color:var(--bad)}
+.ct .stallbadge{font:600 .74rem var(--mono);padding:2px 7px;border-radius:10px;white-space:nowrap}
+.ct .stallbadge.gutmütig{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+.ct .stallbadge.neutral{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.ct .stallbadge.kritisch{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
 td.gain{color:var(--good)} td.loss{color:var(--warn)}
 #oPoints .grp,#oStations .grp{border-left:1px solid var(--line)}
 #oStations th,#oPoints th{text-transform:none;letter-spacing:.02em;line-height:1.2;vertical-align:bottom}
@@ -404,7 +408,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           <p class="hint" id="eInfo"></p>
         </section>
         <div class="charts">
-          <div class="cbox"><div class="ct">Auftriebsverteilung <span>örtliches Ca und Ca max <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div></div>
+          <div class="cbox"><div class="ct">Auftriebsverteilung <span><span id="mStallBadge" class="stallbadge"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div></div>
           <div class="cbox"><div class="ct">Last über die Spannweite <span>Ca·l / l<sub>μ</sub> und Ellipse <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mLoad"></canvas></div></div>
         </div>
         <section class="pol-box">
@@ -1452,7 +1456,7 @@ function renderModelResults() {
   if (!r) { $('mKpis').innerHTML = ''; return; }
   const k = (l, v, u, d = '') => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d ? `<span class="d">${d}</span>` : ''}</div>`;
   const t = r.trim;
-  const stallCls = r.stall > 0.85 ? 'dn' : '';
+  const stallCls = r.stall > 0.85 || r.stallAt?.rating === 'kritisch' ? 'dn' : r.stallAt?.rating === 'gutmütig' ? 'up' : '';
   $('mKpis').innerHTML = [
     k('Neutralpunkt', fmt(r.xNP, 1), 'mm', `${fmt((r.xNP - r.wing.xMac) / r.wing.mac * 100, 1)} % l<sub>μ</sub> · Rumpf ${signed(r.fuselage.dNP, 1)}`),
     k('Schwerpunkt', fmt(r.xCG, 1), 'mm', `${fmt((r.xCG - r.wing.xMac) / r.wing.mac * 100, 1)} % l<sub>μ</sub>`),
@@ -1467,7 +1471,7 @@ function renderModelResults() {
     k('Leitwerksvolumen', fmt(r.tailVolume, 2), '', `HLW ${fmt(r.tail.area / 1e4, 1)} dm²`),
     r.best ? k('Beste Gleitzahl', fmt(r.best.E, 1), '', `bei ${fmt(r.best.v * 3.6, 0)} km/h, Ca ${fmt(r.best.cl, 2)}`) : '',
     r.minSink ? k('Min. Sinken', fmt(r.minSink.sink, 2), 'm/s', `bei ${fmt(r.minSink.v * 3.6, 0)} km/h, Ca ${fmt(r.minSink.cl, 2)}`) : '',
-    `<div class="kpi"><span class="l">Ca / Ca max</span><span class="v">${fmt(r.stall * 100, 0)}<small>%</small></span><span class="d ${stallCls}">höchste Ausnutzung</span></div>`,
+    `<div class="kpi"><span class="l">Ca / Ca max</span><span class="v">${fmt(r.stall * 100, 0)}<small>%</small></span><span class="d ${stallCls}">${r.stallAt ? `${r.stallAt.rating}, bei ${fmt(r.stallAt.eta * 100, 0)} % Halbspannw.` : 'höchste Ausnutzung'}</span></div>`,
   ].join('');
   $('wingInfo').textContent = `Fläche ${fmt(r.wing.area / 1e4, 2)} dm² · Streckung ${fmt(r.wing.aspect, 1)} · l_μ ${fmt(r.wing.mac, 1)} mm bei y ${fmt(r.wing.yMac, 0)}`;
   $('tailInfo').textContent = `Fläche ${fmt(r.tail.area / 1e4, 2)} dm² · Streckung ${fmt(r.tail.aspect, 1)} · l_μ ${fmt(r.tail.mac, 1)} mm`;
@@ -1483,8 +1487,21 @@ function renderModelResults() {
     const s = r.strips, half = Math.ceil(r.wing.projSpan / 200) * 100;
     const both = arr => arr.map(p => ({ x: -p.x, y: p.y })).reverse().concat(arr);
     const line = (label, data, col, o = {}) => ({ label, data, showLine: true, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, ...o });
+    // Abriss: Stelle mit der höchsten Ausnutzung, Ampel nach ihrer Lage; Streifen nahe daran als Abrisszone
+    const sa = r.stallAt, stCol = sa ? css(sa.rating === 'kritisch' ? '--bad' : sa.rating === 'neutral' ? '--warn' : '--good') : null;
+    const zone = sa ? s.filter(p => Number.isFinite(p.clMax) && p.cl / p.clMax >= sa.ratio - 0.015) : [];
+    const stallSets = sa ? [
+      line('Abrisszone', both(zone.map(p => ({ x: p.y, y: p.cl }))), stCol, { showLine: false, pointRadius: 2.5, pointHoverRadius: 5 }),
+      line('Abriss beginnt', [{ x: sa.y, y: 0 }, { x: sa.y, y: s.find(p => p.y === sa.y).clMax }], stCol, { borderDash: [2, 3], borderWidth: 1.5 }),
+      line('Abriss beginnt', [{ x: -sa.y, y: 0 }, { x: -sa.y, y: s.find(p => p.y === sa.y).clMax }], stCol, { borderDash: [2, 3], borderWidth: 1.5 }),
+    ] : [];
+    const badge = $('mStallBadge');
+    badge.className = 'stallbadge ' + (sa ? sa.rating : '');
+    badge.textContent = sa ? `Abriss bei ${fmt(sa.eta * 100, 0)} % · ${sa.rating}` : '';
+    badge.title = sa ? `Der Abriss beginnt bei ${fmt(sa.eta * 100, 0)} % der Halbspannweite, dort fliegt der Flügel ${fmt(sa.ratio * 100, 0)} % seines Ca max. ` + 'Gutmütig: Abriss beginnt innen (bis 50 % der Halbspannweite), das Modell nickt nur. Kritisch: Abriss beginnt aussen (ab 75 %), das Modell kippt eher über den Flügel.' : '';
     liveChart('mDist', 'y [mm]', 'Ca', [
       line('Ca örtlich', both(s.map(p => ({ x: p.y, y: p.cl }))), PALETTE[0]),
+      ...stallSets,
       line('Ca max Profil', both(s.filter(p => Number.isFinite(p.clMax)).map(p => ({ x: p.y, y: p.clMax }))), css('--bad'), { borderDash: [6, 4], borderWidth: 1.5 }),
       line('Ca Leitwerk', both(r.tailStrips.map(p => ({ x: p.y, y: p.cl }))), PALETTE[2], { borderWidth: 1.5 }),
     ], { x: { min: -half, max: half }, y: { min: Math.min(0, ...s.map(p => p.cl)) } });
