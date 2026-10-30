@@ -74,7 +74,7 @@ npm test                       # Tests (node --test)
 node scripts/bibliothek.js     # web/profile/*.dat nach web/core/bibliothek.js
 ```
 
-`web/index.html` direkt im Browser öffnen genügt. Die Netzgewichte und Referenzwerte entstehen mit Python und `pip install neuralfoil==0.3.3`:
+Online: https://mrskynavi.github.io/mm-plane-analyzer/ (wird bei jedem Push auf main neu veröffentlicht, `.github/workflows/pages.yml`). Lokal genügt es, `web/index.html` direkt im Browser zu öffnen. Die Netzgewichte und Referenzwerte entstehen mit Python und `pip install neuralfoil==0.3.3`:
 
 ```
 python3 scripts/nf-gewichte.py <site-packages>/neuralfoil/nn_weights_and_biases xlarge
