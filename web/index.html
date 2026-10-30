@@ -229,6 +229,9 @@ h3.sub{font:600 .95rem/1.2 var(--display);letter-spacing:.04em;text-transform:up
 #flModes .x:hover{color:var(--bad)}
 td.gain{color:var(--good)} td.loss{color:var(--warn)}
 #oPoints .grp,#oStations .grp{border-left:1px solid var(--line)}
+#oStations th,#oPoints th{text-transform:none;letter-spacing:.02em;line-height:1.2;vertical-align:bottom}
+#oStations th small,#oPoints th small{color:var(--muted);font-size:.66rem}
+#oStations tr>:first-child,#oPoints tr>:first-child{position:sticky;left:0;background:var(--panel);z-index:1}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
 </style>
 
@@ -1113,7 +1116,7 @@ $('varNone').onclick = () => { project.variants.forEach(v => ui.varOff.add(v.id)
 const MD = window.MMPA.modell, FU = window.MMPA.rumpf;
 const COLS = [
   ['y', 'y', 'mm', 5], ['chord', 'Tiefe', 'mm', 1], ['offset', 'Versatz', 'mm', 1], ['dihedral', 'V-Form', '°', 0.5], ['twist', 'Schränk.', '°', 0.25, 'Schränkung'],
-  ['profileId', 'Profil'], ['thickness', 'Dicke', '%', 0.1], ['xThickness', 'Dicke bei', '%', 0.5, 'Dickenrücklage'], ['camber', 'Wölb.', '%', 0.05, 'Wölbung'], ['xCamber', 'Wölb. bei', '%', 0.5, 'Wölbungsrücklage'],
+  ['profileId', 'Profil'], ['thickness', 'Max. Dicke', '%', 0.1, 'Grösste Dicke in % der Tiefe'], ['xThickness', 'Dicken­rücklage', '%', 0.5, 'Lage der grössten Dicke in % der Tiefe ab Nase'], ['camber', 'Max. Wölbung', '%', 0.05, 'Grösste Wölbung in % der Tiefe'], ['xCamber', 'Wölbungs­rücklage', '%', 0.5, 'Lage der grössten Wölbung in % der Tiefe ab Nase'],
   ['flapDepth', 'Kl.-tiefe', '%', 1, 'Klappentiefe'], ['flap', 'Klappe', '°', 0.5], ['flapMix', 'Wölb.-anteil', '%', 5, 'Anteil der Wölbklappenstellung an dieser Klappe (Querruder z. B. 60 %)'],
 ];
 const PCT_KEYS = ['thickness', 'camber', 'xThickness', 'xCamber'];
@@ -1710,9 +1713,13 @@ function renderOptResult() {
       `<td class="grp">${fmt(b.E, 1)}</td><td>${fmt(p.E, 1)}</td><td>${dp(b.E, p.E)}</td><td class="grp">${fmt(b.sink, 3)}</td><td>${fmt(p.sink, 3)}</td>` +
       `<td class="grp">${fullE('before', i)}</td><td>${fullE('after', i)}</td><td class="grp">${p.stall != null ? `${fmt(b.stall * 100, 0)} → ${fmt(p.stall * 100, 0)} %` : ''}</td></tr>`; }).join('') + '</tbody>';
   const pc = (v, d = 2) => fmt(v * 100, d);
-  $('oStations').innerHTML = `<thead><tr><th rowspan="2">#</th><th rowspan="2">y mm</th><th rowspan="2">Tiefe mm</th><th rowspan="2">Profil vorher</th><th class="grp" colspan="2">Dicke %</th><th class="grp" colspan="2">Dicke bei %</th><th class="grp" colspan="2">Wölbung %</th><th class="grp" colspan="2">Wölb. bei %</th><th class="grp" colspan="2">Höhe mm</th><th class="grp" colspan="2">Cm0</th></tr>` +
+  const H = (l, u, t) => `<th class="grp" colspan="2" title="${t}">${l}<br><small>${u}</small></th>`;
+  $('oStations').innerHTML = `<thead><tr><th rowspan="2">Station</th><th rowspan="2" title="Abstand von der Rumpfmitte entlang der Fläche">Lage y<br><small>mm</small></th><th rowspan="2" title="Profiltiefe an der Station">Tiefe<br><small>mm</small></th><th rowspan="2">Profil vorher</th>` +
+    H('Max. Dicke', '% der Tiefe', 'Grösste Profildicke in Prozent der Profiltiefe') + H('Dickenrücklage', '% der Tiefe ab Nase', 'Lage der grössten Dicke, gemessen von der Nasenleiste') +
+    H('Max. Wölbung', '% der Tiefe', 'Grösste Wölbung der Skelettlinie in Prozent der Profiltiefe') + H('Wölbungsrücklage', '% der Tiefe ab Nase', 'Lage der grössten Wölbung, gemessen von der Nasenleiste') +
+    H('Bauhöhe', 'mm', 'Grösste Profildicke in mm (Dicke mal Tiefe), Platz für Holm und Verbinder') + H('Cm0', 'Nullmoment', 'Momentenbeiwert um l/4 bei Ca 0, ohne Klappe') + `</tr>` +
     `<tr>${'<th class="grp">vorher</th><th>nachher</th>'.repeat(6)}</tr></thead><tbody>` +
-    A.stations.map((s, i) => { const b = B.stations[i]; return `<tr><td>${i + 1}</td><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td>${esc(b.profile)}</td>` +
+    A.stations.map((s, i) => { const b = B.stations[i]; return `<tr><td>${i + 1}${i ? '' : ' (Wurzel)'}</td><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td>${esc(b.profile)}</td>` +
       `<td class="grp">${pc(b.thickness)}</td><td>${pc(s.thickness)}</td><td class="grp">${pc(b.xThickness, 1)}</td><td>${pc(s.xThickness, 1)}</td>` +
       `<td class="grp">${pc(b.camber)}</td><td>${pc(s.camber)}</td><td class="grp">${pc(b.xCamber, 1)}</td><td>${pc(s.xCamber, 1)}</td>` +
       `<td class="grp">${fmt(b.height, 1)}</td><td>${fmt(s.height, 1)}</td><td class="grp">${fmt(b.cm0, 3)}</td><td>${fmt(s.cm0, 3)}</td></tr>`; }).join('') + '</tbody>';
