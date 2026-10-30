@@ -37,7 +37,7 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);margin:0}
-.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+.wrap{max-width:1880px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
 header.appbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
 .brand{display:flex;align-items:center;gap:8px}
 header.appbar .proj{flex:1 1 260px;min-width:0;display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
@@ -206,8 +206,6 @@ td .dash{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-al
 .pol-log .badge{font:700 .7rem/1 var(--display);color:#fff;border-radius:4px;padding:3px 5px}
 .cbox .ct .zoom{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0 0 0 6px}
 .cbox .ct .zoom:hover{color:var(--accent)}
-.cbox.big{grid-column:1 / -1}
-.cbox.big .cv{height:min(560px,70vh)}
 .ptswrap{max-height:340px;overflow:auto}
 .ptswrap th{position:sticky;top:0;background:var(--panel)}
 tr.low td{color:var(--warn)}
@@ -247,6 +245,66 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
 #oStations th,#oPoints th{text-transform:none;letter-spacing:.02em;line-height:1.2;vertical-align:bottom}
 #oStations th small,#oPoints th small{color:var(--muted);font-size:.66rem}
 #oStations tr>:first-child,#oPoints tr>:first-child{position:sticky;left:0;background:var(--panel);z-index:1}
+/* Werkbank: links Listen und Themen, Mitte Eingaben, rechts Ergebnisse (bleiben stehen) */
+.bench{display:grid;grid-template-columns:250px minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start}
+#pane-labor .bench{grid-template-columns:250px minmax(0,1fr) minmax(0,1.15fr)}
+.bench-in{display:grid;gap:12px;min-width:0;align-content:start}
+.bench-out{display:grid;gap:10px;min-width:0;align-content:start;position:sticky;top:var(--stick,8px);max-height:calc(100vh - var(--stick,8px) - 56px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.bench-out .charts{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.bench-out .cbox .cv{height:240px}
+.bench-out .rview[data-view="dist"] .charts{grid-template-columns:minmax(0,1fr)}
+.bench-out .rview[data-view="dist"] .cbox .cv{height:260px}
+.bench-out .charts.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.bench-out .charts.c2 .cbox .cv{height:min(260px,30vh)}
+.rview,.lview{display:grid;gap:10px;min-width:0}
+.rview[hidden],.lview[hidden],.topic[hidden]{display:none}
+.topic{display:grid;gap:12px;min-width:0}
+.bench[style*="--out"]{grid-template-columns:250px minmax(0,1fr) var(--out)!important}
+.splitter{position:absolute;left:0;top:0;bottom:0;width:7px;cursor:col-resize;z-index:3;border-radius:4px}
+.bench-out{padding-left:9px}
+.splitter:hover,.splitter:focus-visible,.splitter.drag{background:var(--accent-soft);outline:none}
+.splitter::after{content:"";position:absolute;left:3px;top:50%;height:36px;margin-top:-18px;border-left:1px solid var(--ghost)}
+body.splitting{cursor:col-resize;user-select:none}
+.cbox.flat{border:0;padding:0}
+.cbox .ct{align-items:center;min-width:0;white-space:nowrap}
+.bench-in .card .mini{max-height:120px}
+.cbox .ct > span{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
+.cbox .ct .sub{font-style:normal;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cbox .ct .zoom,.cbox .ct .stallbadge{flex:none}
+.cbox .ct .legend{flex-wrap:nowrap;overflow:hidden;min-width:0}
+h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width:1200px){.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:230px minmax(0,1fr)!important}.bench-out{grid-column:2;position:static;max-height:none;overflow:visible;padding-left:0}.splitter{display:none}}
+@media (max-width:860px){.kpibar{position:static}.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}.bench-out{grid-column:auto}.bench-out .charts.c2{grid-template-columns:minmax(0,1fr)}}
+.topics{display:grid;gap:2px}
+.topics button{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border:0;background:none;color:var(--fg);font:500 .95rem var(--body);padding:6px 9px;border-radius:6px;cursor:pointer;text-align:left}
+.topics button small{font:.74rem var(--mono);color:var(--muted);white-space:nowrap}
+.topics button:hover{background:var(--bg)}
+.topics button[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.topics button:focus-visible,.rtabs button:focus-visible,.kmore:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rtabs{display:flex;flex-wrap:wrap;gap:2px;align-items:center;position:sticky;top:0;z-index:2;background:var(--bg);padding-bottom:6px;border-bottom:1px solid var(--line)}
+.rtabs button{border:0;background:none;color:var(--muted);font:600 .92rem var(--display);letter-spacing:.03em;padding:5px 8px;border-radius:6px;cursor:pointer}
+.rtabs button:hover{color:var(--fg)}
+.rtabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+.rtabs .pinb{margin-left:auto;border:1px solid var(--line);width:28px;height:26px;padding:0;display:grid;place-items:center}
+.rtabs .pinb svg{width:14px;height:14px}
+.rtabs .pinb[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.kpibar{position:sticky;top:0;z-index:20;background:var(--bg);padding-block:6px;display:flex;gap:8px;align-items:stretch}
+.kpibar .kpis{flex:1 1 auto;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-radius:8px}
+.kpibar .kpi{padding:5px 10px;gap:0}
+.kpibar .kpi .v{font-size:1.2rem}
+.kpibar .kpi .d{font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpibar .kpi.more{display:none}
+.kpibar.all .kpi.more{display:grid}
+.kmore{flex:none;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:8px;font:500 .8rem var(--mono);padding:0 10px;cursor:pointer}
+.kmore:hover{color:var(--accent);border-color:var(--accent)}
+/* Vergrösserte Grafik liegt über allem, der Rest wird abgedunkelt */
+.cbox.zoomed{position:fixed;inset:max(3vh,16px) max(3vw,16px);z-index:95;display:flex;flex-direction:column;gap:6px;padding:12px 16px 10px;border:1px solid var(--line);border-radius:12px;box-shadow:0 0 0 100vmax color-mix(in srgb,#000 50%,transparent),0 12px 40px rgba(0,0,0,.35)}
+.cbox.zoomed .cv,.cbox.zoomed .plan,.cbox.zoomed .contour{flex:1 1 auto;height:auto!important;min-height:0;aspect-ratio:auto}
+.cbox.zoomed .ct{font-size:1.25rem}
+.cbox.zoomed .zoom{font-size:1.4rem}
+body.zooming{overflow:hidden}
+body.zooming .bench-out{z-index:96}
+@media (max-width:1200px){body.zooming .bench-out{position:relative}}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
 </style>
 
@@ -281,7 +339,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
 
   <!-- Profil-Labor: Hauptscreen für Profile -->
   <div class="pane" id="pane-labor" data-tab="labor">
-    <div class="pol">
+    <div class="bench">
       <div class="side">
         <section class="pol-logs">
           <div class="pol-lh"><h2>Profile</h2><span class="pol-mini"><button type="button" id="libBtn">Bibliothek …</button><button type="button" id="importBtn2">Import .dat …</button></span></div>
@@ -294,7 +352,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           <p class="hint" id="varHint"></p>
         </section>
       </div>
-      <div class="pol-main">
+      <div class="bench-in">
         <section class="pol-box">
           <div class="pol-head"><h2 class="hi">Einsatz <button type="button" class="iconbtn sm" data-info="info-lab" aria-expanded="false" aria-controls="info-lab" aria-label="So wird verglichen">i</button></h2><span id="labRe" class="status"></span></div>
           <div class="infopop" id="info-lab" hidden>
@@ -324,41 +382,51 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <div class="field"><span>Anzeige</span><span class="pol-ctrl"><label><input type="checkbox" id="sEnv"> Hüllkurve</label><label><input type="checkbox" id="sPts"> Punkte</label></span></div>
           </div>
         </section>
-        <div class="legend" id="labLegend"></div>
-        <div class="charts">
+        
+      </div>
+      <div class="bench-out" id="lOut">
+<div class="splitter" role="separator" aria-orientation="vertical" aria-label="Breite der Diagramme" title="Ziehen ändert die Breite, Doppelklick stellt zurück" tabindex="0"></div>
+<div class="legend" id="labLegend"></div>
+        <div class="charts c2">
           <div class="cbox"><div class="ct">Ca über Cw <span>Einsatzbereich hinterlegt <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lCLCD"></canvas></div></div>
           <div class="cbox"><div class="ct">Gleitzahl über Ca <span>bis Ca max <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lLD"></canvas></div></div>
           <div class="cbox"><div class="ct">Ca über α <span>Auftrieb <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lCLA"></canvas></div></div>
           <div class="cbox"><div class="ct">Cm über α <span>Moment um l/4 <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="lCM"></canvas></div></div>
         </div>
-        <section>
-          <h2>Vergleich</h2>
+        <div class="rtabs" id="lViews" role="tablist" aria-label="Tabellen"><button type="button" data-lview="cmp">Vergleich</button><button type="button" data-lview="pts">Punkte</button><button type="button" data-lview="geo">Konturen</button></div>
+<section class="lview" data-lview="cmp">
+          <h2 class="vh">Vergleich</h2>
           <div class="tablewrap"><table id="labTable"></table></div>
         </section>
-        <section class="pol-box">
+        <section class="pol-box lview" data-lview="pts" hidden>
           <div class="pol-head"><h2>Punkte</h2><select class="sel" id="ptsSel" aria-label="Kurve für die Punktetabelle"></select></div>
           <div class="tablewrap ptswrap"><table id="ptsTable"></table></div>
         </section>
-        <section class="pol-box">
-          <div class="pol-head"><h2>Konturen</h2></div>
-          <div class="contour"><canvas id="labContour" aria-label="Konturen im Vergleich"></canvas></div>
+        <section class="pol-box lview" data-lview="geo" hidden>
+          <div class="cbox flat"><div class="ct">Konturen <span><button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div>
+          <div class="contour"><canvas id="labContour" aria-label="Konturen im Vergleich"></canvas></div></div>
         </section>
       </div>
     </div>
   </div>
   <!-- Modell: Geometrie, Schwerpunkt, EWD -->
   <div class="pane" id="pane-modell" data-tab="modell" hidden>
-    <div class="pol">
+    <div class="kpibar"><div class="kpis" id="mKpis"></div><button type="button" class="kmore" id="mKpiMore" aria-expanded="false">mehr</button></div>
+    <div class="bench" id="mBench">
       <div class="side">
         <section class="pol-logs">
           <div class="pol-lh"><h2>Modelle</h2><span class="pol-mini"><button type="button" id="mNew">Neu</button><button type="button" id="mDup">Duplizieren</button><button type="button" id="mXls">Excel …</button></span></div>
           <ul class="pol-list" id="modelList"></ul>
           <p class="hint">Name anklicken zum Öffnen. „Excel …“ übernimmt ein Modell aus Deinem Blatt „Masse, SP“ (.xls oder .xlsx). Alle Modelle liegen in der Projektdatei.</p>
         </section>
+        <section class="pol-logs">
+          <div class="pol-lh"><h2>Eingaben</h2><span class="hint">Tasten 1–6</span></div>
+          <nav class="topics" id="mTopics" aria-label="Eingaben"><button type="button" data-topic="grund"><span>Grunddaten</span><small id="mTpGrund"></small></button><button type="button" data-topic="wing"><span>Flügel</span><small id="mTpWing"></small></button><button type="button" data-topic="tail"><span>Höhenleitwerk</span><small id="mTpTail"></small></button><button type="button" data-topic="flaps"><span>Wölbklappen</span><small id="mTpFlaps"></small></button><button type="button" data-topic="opt"><span>Strak-Optimierer</span><small id="mTpOpt"></small></button><button type="button" data-topic="check"><span>Excel-Gegenprobe</span><small id="mTpCheck"></small></button></nav>
+        </section>
       </div>
-      <div class="pol-main">
-        <div class="kpis" id="mKpis"></div>
-        <section class="pol-box">
+      <div class="bench-in" id="mIn">
+<div class="topic" data-topic="grund">
+<section class="pol-box">
           <div class="pol-head"><h2 class="hi">Auslegung <button type="button" class="iconbtn sm" data-info="info-mod" aria-expanded="false" aria-controls="info-mod" aria-label="So wird gerechnet">i</button></h2><span id="mStatus" class="status"></span></div>
           <div class="infopop" id="info-mod" hidden>
             <p>Gerechnet wird wie in XFLR5 mit dem Wirbelgitterverfahren (VLM): Flügel und Höhenleitwerk werden in Panels mit Hufeisenwirbeln zerlegt. So sind Pfeilung, Zuspitzung, V-Form, Schränkung, Klappen und der Abwind am Leitwerk enthalten. Die Wölbung kommt aus der Skelettlinie der Profile an jeder Station, mit der Dicke und Wölbung, die Du dort einträgst.</p>
@@ -379,8 +447,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <label class="field"><span>Leitwerk Höhe</span><span class="row"><input class="num" id="mTz" type="number" step="5"><span class="u">mm</span></span></label>
           </div>
           <p class="hint" id="mTrimInfo"></p>
-        </section>
-        <section class="pol-box">
+        </section><section class="pol-box">
           <div class="pol-head"><h2 class="hi">Rumpf <button type="button" class="iconbtn sm" data-info="info-fus" aria-expanded="false" aria-controls="info-fus" aria-label="So wird der Rumpf gerechnet">i</button></h2><span id="fusInfo" class="status"></span></div>
           <div class="infopop" id="info-fus" hidden>
             <p>Der Rumpf ist eine feste Form, die Du nur über wenige Werte anpasst. Stabrumpf: schlanke Gondel und dünnes Leitwerksrohr. Keulenrumpf: geformt wie ein manntragender Segler, mit Cockpit vor dem Flügel, Einschnürung unter dem Flügel und konischem Leitwerksträger. Mit kleinem Stirnwiderstand ist er schlank wie ein moderner Laminarsegler, mit grossem dicker, mit Haube und turbulenter Grenzschicht wie ein älterer Segler oder ein Scale-Rumpf. Der Rumpf reicht bis zur Endleiste des Höhenleitwerks.</p>
@@ -393,8 +460,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <label class="field"><span>Grösster Durchmesser</span><span class="row"><input class="num" id="fD" type="number" step="2" min="5"><span class="u">mm</span></span></label>
             <label class="field"><span>Seitenleitwerk</span><span class="row"><input class="num" id="fFin" type="number" step="0.1" min="0"><span class="u">dm²</span></span></label>
           </div>
-        </section>
-        <section class="pol-box">
+        </section><section class="pol-box">
           <div class="pol-head"><h2 class="hi">Zusatzwiderstände <button type="button" class="iconbtn sm" data-info="info-xd" aria-expanded="false" aria-controls="info-xd" aria-label="Was hier dazugerechnet wird">i</button></h2><span id="xdInfo" class="status"></span></div>
           <div class="infopop" id="info-xd" hidden>
             <p>Die Rechnung geht von sauberen Profilen und einem glatten Rumpf aus. Hier kommt dazu, was ein gebautes Modell zusätzlich bremst. Alles gilt für die Gleitzahl in der Arbeitstabelle, die Polaren, die Klappenschar und den Optimierer.</p>
@@ -412,25 +478,16 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <div class="field"><span>Ruderspalte</span><span class="seg" id="xGaps"><button type="button" data-v="abgedeckt">Abgedeckt</button><button type="button" data-v="offen">Offen</button></span></div>
           </div>
         </section>
-        <section class="pol-box">
-          <div class="pol-head"><h2 class="hi">Arbeitstabelle <button type="button" class="iconbtn sm" data-info="info-ops" aria-expanded="false" aria-controls="info-ops" aria-label="Was die Tabelle zeigt">i</button></h2><span id="opsInfo" class="status"></span></div>
-          <div class="infopop" id="info-ops" hidden>
-            <p>Für jedes Arbeits-Ca: Geschwindigkeit, Anstellwinkel, Gleitzahl und Sinken, dazu die EWD, die bei verschiedenen Schwerpunkten zum Trimm nötig ist. Der Schwerpunkt hängt nur vom Stabilitätsmass ab, darum steht er im Spaltenkopf; die EWD wählt das Ca.</p>
-            <p>„Leitwerk ohne Last“ ist die Rechnung aus Deinem Excel-Blatt mit Ca HLW = 0: der Schwerpunkt, bei dem das Leitwerk bei diesem Ca nichts trägt, mit σ und EWD dazu.</p>
-            <p>Die Gleitzahl enthält Profilwiderstand von Flügel und Leitwerk (Polaren der Stationen bei der passenden Re), induzierten Widerstand (Trefftz-Ebene), Rumpf, Seitenleitwerk und die Zusatzwiderstände. Zeile anklicken übernimmt das Ca als Trimm-Ca, bei Vorgabe EWD die EWD Deines Schwerpunkts für dieses Ca.</p>
-          </div>
-          <div class="tablewrap"><table id="mOps"></table></div>
-        </section>
-        <section class="pol-box">
-          <div class="pol-head"><h2>Grundriss</h2><span class="legend" id="planLegend"></span></div>
-          <div class="plan"><canvas id="planCv" aria-label="Grundriss mit Neutralpunkt und Schwerpunkt"></canvas></div>
-        </section>
-        <section class="pol-box">
+</div>
+<div class="topic" data-topic="wing">
+<section class="pol-box">
           <div class="pol-head"><h2>Flügel</h2><span class="status" id="wingInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="wingTable"></table></div>
           <div class="btnrow"><button type="button" class="btn ghost sm" data-add="wing">Station anfügen</button></div>
         </section>
-        <section class="pol-box">
+</div>
+<div class="topic" data-topic="tail">
+<section class="pol-box">
           <div class="pol-head"><h2>Höhenleitwerk</h2><span class="status" id="tailInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="tailTable"></table></div>
           <div class="btnrow"><button type="button" class="btn ghost sm" data-add="tail">Station anfügen</button><span class="hint">V-Leitwerk: V-Form eintragen, z. B. 40°. Profil leer lassen für eine ebene Platte.</span></div>
@@ -440,21 +497,9 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           </div>
           <p class="hint" id="eInfo"></p>
         </section>
-        <div class="charts">
-          <div class="cbox"><div class="ct">Auftriebsverteilung <span><span id="mStallBadge" class="stallbadge"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div><div class="legend cleg" id="mDistLeg"></div></div>
-          <div class="cbox"><div class="ct">Last über die Spannweite <span>Ca·l / l<sub>μ</sub> und Ellipse <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mLoad"></canvas></div><div class="legend cleg" id="mLoadLeg"></div></div>
-        </div>
-        <section class="pol-box">
-          <div class="pol-head"><h2>Gesamtpolare</h2><span class="legend" id="gpLegend"></span></div>
-          <p class="hint" style="margin:0 0 8px">Ganzes Modell mit Rumpf, getrimmt mit Deinem Schwerpunkt. Weitere Modelle zum Vergleich hakst Du links in der Modellliste an.</p>
-          <div class="charts">
-            <div class="cbox"><div class="ct">Geschwindigkeitspolare <span>Sinken über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpSink"></canvas></div></div>
-            <div class="cbox"><div class="ct">Gleitzahl <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpE"></canvas></div></div>
-            <div class="cbox"><div class="ct">Widerstandsanteile <span><span id="gpCdLeg" class="legend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpCd"></canvas></div></div>
-            <div class="cbox"><div class="ct">Polare <span>Ca über Cw <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpPol"></canvas></div></div>
-          </div>
-        </section>
-        <section class="pol-box">
+</div>
+<div class="topic" data-topic="flaps">
+<section class="pol-box">
           <div class="pol-head"><h2 class="hi">Wölbklappen <button type="button" class="iconbtn sm" data-info="info-flap" aria-expanded="false" aria-controls="info-flap" aria-label="So werden die Klappen gerechnet">i</button></h2><span id="flInfo" class="status"></span></div>
           <div class="infopop" id="info-flap" hidden>
             <p>Flugzustände: für jeden Zustand ein Ca und ein Wölbklappenwinkel. Die App trimmt das Modell mit Deinem Schwerpunkt und zeigt Geschwindigkeit, EWD, Gleitzahl und Sinken. „Beste Klappe suchen“ sucht für jeden Zustand den Winkel mit dem kleinsten Widerstand, mit mindestens 10 % Abstand zum Abriss. Die Gewichte brauchst Du nur für den Strak-Optimierer.</p>
@@ -467,14 +512,10 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <label class="field"><span>Klappenschar</span><span class="row"><input class="txt" id="flSeries" placeholder="-4 -2 0 2 4 6 8"><span class="u">°</span></span></label>
             <div class="field"><span>&nbsp;</span><span class="row"><button type="button" class="btn sm" id="flRun">Schar rechnen</button><span class="status" id="flStatus"></span></span></div>
           </div>
-          <div class="charts" id="flCharts" hidden>
-            <div class="cbox"><div class="ct">Gleitzahl je Klappe <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flE"></canvas></div></div>
-            <div class="cbox"><div class="ct">Sinken je Klappe <span>mit Hüllkurve <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flSink"></canvas></div></div>
-          </div>
-          <span class="legend" id="flLegend"></span>
-          <div id="flEnvWrap" hidden><h3 class="sub">Klappenplan für den Mischer</h3><p class="hint">Je Ca die Klappe, die stetig mit dem Ca mitgeht und der Hüllkurve am nächsten kommt. Die reine Hüllkurve springt dort hin und her, wo sich die Klappen um weniger als ein Prozent unterscheiden. Mit der Klappe ändert sich auch das nötige Höhenruder: Klappe nach unten braucht etwas Tiefe.</p><div class="tablewrap"><table id="flEnv"></table></div></div>
-        </section>
-        <section class="pol-box">
+          </section>
+</div>
+<div class="topic" data-topic="opt">
+<section class="pol-box">
           <div class="pol-head"><h2 class="hi">Strak-Optimierer <button type="button" class="iconbtn sm" data-info="info-opt" aria-expanded="false" aria-controls="info-opt" aria-label="So arbeitet der Optimierer">i</button></h2><span id="oStatus" class="status"></span></div>
           <div class="infopop" id="info-opt" hidden>
             <p>Du gibst das Wurzelprofil vor. Der Optimierer sucht an jeder weiteren Station Dicke, Dickenrücklage, Wölbung und Wölbungsrücklage und dazu den Klappenwinkel für jeden Flugzustand oben, alles gemeinsam. Ziel ist der kleinste Gesamtwiderstand, gewichtet über die Flugzustände, jeder Zustand getrimmt mit Deinem Schwerpunkt. Das Wirbelgitter liefert das örtliche Ca jeder Station, NeuralFoil den Profilwiderstand bei der örtlichen Re. So arbeitet der Aussenflügel bei seiner kleinen Re und seinem eigenen Ca.</p>
@@ -496,7 +537,64 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           <div class="field"><span>Stellgrössen</span><div class="chips" id="oVars"><button type="button" class="chip" data-v="thickness">Dicke</button><button type="button" class="chip" data-v="xThickness">Dickenrücklage</button><button type="button" class="chip" data-v="camber">Wölbung</button><button type="button" class="chip" data-v="xCamber">Wölbungsrücklage</button><button type="button" class="chip" data-v="twist">Schränkung</button><button type="button" class="chip" data-v="flap">Klappenwinkel</button></div></div>
           <div class="btnrow"><button type="button" class="btn" id="oRun">Optimieren</button><button type="button" class="btn ghost" id="oStop" hidden>Abbrechen</button><span class="hint" id="oHint"></span></div>
           <div class="progress" id="oBar" hidden><i></i></div>
-          <div id="oResult" hidden>
+          </section>
+</div>
+<div class="topic" data-topic="check">
+<section>
+          <h2>Gegenprobe mit Deinem Excel-Blatt</h2>
+          <div class="tablewrap"><table id="mCheck"></table></div>
+          <p class="hint">Gleicher Schwerpunkt und gleiches Trimm-Ca. Neutralpunkt ohne Rumpf, weil Dein Blatt keinen Rumpf kennt. Die Handrechnung nutzt aF = Λ/(√(Λ²+4)+2), den Abwind 4·aF/Λ·(α−α0) und α0, Cm0 der Profile.</p>
+        </section>
+</div>
+      </div>
+      <div class="bench-out" id="mOut">
+<div class="splitter" role="separator" aria-orientation="vertical" aria-label="Breite der Ergebnisse" title="Ziehen ändert die Breite, Doppelklick stellt zurück" tabindex="0"></div>
+<div class="rtabs" id="mViews" role="tablist" aria-label="Ergebnisse"><button type="button" data-view="plan">Grundriss</button><button type="button" data-view="dist">Auftrieb</button><button type="button" data-view="polar">Polaren</button><button type="button" data-view="ops">Arbeitstabelle</button><button type="button" data-view="flaps">Klappen</button><button type="button" data-view="opt">Optimierer</button><button type="button" class="pinb" id="mPin" aria-pressed="false" aria-label="Ansicht festhalten" title="Ansicht festhalten: springt nicht mehr mit dem Thema mit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 1.5l4 4-2 1-2.5 2.5.5 3-1.5 1.5L6 10.5 2.5 14l-.5-.5L5.5 10 2.5 7 4 5.5l3 .5L9.5 3.5z" fill="currentColor"/></svg></button></div>
+<div class="rview" data-view="plan" hidden>
+<section class="pol-box rv-sec"><div class="cbox"><div class="ct">Grundriss <span><span class="legend" id="planLegend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="plan"><canvas id="planCv" aria-label="Grundriss mit Neutralpunkt und Schwerpunkt"></canvas></div></div></section>
+</div>
+<div class="rview" data-view="dist" hidden>
+<div class="charts">
+          <div class="cbox"><div class="ct">Auftriebsverteilung <span><span id="mStallBadge" class="stallbadge"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div><div class="legend cleg" id="mDistLeg"></div></div>
+          <div class="cbox"><div class="ct">Last über die Spannweite <span>Ca·l / l<sub>μ</sub> und Ellipse <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mLoad"></canvas></div><div class="legend cleg" id="mLoadLeg"></div></div>
+        </div>
+</div>
+<div class="rview" data-view="polar" hidden>
+<section class="pol-box rv-sec">
+          <div class="pol-head"><h2>Gesamtpolare</h2><span class="legend" id="gpLegend"></span></div>
+          <p class="hint" style="margin:0 0 8px">Ganzes Modell mit Rumpf, getrimmt mit Deinem Schwerpunkt. Weitere Modelle zum Vergleich hakst Du links in der Modellliste an.</p>
+          <div class="charts">
+            <div class="cbox"><div class="ct">Geschwindigkeitspolare <span>Sinken über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpSink"></canvas></div></div>
+            <div class="cbox"><div class="ct">Gleitzahl <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpE"></canvas></div></div>
+            <div class="cbox"><div class="ct">Widerstandsanteile <span><span id="gpCdLeg" class="legend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpCd"></canvas></div></div>
+            <div class="cbox"><div class="ct">Polare <span>Ca über Cw <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpPol"></canvas></div></div>
+          </div>
+        </section>
+</div>
+<div class="rview" data-view="ops" hidden>
+<section class="pol-box">
+          <div class="pol-head"><h2 class="hi">Arbeitstabelle <button type="button" class="iconbtn sm" data-info="info-ops" aria-expanded="false" aria-controls="info-ops" aria-label="Was die Tabelle zeigt">i</button></h2><span id="opsInfo" class="status"></span></div>
+          <div class="infopop" id="info-ops" hidden>
+            <p>Für jedes Arbeits-Ca: Geschwindigkeit, Anstellwinkel, Gleitzahl und Sinken, dazu die EWD, die bei verschiedenen Schwerpunkten zum Trimm nötig ist. Der Schwerpunkt hängt nur vom Stabilitätsmass ab, darum steht er im Spaltenkopf; die EWD wählt das Ca.</p>
+            <p>„Leitwerk ohne Last“ ist die Rechnung aus Deinem Excel-Blatt mit Ca HLW = 0: der Schwerpunkt, bei dem das Leitwerk bei diesem Ca nichts trägt, mit σ und EWD dazu.</p>
+            <p>Die Gleitzahl enthält Profilwiderstand von Flügel und Leitwerk (Polaren der Stationen bei der passenden Re), induzierten Widerstand (Trefftz-Ebene), Rumpf, Seitenleitwerk und die Zusatzwiderstände. Zeile anklicken übernimmt das Ca als Trimm-Ca, bei Vorgabe EWD die EWD Deines Schwerpunkts für dieses Ca.</p>
+          </div>
+          <div class="tablewrap"><table id="mOps"></table></div>
+        </section>
+</div>
+<div class="rview" data-view="flaps" hidden>
+<section class="pol-box rv-sec"><div class="pol-head"><h2>Klappenschar</h2><span class="status">nach „Schar rechnen“ im Thema Wölbklappen</span></div>
+<div class="charts" id="flCharts" hidden>
+            <div class="cbox"><div class="ct">Gleitzahl je Klappe <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flE"></canvas></div></div>
+            <div class="cbox"><div class="ct">Sinken je Klappe <span>mit Hüllkurve <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flSink"></canvas></div></div>
+          </div>
+          <span class="legend" id="flLegend"></span>
+          <div id="flEnvWrap" hidden><h3 class="sub">Klappenplan für den Mischer</h3><p class="hint">Je Ca die Klappe, die stetig mit dem Ca mitgeht und der Hüllkurve am nächsten kommt. Die reine Hüllkurve springt dort hin und her, wo sich die Klappen um weniger als ein Prozent unterscheiden. Mit der Klappe ändert sich auch das nötige Höhenruder: Klappe nach unten braucht etwas Tiefe.</p><div class="tablewrap"><table id="flEnv"></table></div></div>
+        <p class="hint" id="flResHint">Noch keine Schar gerechnet. Unter Wölbklappen die Ausschläge eintragen und „Schar rechnen“ drücken.</p></section>
+</div>
+<div class="rview" data-view="opt" hidden>
+<section class="pol-box rv-sec"><div class="pol-head"><h2>Optimierer</h2><span class="status">vorher und nachher</span></div>
+<div id="oResult" hidden>
             <div class="kpis" id="oKpis"></div>
             <h3 class="sub">Flugzustände vorher und nachher</h3>
             <div class="tablewrap"><table id="oPoints"></table></div>
@@ -504,16 +602,12 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <div class="tablewrap"><table id="oStations"></table></div>
             <div class="charts">
               <div class="cbox"><div class="ct">Strak <span>Dicke und Wölbung über die Spannweite <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="oStrak"></canvas></div></div>
-              <div class="cbox"><div class="ct">Profile nachher <span id="oFoilLeg" class="legend"></span></div><div class="contour"><canvas id="oFoils" aria-label="Profile der Stationen nach der Optimierung"></canvas></div></div>
+              <div class="cbox"><div class="ct">Profile nachher <span><span id="oFoilLeg" class="legend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="contour"><canvas id="oFoils" aria-label="Profile der Stationen nach der Optimierung"></canvas></div></div>
             </div>
             <div class="btnrow"><button type="button" class="btn" id="oApply">Ins Modell übernehmen</button><button type="button" class="btn ghost" id="oApplyNew">Als neues Modell übernehmen</button><button type="button" class="btn ghost" id="oDiscard">Verwerfen</button><span class="hint">Übernimmt Profile und Kennwerte aller Stationen und die Klappenwinkel der Flugzustände.</span></div>
           </div>
-        </section>
-        <section>
-          <h2>Gegenprobe mit Deinem Excel-Blatt</h2>
-          <div class="tablewrap"><table id="mCheck"></table></div>
-          <p class="hint">Gleicher Schwerpunkt und gleiches Trimm-Ca. Neutralpunkt ohne Rumpf, weil Dein Blatt keinen Rumpf kennt. Die Handrechnung nutzt aF = Λ/(√(Λ²+4)+2), den Abwind 4·aF/Λ·(α−α0) und α0, Cm0 der Profile.</p>
-        </section>
+        <p class="hint" id="oResHint">Noch kein Ergebnis. Unter Strak-Optimierer einstellen und „Optimieren“ drücken.</p></section>
+</div>
       </div>
     </div>
   </div>
@@ -1489,7 +1583,7 @@ function drawPlan(m, r) {
   const all = Pw.concat(Pt), w0 = cv.parentElement.clientWidth;
   const fs0 = window.MMPA.rumpf.shape(m);
   const xr = Math.max(fs0.x3, ...all.map(p => p.le[0] + p.chord)) - Math.min(fs0.x0, ...all.map(p => p.le[0])), yr = 2 * Math.max(...all.map(p => p.le[1]));
-  cv.parentElement.style.height = Math.round(Math.min(520, Math.max(160, (w0 - 36) * xr / yr + 36))) + 'px';
+  if (!cv.closest('.zoomed')) cv.parentElement.style.height = Math.round(Math.min(520, Math.max(160, (w0 - 36) * xr / yr + 36))) + 'px';
   const rc = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   cv.width = Math.round(rc.width * dpr); cv.height = Math.round(rc.height * dpr);
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, rc.width, rc.height);
@@ -1644,7 +1738,7 @@ function renderModelResults() {
   const m = curModel(), r = lastModel;
   drawPlan(m, r);
   if (!r) { $('mKpis').innerHTML = ''; return; }
-  const k = (l, v, u, d = '') => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d ? `<span class="d">${d}</span>` : ''}</div>`;
+  const k = (l, v, u, d = '', more = false) => `<div class="kpi${more ? ' more' : ''}"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d ? `<span class="d">${d}</span>` : ''}</div>`;
   const t = r.trim;
   const stallCls = r.stall > 0.85 || r.stallAt?.rating === 'kritisch' ? 'dn' : r.stallAt?.rating === 'gutmütig' ? 'up' : '';
   $('mKpis').innerHTML = [
@@ -1653,17 +1747,19 @@ function renderModelResults() {
     k('Stabilitätsmass', fmt(r.sigma * 100, 1), '%'),
     k(t.by === 'ewd' ? 'EWD gebaut' : 'EWD', fmt(t.by === 'ewd' ? t.byEwd.ewd : t.ewd, 2), '°', t.zone.key === 'keine' ? `nötig ${fmt(t.ewd, 2)}° für Ca ${fmt(t.CL, 2)}` : `Leitwerk ${t.tailIncidence >= 0 ? '+' : ''}${fmt(t.tailIncidence, 2)}°`),
     `<div class="kpi"><span class="l">Trimm-Ca</span><span class="v">${t.zone.key === 'keine' ? '–' : fmt(t.CL, 2)}</span><span class="d ${t.zone.warn ? 'dn' : ['gleiten', 'thermik'].includes(t.zone.key) ? 'up' : ''}">${ZONE[t.zone.key] || ''}</span></div>`,
-    k('Anstellwinkel', fmt(t.alpha, 2), '°', 'Rumpf zur Anströmung'),
-    k('Ca Leitwerk', fmt(t.clTail, 3), '', `Flügel ${fmt(t.clWing, 3)}`),
-    k('Fluggeschw.', fmt(t.speed, 1), 'm/s', `${fmt(t.speed * 3.6, 0)} km/h · Re ${fmtRe(t.re)}`),
-    k('Flächenbel.', fmt(r.wingLoading, 1), 'g/dm²'),
-    k('Spannweite', fmt(r.wing.span / 1000, 3), 'm', `Fläche ${fmt(r.wing.area / 1e4, 1)} dm²`),
-    k('Streckung', fmt(r.wing.aspect, 1), '', `l<sub>μ</sub> ${fmt(r.wing.mac, 1)} mm`),
-    k('Leitwerksvolumen', fmt(r.tailVolume, 2), '', `HLW ${fmt(r.tail.area / 1e4, 1)} dm²`),
     r.best ? k('Beste Gleitzahl', fmt(r.best.E, 1), '', `bei ${fmt(r.best.v * 3.6, 0)} km/h, Ca ${fmt(r.best.cl, 2)}`) : '',
     r.minSink ? k('Min. Sinken', fmt(r.minSink.sink, 2), 'm/s', `bei ${fmt(r.minSink.v * 3.6, 0)} km/h, Ca ${fmt(r.minSink.cl, 2)}`) : '',
     `<div class="kpi"><span class="l">Ca / Ca max</span><span class="v">${fmt(r.stall * 100, 0)}<small>%</small></span><span class="d ${stallCls}">${r.stallAt ? `${r.stallAt.rating}, bei ${fmt(r.stallAt.eta * 100, 0)} % Halbspannw.` : 'höchste Ausnutzung'}</span></div>`,
+    k('Anstellwinkel', fmt(t.alpha, 2), '°', 'Rumpf zur Anströmung', true),
+    k('Ca Leitwerk', fmt(t.clTail, 3), '', `Flügel ${fmt(t.clWing, 3)}`, true),
+    k('Fluggeschw.', fmt(t.speed, 1), 'm/s', `${fmt(t.speed * 3.6, 0)} km/h · Re ${fmtRe(t.re)}`, true),
+    k('Flächenbel.', fmt(r.wingLoading, 1), 'g/dm²', '', true),
+    k('Spannweite', fmt(r.wing.span / 1000, 3), 'm', `Fläche ${fmt(r.wing.area / 1e4, 1)} dm²`, true),
+    k('Streckung', fmt(r.wing.aspect, 1), '', `l<sub>μ</sub> ${fmt(r.wing.mac, 1)} mm`, true),
+    k('Leitwerksvolumen', fmt(r.tailVolume, 2), '', `HLW ${fmt(r.tail.area / 1e4, 1)} dm²`, true),
   ].join('');
+  $('mTpGrund').textContent = `${fmt(m.mass, 0)} g`; $('mTpWing').textContent = `${fmt(r.wing.area / 1e4, 1)} dm²`; $('mTpTail').textContent = `${fmt(r.tail.area / 1e4, 1)} dm²`;
+  $('mTpFlaps').textContent = `${flapsOf(m).modes.length} Zustände`; $('mTpCheck').textContent = `ΔEWD ${signed(r.hand.ewd - t.ewd, 2)}°`;
   $('wingInfo').textContent = `Fläche ${fmt(r.wing.area / 1e4, 2)} dm² · Streckung ${fmt(r.wing.aspect, 1)} · l_μ ${fmt(r.wing.mac, 1)} mm bei y ${fmt(r.wing.yMac, 0)}`;
   $('tailInfo').textContent = `Fläche ${fmt(r.tail.area / 1e4, 2)} dm² · Streckung ${fmt(r.tail.aspect, 1)} · l_μ ${fmt(r.tail.mac, 1)} mm`;
   renderOps(m, r);
@@ -1797,7 +1893,7 @@ $('flRun').onclick = () => {
 };
 function renderSeries() {
   const m = curModel(), ok = series && series.id === m.id;
-  $('flCharts').hidden = !ok; $('flEnvWrap').hidden = !ok; $('flLegend').innerHTML = '';
+  $('flCharts').hidden = !ok; $('flEnvWrap').hidden = !ok; $('flResHint').hidden = ok; $('flLegend').innerHTML = '';
   if (!ok || typeof Chart === 'undefined') return;
   const stale = series.key !== modelKey(m);
   const sets = series.fs.results, n = sets.length;
@@ -1952,7 +2048,7 @@ function stallKpi(B, A) {
 }
 function renderOptResult() {
   const m = curModel(), ok = optRes && optRes.id === m.id;
-  $('oResult').hidden = !ok;
+  $('oResult').hidden = !ok; $('oResHint').hidden = ok;
   if (!ok) return;
   const { res, check } = optRes, B = res.before, A = res.after;
   const dp = (a, b, d = 1, better = 1) => { if (!Number.isFinite(a) || !Number.isFinite(b) || !a) return ''; const x = (b / a - 1) * 100; return `<span class="d ${x * better > 0.05 ? 'up' : x * better < -0.05 ? 'dn' : ''}">${x >= 0 ? '+' : '−'}${fmt(Math.abs(x), d)} %</span>`; };
@@ -2044,11 +2140,99 @@ function chart(id, xLabel, yLabel, datasets, lim = {}) {
   if (charts[id]) { charts[id].destroy(); }
   charts[id] = new Chart($(id), cfg);
 }
-document.querySelectorAll('.cbox .zoom').forEach(b => b.addEventListener('click', () => {
-  const box = b.closest('.cbox'); box.classList.toggle('big');
-  b.setAttribute('aria-label', box.classList.contains('big') ? 'Diagramm klein' : 'Diagramm gross');
-  if (box.classList.contains('big')) box.scrollIntoView({ block: 'nearest' });
+// Grafik gross: liegt über allem, Esc oder Klick daneben schliesst. Chart.js passt sich selbst an, Grundriss und Konturen werden neu gezeichnet.
+function redrawCanvases() {
+  if (ui.tab === 'modell') { drawPlan(curModel(), lastModel); if (ui.view === 'opt') renderOptResult(); } else scheduleLab();
+}
+function setZoom(box) {
+  const cur = document.querySelector('.cbox.zoomed');
+  if (cur) { cur.classList.remove('zoomed'); cur.querySelector('.zoom')?.setAttribute('aria-label', 'Diagramm gross'); }
+  if (box && box !== cur) { box.classList.add('zoomed'); box.querySelector('.zoom')?.setAttribute('aria-label', 'Diagramm klein'); }
+  document.body.classList.toggle('zooming', !!document.querySelector('.cbox.zoomed'));
+  requestAnimationFrame(redrawCanvases);
+}
+// Untertitel der Diagramme kürzen statt umbrechen, damit ⤢ immer in der Kopfzeile bleibt
+document.querySelectorAll('.cbox .ct > span').forEach(sp => [...sp.childNodes].forEach(n => {
+  if (n.nodeType === 3 && n.textContent.trim()) { const e = document.createElement('em'); e.className = 'sub'; e.textContent = n.textContent.trim(); e.title = e.textContent; n.replaceWith(e); }
 }));
+document.querySelectorAll('.cbox .zoom').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setZoom(b.closest('.cbox')); }));
+document.addEventListener('click', e => { const z = document.querySelector('.cbox.zoomed'); if (z && !z.contains(e.target)) { e.stopPropagation(); e.preventDefault(); setZoom(null); } }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.cbox.zoomed')) setZoom(null); });
+
+// ---------- Werkbank: Themen links, Ergebnisse rechts ----------
+const TOPIC_VIEW = { grund: 'polar', wing: 'dist', tail: 'plan', flaps: 'flaps', opt: 'opt', check: 'ops' };
+const TOPICS = Object.keys(TOPIC_VIEW);
+Object.assign(ui, {
+  topic: TOPICS.includes(store.get('mmpa.topic')) ? store.get('mmpa.topic') : 'grund',
+  view: store.get('mmpa.view') || 'polar', pin: store.get('mmpa.pin') === '1',
+  lview: store.get('mmpa.lview') || 'cmp',
+});
+function showView(v) {
+  if (!document.querySelector(`.rview[data-view="${v}"]`)) v = 'polar';
+  ui.view = v; store.set('mmpa.view', v);
+  document.querySelectorAll('#mViews [data-view]').forEach(b => b.setAttribute('aria-selected', b.dataset.view === v));
+  document.querySelectorAll('.rview').forEach(x => x.hidden = x.dataset.view !== v);
+  $('mOut').scrollTop = 0;
+  if (ui.tab === 'modell' && lastModel) { if (v === 'plan') drawPlan(curModel(), lastModel); if (v === 'opt') renderOptResult(); }
+}
+function showTopic(k) {
+  ui.topic = k; store.set('mmpa.topic', k);
+  document.querySelectorAll('#mTopics [data-topic]').forEach(b => b.setAttribute('aria-current', b.dataset.topic === k));
+  document.querySelectorAll('.topic').forEach(x => x.hidden = x.dataset.topic !== k);
+  if (!ui.pin) showView(TOPIC_VIEW[k]);
+}
+function setPin(on) { ui.pin = on; store.set('mmpa.pin', on ? '1' : '0'); $('mPin').setAttribute('aria-pressed', on); }
+$('mTopics').addEventListener('click', e => { const b = e.target.closest('[data-topic]'); if (b) showTopic(b.dataset.topic); });
+// Eine andere Ansicht als die zum Thema passende wird festgehalten, bis „Festhalten“ wieder gelöst wird
+$('mViews').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b === $('mPin')) { setPin(!ui.pin); if (!ui.pin) showView(TOPIC_VIEW[ui.topic]); return; }
+  showView(b.dataset.view);
+  if (b.dataset.view !== TOPIC_VIEW[ui.topic]) setPin(true);
+});
+document.addEventListener('keydown', e => {
+  if (ui.tab !== 'modell' || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.cbox.zoomed') || document.querySelector('dialog[open]')) return;
+  if (e.target.closest && e.target.closest('input,select,textarea,[contenteditable]')) return;
+  const n = +e.key; if (n >= 1 && n <= TOPICS.length) { showTopic(TOPICS[n - 1]); e.preventDefault(); }
+});
+const kpiBar = document.querySelector('.kpibar');
+function setKpiAll(on) { kpiBar.classList.toggle('all', on); $('mKpiMore').setAttribute('aria-expanded', on); $('mKpiMore').textContent = on ? 'weniger' : 'mehr'; store.set('mmpa.kpiAll', on ? '1' : '0'); }
+$('mKpiMore').onclick = () => setKpiAll(!kpiBar.classList.contains('all'));
+setKpiAll(store.get('mmpa.kpiAll') === '1');
+// Die Ergebnisspalte bleibt unter der Kennzahlenleiste stehen
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => $('pane-modell').style.setProperty('--stick', kpiBar.offsetHeight + 8 + 'px')).observe(kpiBar);
+function showLView(v) {
+  if (!document.querySelector(`.lview[data-lview="${v}"]`)) v = 'cmp';
+  ui.lview = v; store.set('mmpa.lview', v);
+  document.querySelectorAll('#lViews [data-lview]').forEach(b => b.setAttribute('aria-selected', b.dataset.lview === v));
+  document.querySelectorAll('.lview').forEach(x => x.hidden = x.dataset.lview !== v);
+  if (v === 'geo') scheduleLab();
+}
+$('lViews').addEventListener('click', e => { const b = e.target.closest('[data-lview]'); if (b) showLView(b.dataset.lview); });
+// Trenner zwischen Eingaben und Ergebnissen: ziehen ändert die Breite der Ergebnisspalte, gemerkt pro Reiter
+document.querySelectorAll('.splitter').forEach(sp => {
+  const bench = sp.closest('.bench'), key = 'mmpa.split.' + sp.closest('.pane').dataset.tab;
+  const apply = w => {
+    if (!w) { bench.style.removeProperty('--out'); store.set(key, ''); }
+    else { const tot = bench.clientWidth - 250 - 28; w = Math.round(Math.max(300, Math.min(tot - 360, w))); bench.style.setProperty('--out', w + 'px'); store.set(key, w); }
+    requestAnimationFrame(redrawCanvases);
+  };
+  const saved = +store.get(key); if (saved) bench.style.setProperty('--out', saved + 'px');
+  sp.addEventListener('pointerdown', e => {
+    e.preventDefault(); sp.setPointerCapture(e.pointerId); sp.classList.add('drag'); document.body.classList.add('splitting');
+    const right = bench.getBoundingClientRect().right;
+    const mv = ev => apply(right - ev.clientX);
+    const up = () => { sp.removeEventListener('pointermove', mv); sp.classList.remove('drag'); document.body.classList.remove('splitting'); };
+    sp.addEventListener('pointermove', mv); sp.addEventListener('pointerup', up, { once: true });
+  });
+  sp.addEventListener('dblclick', () => apply(0));
+  sp.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault(); apply(sp.parentElement.offsetWidth + (e.key === 'ArrowLeft' ? 40 : -40));
+  });
+});
+setPin(ui.pin); showTopic(ui.topic); if (ui.pin) showView(ui.view); showLView(ui.lview);
+
 
 // ---------- Start ----------
 function renderAll() {
