@@ -257,7 +257,7 @@
       const cdi = V.trefftz(r.strips, wing.area);
       const cdw = profileDrag(sw, W.stations, seg, wing.area), cdt = profileDrag(st, T.stations, tpols.slice(0, -1).map((q, i) => [q, tpols[i + 1]]), wing.area);
       const cdf = F.drag(fus, v, wing.area), cdv = F.finDrag(finA, v, wing.area, finCd0);
-      const cd = cdi + cdw + cdt + cdf + cdv, E = cl / cd;
+      const x = F.withExtras(model, wing.area, { cdi, cdw, cdt, cdf, cdv }), cd = x.cd, E = cl / cd;
       const stall = over || !Number.isFinite(cdw); // Ca einer Station über ihrem Ca max
       // Leitwerk ohne Last: α und Einstellung so, dass Ca erreicht und Leitwerksauftrieb 0
       let a0n = 0, i0n = 0, rn = r0;
@@ -269,7 +269,7 @@
       rn = run(a0n, i0n);
       const x0 = -rn.Cm * wing.mac / rn.CL;
       table.push({
-        cl, v, alpha: al, ewdCur: (W.incidence || 0) - iT, E, sink: v / E, cd, cdi, cdw, cdt, cdf, cdv, stall, clTail: (r.lift[1] || 0) / (0.5 * tail.area),
+        cl, v, alpha: al, ewdCur: (W.incidence || 0) - iT, E, sink: v / E, cd, cdi, cdw: x.cdw, cdt: x.cdt, cdf, cdv: x.cdv, cdx: x.cdx, cdBase: x.base, stall, clTail: (r.lift[1] || 0) / (0.5 * tail.area),
         ewd: sigmas.map(sg => { const [, it2] = trimAt(cl, xNP - sg * wing.mac); return (W.incidence || 0) - it2; }),
         neutral: { x: x0, sigma: (xNP - x0) / wing.mac, ewd: (W.incidence || 0) - i0n },
       });

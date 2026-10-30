@@ -51,3 +51,22 @@ test('Gesamtpolare: Rumpf und Seitenleitwerk machen die Gleitzahl kleiner', () =
   assert.ok(Math.abs(t.cd - (t.cdi + t.cdw + t.cdt + t.cdf + t.cdv)) < 1e-12 && t.cdv > 0);
   assert.strictEqual(F.finArea({ ...m, fuselage: { fin: null }, tail: { ...m.tail, stations: m.tail.stations.map(s => ({ ...s, dihedral: 40 })) } }, 1e5), 0, 'V-Leitwerk ohne SLW');
 });
+
+test('Zusatzwiderstände: ohne Eingaben unverändert, jeder Zuschlag senkt die Gleitzahl', () => {
+  const { pj, m } = setup();
+  const best = d => { m.drag = d; return M.analyze(m, pj.profiles).best; };
+  const a = best(undefined);
+  assert.ok(Math.abs(a.cd - a.cdBase) < 1e-12 && a.cdx === 0);
+  for (const d of [{ profile: 1.2 }, { other: 10 }, { drive: 'klapp' }, { drive: 'starr' }, { horns: 4 }, { gaps: 'offen' }]) {
+    const b = best(d);
+    assert.ok(b.E < a.E - 0.05, JSON.stringify(d) + ' ' + b.E + ' ' + a.E);
+  }
+  // starre Luftschraube bremst viel mehr als die angeklappte
+  assert.ok(best({ drive: 'starr' }).E < best({ drive: 'klapp' }).E - 1);
+  // Faktor wirkt genau auf die Profile
+  const S = V.planform(m.wing.stations).area, x = F.withExtras({ ...m, drag: { profile: 1.5 } }, S, { cdi: 0.003, cdw: 0.01, cdt: 0.001, cdf: 0.001, cdv: 0.0005 });
+  assert.ok(Math.abs(x.cd - (0.003 + 0.015 + 0.0015 + 0.001 + 0.00075)) < 1e-12);
+  // Anlenkung: 0,4 cm² je Stück
+  const h = F.extraFixed({ ...m, drag: { horns: 2 } }, S);
+  assert.ok(Math.abs(h.horns * S - 80) < 1e-9);
+});
