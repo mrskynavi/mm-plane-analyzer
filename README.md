@@ -42,6 +42,7 @@ Profil-Labor:
 - Zustände merken, einblenden, in A oder B laden und als Profil speichern
 - Polaren im Detail: Reihen über Klappenstellungen oder Re·√Ca mit Hüllkurve, Anstellwinkelbereich, Diagramme gross, Punktetabelle mit Umschlagpunkten und Konfidenz
 - Projektdatei (`.mmpa.json`) speichern und öffnen; im Browser wird automatisch zwischengespeichert
+- Projektordner in den Einstellungen (Chrome, Edge): Projekte direkt in einem Ordner auf dem Rechner oder einem Netzlaufwerk speichern und von dort öffnen, auf Wunsch automatisch bei jeder Änderung (`web/core/ordner.js`, File System Access API). Andere Browser speichern per Download
 
 ## Polarenrechnung
 
@@ -58,6 +59,7 @@ web/core/polare.js      Polaren Typ 1/2, Kennwerte, Hüllkurve
 web/core/vlm.js         Wirbelgitter: Panels, Hufeisenwirbel, Lösung, Beiwerte
 web/core/modell.js      Modellrechnung: Neutralpunkt, Trimm, EWD, Handrechnung, Arbeitstabelle, Gesamtpolare
 web/core/rumpf.js       Rumpfform, Rumpf- und Seitenleitwerkswiderstand, Rumpfmoment
+web/core/ordner.js      Projektordner: Ordner wählen und merken, Projekte lesen und schreiben
 web/core/excel.js       Modell aus dem Excel-Blatt „Masse, SP“
 web/core/strak.js       Strak-Optimierer, Flugzustände, Klappenschar
 web/core/strak-worker.js  Optimierer im Hintergrund (Web Worker)

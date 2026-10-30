@@ -16,6 +16,7 @@
 <script src="core/modell.js"></script>
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
+<script src="core/ordner.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -154,6 +155,12 @@ dialog h2{margin-bottom:12px}
 .setform{display:grid;gap:14px}
 .setform .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .setform .row.end{justify-content:flex-end}
+.setform .chk{display:flex;gap:8px;align-items:center;font-size:.88rem}
+.setform .chk input{accent-color:var(--accent)}
+.dirname{font:500 .9rem var(--mono);overflow-wrap:anywhere}
+.filelist{display:grid;gap:6px;max-height:50vh;overflow:auto;margin-bottom:14px}
+.filelist .libitem{grid-template-columns:1fr auto;align-items:baseline;gap:10px}
+.filelist .libitem b{overflow-wrap:anywhere}
 .dropover{position:fixed;inset:0;z-index:100;display:none;place-items:center;background:color-mix(in srgb,var(--accent) 18%,transparent);border:3px dashed var(--accent);pointer-events:none}
 .dropover span{font:600 1.4rem var(--display);color:var(--accent);background:var(--panel);padding:10px 18px;border-radius:8px}
 .dropover.over{display:grid}
@@ -254,7 +261,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
   <div class="infopop" id="info-app" hidden>
     <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Im Tab Modell gibst Du Flügel und Leitwerk ein und bekommst Neutralpunkt, Schwerpunkt, EWD und Auftriebsverteilung nach dem Wirbelgitterverfahren wie in XFLR5. Im Profil-Labor arbeitest Du an den Profilen: Im Profil-Labor änderst Du Dicke, Wölbung und Klappe und siehst die Polaren sofort; Zustände lassen sich merken, vergleichen und als Profil speichern. Dazu .dat-Import und Polarenreihen für mehrere Re und Klappenstellungen.</p>
     <p>Die Polaren rechnet NeuralFoil (Peter Sharpe, MIT): ein neuronales Netz, das auf Zehntausenden XFOIL-Rechnungen trainiert ist und dieselben Werte wie das Python-Original liefert. Es konvergiert immer und ist schnell genug für Live-Änderungen. Die Konfidenz zeigt, ob ein Profil weit weg von den Trainingsdaten liegt. XFOIL selbst kommt später über die Desktop-App dazu.</p>
-    <p>Das Projekt wird im Browser zwischengespeichert. Mit „Speichern“ legst Du es als Datei ab.</p>
+    <p>Das Projekt wird im Browser zwischengespeichert. Mit „Speichern“ legst Du es als Datei ab. In den Einstellungen kannst Du einen Projektordner wählen, auch auf einem Netzlaufwerk; dann speichert die App direkt dort.</p>
   </div>
 
   <div class="tabbar">
@@ -490,11 +497,24 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
   </div>
 </dialog>
 
+<dialog id="openDlg">
+  <h2>Projekt öffnen</h2>
+  <p class="hint" id="openDir" style="margin-bottom:10px"></p>
+  <div class="filelist" id="openList"></div>
+  <div class="setform"><div class="row end"><button type="button" class="btn ghost" id="openOther">Andere Datei …</button><button type="button" class="btn ghost" id="openClose">Schliessen</button></div></div>
+</dialog>
+
 <dialog id="settingsDlg">
   <h2>Einstellungen</h2>
   <div class="setform">
     <label class="field"><span>Projektname</span><input class="txt" id="setName"></label>
     <div class="field"><span>Darstellung</span><span class="seg" id="setTheme"><button type="button" data-v="system">System</button><button type="button" data-v="light">Hell</button><button type="button" data-v="dark">Dunkel</button></span></div>
+    <div class="field"><span>Projektordner</span>
+      <div class="dirname" id="dirName"></div>
+      <div class="row" id="dirBtns"><button type="button" class="btn ghost sm" id="dirPick">Ordner wählen …</button><button type="button" class="btn ghost sm" id="dirGrant" hidden>Zugriff erlauben</button><button type="button" class="btn ghost sm" id="dirClear" hidden>Ordner entfernen</button></div>
+      <label class="chk" id="dirAutoRow" hidden><input type="checkbox" id="dirAuto"> Änderungen automatisch in den Ordner speichern</label>
+      <p class="hint" id="dirHint"></p>
+    </div>
     <div class="row"><button type="button" class="btn ghost" id="newProj">Neues Projekt</button><span class="hint">Das aktuelle Projekt vorher speichern.</span></div>
     <div class="row end"><button type="button" class="btn" id="setClose">Fertig</button></div>
   </div>
@@ -504,7 +524,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
 
 <script>
 'use strict';
-const { profil: PF, polare: POL, projekt: PR, bibliothek: LIB } = window.MMPA;
+const { profil: PF, polare: POL, projekt: PR, bibliothek: LIB, ordner: DIR } = window.MMPA;
 const $ = id => document.getElementById(id);
 const PALETTE = ['#0b6bcb','#d0552b','#1f8a5c','#8a4fd0','#b8860b','#c2317a','#2a8fa0','#6b7a1f'];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -530,7 +550,7 @@ function defaultProject() {
 }
 try { const s = store.get('mmpa.projekt'); project = s ? PR.parse(s) : defaultProject(); } catch { project = defaultProject(); }
 let saveTimer = null;
-function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); }
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); autoSave(); }
 
 const ui = { varOff: new Set(), ptsKey: 'A', tab: store.get('mmpa.tab') === 'modell' ? 'modell' : 'labor' };
 const profById = id => project.profiles.find(p => p.id === id);
@@ -564,21 +584,96 @@ addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; $('dropover').classList.remove('over'); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length) importFiles(fs); });
 
 // Projekt speichern/öffnen
-$('saveBtn').onclick = () => {
+// Mit Projektordner (Chrome/Edge): direkt als Datei dort; sonst Download und Datei-Dialog.
+const dir = { handle: null, ok: false, auto: store.get('mmpa.ordnerAuto') !== '0' };
+let autoTimer = null, autoFailed = false;
+function download() {
   const blob = new Blob([PR.serialize(project)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = (project.name || 'Projekt').replace(/[\\/:*?"<>|]+/g, '_') + '.mmpa.json';
+  a.download = DIR.fileName(project.name);
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+// Zugriff auf den Ordner sicherstellen; ask nur aus einem Klick heraus
+async function dirReady(ask) {
+  if (!dir.handle) return false;
+  try { dir.ok = (await DIR.permission(dir.handle, ask)) === 'granted'; } catch { dir.ok = false; }
+  renderDir();
+  return dir.ok;
+}
+async function saveProject() {
+  if (dir.handle && await dirReady(true)) {
+    const name = DIR.fileName(project.name);
+    try { await DIR.writeInDir(dir.handle, name, PR.serialize(project)); autoFailed = false; toast(`${name} in ${dir.handle.name} gespeichert`); return; }
+    catch (e) { toast(`Speichern im Ordner ${dir.handle.name} ging nicht (${e.message}). Die Datei wird heruntergeladen.`); }
+  }
+  download();
+}
+function autoSave() {
+  if (!dir.handle || !dir.ok || !dir.auto) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(async () => {
+    // Beim Umbenennen nicht für jeden Buchstaben eine Datei anlegen
+    if ($('settingsDlg').open) return;
+    try { await DIR.writeInDir(dir.handle, DIR.fileName(project.name), PR.serialize(project)); autoFailed = false; }
+    catch (e) { if (!autoFailed) toast(`Automatisches Speichern im Ordner ${dir.handle.name} ging nicht: ${e.message}`); autoFailed = true; }
+  }, 1500);
+}
+function openProjectText(text) {
+  project = PR.parse(text); ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`);
+}
+$('saveBtn').onclick = () => saveProject();
+$('openBtn').onclick = async () => {
+  if (!dir.handle || !await dirReady(true)) { $('projFile').click(); return; }
+  let files = [];
+  try { files = await DIR.listDir(dir.handle); } catch (e) { toast(e.message); $('projFile').click(); return; }
+  $('openDir').textContent = `Ordner ${dir.handle.name}`;
+  const when = t => new Date(t).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' });
+  $('openList').innerHTML = files.length
+    ? files.map((f, i) => `<button type="button" class="libitem" data-i="${i}"><b>${esc(f.name.replace(/\.mmpa\.json$|\.json$|\.mmpa$/i, ''))}</b>${when(f.modified)}</button>`).join('')
+    : '<p class="hint">Im Ordner liegt noch kein Projekt. Mit „Speichern“ legst Du das aktuelle hier ab.</p>';
+  $('openList').onclick = async e => {
+    const b = e.target.closest('.libitem'); if (!b) return;
+    try { openProjectText(await (await files[+b.dataset.i].handle.getFile()).text()); $('openDlg').close(); }
+    catch (err) { toast(err.message); }
+  };
+  $('openDlg').showModal();
 };
-$('openBtn').onclick = () => $('projFile').click();
+$('openOther').onclick = () => { $('openDlg').close(); $('projFile').click(); };
+$('openClose').onclick = () => $('openDlg').close();
 $('projFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
-  try { project = PR.parse(await f.text()); ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`); }
+  try { openProjectText(await f.text()); }
   catch (err) { toast(err.message); }
 };
+
+// Projektordner in den Einstellungen
+function renderDir() {
+  const h = dir.handle;
+  $('dirName').textContent = h ? h.name : 'Keiner: Speichern lädt die Datei herunter';
+  $('dirPick').textContent = h ? 'Anderen Ordner …' : 'Ordner wählen …';
+  $('dirPick').hidden = !DIR.supported();
+  $('dirGrant').hidden = !h || dir.ok;
+  $('dirClear').hidden = !h;
+  $('dirAutoRow').hidden = !h;
+  $('dirAuto').checked = dir.auto;
+  $('dirHint').textContent = !DIR.supported()
+    ? 'Dieser Browser kann nicht direkt in einen Ordner schreiben. In Chrome oder Edge geht das; hier speichert die App per Download.'
+    : !h ? 'Wähle einen Ordner auf dem Rechner, einem Netzlaufwerk (z. B. Laufwerk Z:) oder einem synchronisierten Cloud-Ordner. Speichern legt dann Projektname.mmpa.json dort ab.'
+    : !dir.ok ? 'Nach dem Neuladen fragt der Browser einmal nach, ob die App wieder in den Ordner schreiben darf.'
+    : 'Speichern schreibt direkt in diesen Ordner, „Projekt öffnen“ zeigt die Projekte darin. Den genauen Pfad zeigt der Browser aus Sicherheitsgründen nicht an.';
+  $('saveBtn').title = h ? `Speichern in ${h.name}` : 'Als Datei herunterladen';
+}
+$('dirPick').onclick = async () => {
+  try { dir.handle = await DIR.pickDir(dir.handle || undefined); dir.ok = true; renderDir(); toast(`Projektordner ${dir.handle.name} gewählt`); }
+  catch (e) { if (e.name !== 'AbortError') toast(`Ordner konnte nicht gewählt werden: ${e.message}`); }
+};
+$('dirGrant').onclick = () => dirReady(true);
+$('dirClear').onclick = async () => { await DIR.clearDir(); dir.handle = null; dir.ok = false; renderDir(); };
+$('dirAuto').onchange = () => { dir.auto = $('dirAuto').checked; store.set('mmpa.ordnerAuto', dir.auto ? '1' : '0'); if (dir.auto) autoSave(); };
+if (DIR.supported()) DIR.loadDir().then(h => { if (h) { dir.handle = h; dirReady(false); } });
 
 // Bibliothek
 function renderLib() {
@@ -607,6 +702,7 @@ function themeNow() { return document.documentElement.dataset.theme || 'system';
 $('openSettings').onclick = () => {
   $('setName').value = project.name;
   $('setTheme').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === themeNow()));
+  renderDir();
   $('settingsDlg').showModal();
 };
 $('setTheme').onclick = e => {
@@ -617,6 +713,7 @@ $('setTheme').onclick = e => {
 };
 $('setName').oninput = () => { project.name = $('setName').value || 'Projekt'; $('projName').textContent = project.name; persist(); };
 $('setClose').onclick = () => $('settingsDlg').close();
+$('settingsDlg').addEventListener('close', autoSave);
 $('newProj').onclick = () => { project = defaultProject(); ui.varOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
 // Farben hängen am Thema: Diagramme neu aufbauen
 function retheme() { for (const id in charts) { charts[id].destroy(); delete charts[id]; } showTab(ui.tab); }
