@@ -156,6 +156,18 @@
     }, 0);
   }
 
+  // Wo beginnt der Abriss? Streifen mit der höchsten Ausnutzung Ca/Ca max und Bewertung nach seiner Lage:
+  // innen (bis 50 % der Halbspannweite) gutmütig, aussen ab 75 % kritisch. Liegt aussen fast dieselbe
+  // Ausnutzung an wie am höchsten Punkt innen (weniger als 3 Punkte Abstand), gilt es als neutral.
+  // used: [{ y, ratio, eta }]
+  function stallLocation(used) {
+    if (!used.length) return null;
+    const top = used.reduce((m, s) => (s.ratio > m.ratio ? s : m));
+    const outer = used.filter(s => s.eta >= 0.75).reduce((m, s) => Math.max(m, s.ratio), 0);
+    const rating = top.eta >= 0.75 ? 'kritisch' : top.eta >= 0.5 || top.ratio - outer < 0.03 ? 'neutral' : 'gutmütig';
+    return { ...top, outer, rating };
+  }
+
   // Hauptrechnung. Gibt alles zurück, was die Oberfläche zeigt.
   function analyze(model, profiles, { ny = 30, nx = 8, nyTail = 10, nxTail = 5, nCrit = 9 } = {}) {
     const W = model.wing, T = model.tail;
@@ -296,14 +308,7 @@
     // Wo beginnt der Abriss? Streifen mit der höchsten Ausnutzung Ca/Ca max und Bewertung nach seiner Lage:
     // innen (bis 50 % der Halbspannweite) gutmütig, aussen ab 75 % kritisch. Liegt aussen fast dieselbe
     // Ausnutzung an wie am höchsten Punkt innen (weniger als 3 Punkte Abstand), gilt es als neutral.
-    const used = strips.filter(s => Number.isFinite(s.clMax) && s.clMax > 0).map(s => ({ y: s.y, ratio: s.cl / s.clMax, eta: s.y / (wing.projSpan / 2) }));
-    let stallAt = null;
-    if (used.length) {
-      const top = used.reduce((m, s) => (s.ratio > m.ratio ? s : m));
-      const outer = used.filter(s => s.eta >= 0.75).reduce((m, s) => Math.max(m, s.ratio), 0);
-      const rating = top.eta >= 0.75 ? 'kritisch' : top.eta >= 0.5 || top.ratio - outer < 0.03 ? 'neutral' : 'gutmütig';
-      stallAt = { ...top, outer, rating };
-    }
+    const stallAt = stallLocation(strips.filter(s => Number.isFinite(s.clMax) && s.clMax > 0).map(s => ({ y: s.y, ratio: s.cl / s.clMax, eta: s.y / (wing.projSpan / 2) })));
     const zone = trimZone({ CL, stall, table, best, minSink, byEwd });
     return {
       wing, tail, xNP, xCG, sigma, CLalpha: cA * 180 / Math.PI,
@@ -355,7 +360,7 @@
     return tau > 0.05 ? (ref - ewd) / tau : null;
   }
 
-  const api = { analyze, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
+  const api = { analyze, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);

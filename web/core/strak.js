@@ -122,11 +122,14 @@
     ev(alpha - dA); const top = ev(alpha + dA);
     let clMax = NaN;
     if (wantClMax) {
-      let prev = top, al = top.alpha;
-      for (let k = 0; k < 8 && al < 22; k++) {
+      // NeuralFoil ist nahe am Abriss leicht wellig: erst aufhören, wenn Ca zweimal hintereinander sinkt
+      // oder deutlich unter dem bisher Höchsten liegt
+      let best = top.cl, prev = top, al = top.alpha, down = 0;
+      for (let k = 0; k < 12 && al < 22; k++) {
         al += 1.5; const p = ev(al);
-        if (p.cl < prev.cl) break;
-        prev = p;
+        down = p.cl < prev.cl ? down + 1 : 0;
+        best = Math.max(best, p.cl); prev = p;
+        if (down >= 2 || p.cl < best - 0.05) break;
       }
       clMax = Math.max(...pts.map(p => p.cl));
     }
@@ -192,7 +195,7 @@
     const { W, P0, wing } = ctx, st = W.stations, pt = ctx.pts[k];
     const flapOf = i => (i < st.length - 1 && st[i].flapDepth > 0 ? flap * (st[i].flapMix ?? 1) : 0);
     // Wirbelgitter mit Wölbung der Entwürfe und den Klappen dieses Arbeitspunkts
-    const stF = st.map((s, i) => ({ ...s, flap: flapOf(i) }));
+    const stF = st.map((s, i) => ({ ...s, flap: flapOf(i), twist: design[i].q.twist ?? s.twist ?? 0 }));
     const pw = V.panelize(stF, { ny: ctx.ny, nx: ctx.nx, incidence: W.incidence || 0, camber: shapes.map(s => ({ xs: X, zs: s.c })), tag: 0 });
     const panels = pw.concat(ctx.ptl);
     const CL = pt.cl, target = -CL * ctx.xCG / wing.mac, det = ctx.cA * ctx.mI - ctx.cI * ctx.mA;
@@ -234,20 +237,24 @@
       segEnds.push(pair);
     });
     let D = 0, stall = 0;
+    const used = [], half = wing.projSpan / 2;
     segs.forEach((list, i) => {
       const [a, b] = segEnds[i];
       for (const { s, t } of list) {
         D += (a.cdAt(s.cl) * (1 - t) + b.cdAt(s.cl) * t) * s.chord * s.width;
-        if (want) { const cm = a.clMax * (1 - t) + b.clMax * t; if (cm > 0) stall = Math.max(stall, s.cl / cm); }
+        if (want) { const cm = a.clMax * (1 - t) + b.clMax * t; if (cm > 0) { stall = Math.max(stall, s.cl / cm); used.push({ y: s.y, ratio: s.cl / cm, eta: s.y / half }); } }
       }
     });
+    // Abrissverhalten: höchste Ausnutzung innen (bis 50 %), in der Mitte (50–75 %) und aussen (ab 75 %)
+    const zone = (lo, hi) => used.filter(q => q.eta >= lo && q.eta < hi).reduce((m, q) => Math.max(m, q.ratio), 0);
+    const stallZones = want ? { inner: zone(0, 0.5), mid: zone(0.5, 0.75), outer: zone(0.75, 2), at: M.stallLocation(used) } : null;
     const cdw = 2 * D / wing.area;
     const cdt = M.profileDrag(tStrips, ctx.T.stations, pt.tailSeg, wing.area);
     const cdi = V.trefftz(r.strips, wing.area);
     const x = F.withExtras(ctx.model, wing.area, { cdi, cdw, cdt, cdf: pt.cdf, cdv: pt.cdv }), cd = x.cd, E = CL / cd;
     return {
       name: pt.name, cl: CL, flap, v: pt.v, alpha: al, ewd: (W.incidence || 0) - it, cd, cdi, cdw: x.cdw, cdt: x.cdt, cdf: pt.cdf, cdv: x.cdv, cdx: x.cdx, E, sink: pt.v / E,
-      stall: want ? stall : null, ok: ok && Number.isFinite(cd), evals,
+      stall: want ? stall : null, stallZones, ok: ok && Number.isFinite(cd), evals,
       strips: strips.map(s => ({ y: s.y, cl: s.cl })), clTail: (r.lift[1] || 0) / (0.5 * ctx.tail.area),
     };
   }
@@ -278,10 +285,10 @@
     if (prof && prof !== sp.profile) {
       // anderes Ausgangsprofil: Dicke und Wölbung der Station übernehmen, Rücklagen vom neuen Profil
       const g = M.stationGeometry(st, profiles).stats;
-      return { prof: p, q: { thickness: g.thickness, camber: B.raw.camber > 1e-4 ? g.camber : B.raw.camber, xThickness: B.stats.xThickness, xCamber: B.stats.xCamber } };
+      return { prof: p, q: { thickness: g.thickness, camber: B.raw.camber > 1e-4 ? g.camber : B.raw.camber, xThickness: B.stats.xThickness, xCamber: B.stats.xCamber, twist: st.twist || 0 } };
     }
     const mod = sp.mod;
-    return { prof: p, q: { thickness: (mod.thickness ?? 1) * B.raw.thickness, camber: (mod.camber ?? 1) * B.raw.camber, xThickness: mod.xThickness ?? B.stats.xThickness, xCamber: mod.xCamber ?? B.stats.xCamber } };
+    return { prof: p, q: { thickness: (mod.thickness ?? 1) * B.raw.thickness, camber: (mod.camber ?? 1) * B.raw.camber, xThickness: mod.xThickness ?? B.stats.xThickness, xCamber: mod.xCamber ?? B.stats.xCamber, twist: st.twist || 0 } };
   }
 
   // Bester Klappenwinkel für einen Arbeitspunkt (Goldener Schnitt), mit Strafe für zu wenig Abrissreserve
@@ -380,12 +387,13 @@
 
   const DEFAULTS = {
     points: [{ name: 'Speed', cl: 0.15, weight: 1 }, { name: 'Gleiten', cl: 0.45, weight: 2 }, { name: 'Thermik', cl: 0.8, weight: 1 }],
-    vars: { thickness: true, camber: true, xThickness: true, xCamber: true, flap: true },
-    flapMin: -5, flapMax: 10, minThick: 0.07, minHeight: 0, stallMargin: 0.1, cm0Min: null, smooth: 0.002, maxEvals: 1500, seed: 1,
+    vars: { thickness: true, camber: true, xThickness: true, xCamber: true, twist: true, flap: true },
+    flapMin: -5, flapMax: 10, minThick: 0.07, minHeight: 0, stallMargin: 0.1, stallMode: 'gutmuetig', twistMin: -5, twistMax: 2, cm0Min: null, smooth: 0.002, maxEvals: 1500, seed: 1,
   };
 
   // settings: { rootId, points: [{ name, cl, weight, flap (Zahl = fest, null = optimieren) }], vars, flapMin, flapMax,
-  //   minThick (Bruchteil), minHeight (mm, 0 = aus), stallMargin, cm0Min (null = Cm0 der Wurzel), smooth, maxEvals, nCrit }
+  //   minThick (Bruchteil), minHeight (mm, 0 = aus), stallMargin, stallMode ('aus' | 'neutral' | 'gutmuetig'),
+  //   twistMin/twistMax (Schränkung in Grad), cm0Min (null = Cm0 der Wurzel), smooth, maxEvals, nCrit }
   // Gibt einen schrittweisen Optimierer zurück: step() rechnet eine Generation, result() das Ergebnis.
   function optimizer(model, profiles, settings = {}) {
     const S = { ...DEFAULTS, ...settings, vars: { ...DEFAULTS.vars, ...(settings.vars || {}) } };
@@ -424,6 +432,7 @@
       if (S.vars.camber && !symmetric) add('camber', i, Math.max(0, 0.3 * r.camber), 1.6 * r.camber + 0.003, s0.camber);
       if (S.vars.xThickness) add('xThickness', i, Math.max(0.15, r.xThickness - 0.1), Math.min(0.5, r.xThickness + 0.1), s0.xThickness);
       if (S.vars.xCamber && !symmetric) add('xCamber', i, Math.max(0.15, r.xCamber - 0.15), Math.min(0.65, r.xCamber + 0.15), s0.xCamber);
+      if (S.vars.twist) add('twist', i, Math.min(S.twistMin, s0.twist), Math.max(S.twistMax, s0.twist), s0.twist);
     }
     S.points.forEach((p, k) => { if (flapFree(k) && hasFlap) add('flap', k, S.flapMin, S.flapMax, flapsBefore[k]); });
     const decode = u => {
@@ -434,7 +443,7 @@
 
     // glatter Strak: Knick der Verläufe über der Spannweite bestrafen
     const eta = st.map(s => s.y / st[n - 1].y);
-    const SCALE = { thickness: 0.01, camber: 0.005, xThickness: 0.05, xCamber: 0.05 };
+    const SCALE = { thickness: 0.01, camber: 0.005, xThickness: 0.05, xCamber: 0.05, twist: 0.5 };
     const roughness = design => {
       let s = 0;
       for (const kind of Object.keys(SCALE)) for (let i = 1; i < n - 1; i++) {
@@ -453,9 +462,15 @@
     const penalties = (ev, design) => {
       const crit = ev.points[ctx.crit];
       const pStall = crit.stall != null ? 200 * Math.max(0, crit.stall - stallLimit) ** 2 : 0;
+      // Abrissverhalten beim langsamsten Zustand: gutmütig = Abriss beginnt innen, Mitte darunter und aussen
+      // mindestens 4 Punkte Reserve gegenüber innen; neutral = aussen nicht am höchsten
+      const z = crit.stallZones;
+      const exc = !z || S.stallMode === 'aus' ? 0 : S.stallMode === 'neutral' ? Math.max(0, z.outer - Math.max(z.inner, z.mid) + 0.01)
+        : Math.max(0, z.mid - z.inner + 0.01, z.outer - z.inner + 0.04);
+      const pShape = 400 * exc * exc;
       const pCm = ev.stations.slice(1).reduce((a, s) => a + 2000 * Math.max(0, cm0Min - s.cm0) ** 2, 0);
       const pSmooth = S.smooth * roughness(design);
-      return { stall: pStall, cm0: pCm, smooth: pSmooth, sum: pStall + pCm + pSmooth };
+      return { stall: pStall, shape: pShape, cm0: pCm, smooth: pSmooth, sum: pStall + pShape + pCm + pSmooth };
     };
     const fitness = u => {
       const { design, flaps } = decode(u);
@@ -487,7 +502,7 @@
       // Vorher mit denselben Strafen bewerten, damit die Zahlen vergleichbar sind
       const penB = penalties(evBefore, before);
       const pack = (ev, design, flaps, pen) => ({
-        points: ev.points.map(p => ({ name: p.name, cl: p.cl, flap: p.flap, v: p.v, alpha: p.alpha, ewd: p.ewd, E: p.E, sink: p.sink, cd: p.cd, cdw: p.cdw, cdi: p.cdi, cdt: p.cdt, stall: p.stall, ok: p.ok, clTail: p.clTail })),
+        points: ev.points.map(p => ({ name: p.name, cl: p.cl, flap: p.flap, v: p.v, alpha: p.alpha, ewd: p.ewd, E: p.E, sink: p.sink, cd: p.cd, cdw: p.cdw, cdi: p.cdi, cdt: p.cdt, stall: p.stall, stallAt: p.stallZones ? p.stallZones.at : null, ok: p.ok, clTail: p.clTail })),
         stations: design.map((d, i) => ({ y: st[i].y, chord: st[i].chord, profile: d.prof.name, profileId: d.prof.id, ...d.q, cm0: ev.stations[i].cm0, height: ev.stations[i].height })),
         flaps, score: score(ev), penalties: pen,
       });
@@ -495,7 +510,7 @@
         before: pack(evBefore, before, flapsBefore, penB),
         after: pack(after.ev, after.design, after.flaps, after.pen),
         gain: 1 - score(after.ev) / score(evBefore), evals, seconds: (Date.now() - t0) / 1000, history,
-        limits: { cm0Min, stallLimit, minThick: S.minThick, minHeight: S.minHeight }, rootId: rootProf.id, rootName: rootProf.name,
+        limits: { cm0Min, stallLimit, stallMode: S.stallMode, minThick: S.minThick, minHeight: S.minHeight }, rootId: rootProf.id, rootName: rootProf.name,
         xCG: ctx.xCG, xNP: ctx.xNP, vars: vars.map(v => v.kind),
       };
     }
@@ -510,6 +525,7 @@
       const t = m.wing.stations[i];
       if (i === 0 && t.profileId === res.rootId) return;
       Object.assign(t, { profileId: res.rootId, thickness: round(s.thickness, 5), camber: round(s.camber, 5), xThickness: round(s.xThickness, 4), xCamber: round(s.xCamber, 4) });
+      if (i && s.twist != null) t.twist = round(s.twist, 2);
       if (i === 0) Object.assign(t, { thickness: null, camber: null, xThickness: null, xCamber: null });
     });
     const old = (m.flaps && m.flaps.modes) || [];
