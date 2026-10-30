@@ -116,3 +116,30 @@ test('Modell: Abrissstelle und Bewertung, Schränkung schiebt den Abriss nach in
   const b = M.analyze(m, pj.profiles);
   assert.ok(b.stallAt.eta < a.stallAt.eta, [a.stallAt.eta, b.stallAt.eta]);
 });
+
+test('Modell: gebaute EWD vorgeben ergibt Trimm-Ca, Bereich und Warnungen', () => {
+  const pj = PR.createProject();
+  const e = PR.addProfile(pj, { datText: LIB.e374 }), h = PR.addProfile(pj, { datText: LIB.ht14 });
+  const m = PR.createModel('Test', e.id, h.id);
+  const r = M.analyze(m, pj.profiles);
+  assert.strictEqual(r.trim.by, 'ca');
+  // die EWD aus dem Trimm-Ca zurückgegeben trifft dasselbe Ca
+  const q = M.analyze({ ...m, trimBy: 'ewd', ewd: r.trim.ewd }, pj.profiles);
+  assert.strictEqual(q.trim.by, 'ewd');
+  assert.ok(Math.abs(q.trim.CL - 0.4) < 0.005, q.trim.CL);
+  assert.ok(Math.abs(q.trim.ewd - r.trim.ewd) < 1e-9);
+  // mehr EWD: höheres Ca, langsamer
+  const q2 = M.analyze({ ...m, trimBy: 'ewd', ewd: r.trim.ewd + 1 }, pj.profiles);
+  assert.ok(q2.trim.CL > q.trim.CL + 0.1 && q2.trim.speed < q.trim.speed, [q.trim.CL, q2.trim.CL]);
+  // viel zu viel EWD: Trimmpunkt über Ca max
+  const hi = M.analyze({ ...m, trimBy: 'ewd', ewd: r.trim.ewd + 4 }, pj.profiles);
+  assert.strictEqual(hi.trim.zone.key, 'abriss');
+  // negative EWD: kein Gleichgewicht mit Auftrieb
+  const lo = M.analyze({ ...m, trimBy: 'ewd', ewd: -3 }, pj.profiles);
+  assert.strictEqual(lo.trim.zone.key, 'keine');
+  assert.ok(lo.trim.byEwd.cl < 0.05);
+  // Schwerpunkt hinter dem Neutralpunkt: nicht stabil trimmbar
+  const un = M.analyze({ ...m, cg: { mode: 'sigma', sigma: -0.05 }, trimBy: 'ewd', ewd: 1 }, pj.profiles);
+  assert.strictEqual(un.trim.zone.key, 'keine');
+  assert.strictEqual(un.trim.byEwd.stable, false);
+});
