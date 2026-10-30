@@ -302,8 +302,24 @@ h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .cbox.zoomed .cv,.cbox.zoomed .plan,.cbox.zoomed .contour{flex:1 1 auto;height:auto!important;min-height:0;aspect-ratio:auto}
 .cbox.zoomed .ct{font-size:1.25rem}
 .cbox.zoomed .zoom{font-size:1.4rem}
+/* Tabellen: ⤢ oben rechts in der Ecke, vergrössert wie die Grafiken */
+.tbox{position:relative;min-width:0}
+.tbox>.tzoom{position:absolute;top:3px;right:3px;z-index:2;width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;padding:0;opacity:.75}
+.tbox>.tzoom:hover{opacity:1;color:var(--accent);border-color:var(--accent)}
+.tbox>.tablewrap th:last-child{padding-right:32px}
+.tbox>.ttl{display:none}
+.tbox.zoomed{position:fixed;inset:max(3vh,16px) max(3vw,16px) auto;max-height:calc(100vh - 2 * max(3vh,16px));z-index:95;display:flex;flex-direction:column;gap:8px;padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 0 0 100vmax color-mix(in srgb,#000 50%,transparent),0 12px 40px rgba(0,0,0,.35)}
+.tbox.zoomed>.ttl{display:block;font:600 1.25rem var(--display);letter-spacing:.03em;padding-right:40px}
+.tbox.zoomed>.tzoom{top:10px;right:12px;width:32px;height:32px;font-size:1.3rem;opacity:1}
+.tbox.zoomed>.tablewrap{flex:0 1 auto;min-height:0;max-height:none;overflow:auto;border-radius:8px}
+.tbox.zoomed thead{position:sticky;top:0;background:var(--panel);z-index:1}
+.tbox.zoomed>.tablewrap th:last-child{padding-right:12px}
+.tbox.zoomed table{font-size:1.05rem}
+.tbox.zoomed th{font-size:.82rem}
+.tbox.zoomed .st-table td,.tbox.zoomed .st-table th{padding:6px 7px}
+.tbox.zoomed .st-table th{font-size:.78rem}
 body.zooming{overflow:hidden}
-body.zooming .bench-out{z-index:96}
+body.zooming .bench-out:has(.zoomed){z-index:96}
 @media (max-width:1200px){body.zooming .bench-out{position:relative}}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
 </style>
@@ -2145,19 +2161,35 @@ function redrawCanvases() {
   if (ui.tab === 'modell') { drawPlan(curModel(), lastModel); if (ui.view === 'opt') renderOptResult(); } else scheduleLab();
 }
 function setZoom(box) {
-  const cur = document.querySelector('.cbox.zoomed');
-  if (cur) { cur.classList.remove('zoomed'); cur.querySelector('.zoom')?.setAttribute('aria-label', 'Diagramm gross'); }
-  if (box && box !== cur) { box.classList.add('zoomed'); box.querySelector('.zoom')?.setAttribute('aria-label', 'Diagramm klein'); }
-  document.body.classList.toggle('zooming', !!document.querySelector('.cbox.zoomed'));
+  const cur = document.querySelector('.zoomed');
+  if (cur) { cur.classList.remove('zoomed'); cur.querySelector('.zoom,.tzoom')?.setAttribute('aria-label', cur.matches('.tbox') ? 'Tabelle gross' : 'Diagramm gross'); }
+  if (box && box !== cur) { box.classList.add('zoomed'); box.querySelector('.zoom,.tzoom')?.setAttribute('aria-label', box.matches('.tbox') ? 'Tabelle klein' : 'Diagramm klein'); }
+  document.body.classList.toggle('zooming', !!document.querySelector('.zoomed'));
   requestAnimationFrame(redrawCanvases);
 }
 // Untertitel der Diagramme kürzen statt umbrechen, damit ⤢ immer in der Kopfzeile bleibt
 document.querySelectorAll('.cbox .ct > span').forEach(sp => [...sp.childNodes].forEach(n => {
   if (n.nodeType === 3 && n.textContent.trim()) { const e = document.createElement('em'); e.className = 'sub'; e.textContent = n.textContent.trim(); e.title = e.textContent; n.replaceWith(e); }
 }));
-document.querySelectorAll('.cbox .zoom').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setZoom(b.closest('.cbox')); }));
-document.addEventListener('click', e => { const z = document.querySelector('.cbox.zoomed'); if (z && !z.contains(e.target)) { e.stopPropagation(); e.preventDefault(); setZoom(null); } }, true);
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.cbox.zoomed')) setZoom(null); });
+// Tabellen bekommen dieselbe Vergrösserung: Rahmen .tbox um .tablewrap, Titel aus der Überschrift davor
+function tableTitle(w) {
+  for (let n = w.previousElementSibling; n; n = n.previousElementSibling) {
+    const h = n.matches('h2,h3') ? n : n.querySelector('h2,h3');
+    if (h) return headText(h);
+  }
+  const h = w.closest('section')?.querySelector('h2,h3');
+  return h ? headText(h) : 'Tabelle';
+}
+function headText(h) { return [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim(); }
+document.querySelectorAll('.tablewrap').forEach(w => {
+  const box = document.createElement('div'); box.className = 'tbox';
+  const t = document.createElement('div'); t.className = 'ttl'; t.textContent = tableTitle(w);
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'tzoom'; b.textContent = '⤢'; b.title = 'Gross / klein'; b.setAttribute('aria-label', 'Tabelle gross');
+  w.replaceWith(box); box.append(t, w, b);
+});
+document.querySelectorAll('.cbox .zoom, .tbox .tzoom').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setZoom(b.closest('.cbox,.tbox')); }));
+document.addEventListener('click', e => { const z = document.querySelector('.zoomed'); if (z && !z.contains(e.target) && !e.target.closest?.('dialog')) { e.stopPropagation(); e.preventDefault(); setZoom(null); } }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.zoomed') && !document.querySelector('dialog[open]')) setZoom(null); });
 
 // ---------- Werkbank: Themen links, Ergebnisse rechts ----------
 const TOPIC_VIEW = { grund: 'polar', wing: 'dist', tail: 'plan', flaps: 'flaps', opt: 'opt', check: 'ops' };
@@ -2191,7 +2223,7 @@ $('mViews').addEventListener('click', e => {
   if (b.dataset.view !== TOPIC_VIEW[ui.topic]) setPin(true);
 });
 document.addEventListener('keydown', e => {
-  if (ui.tab !== 'modell' || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.cbox.zoomed') || document.querySelector('dialog[open]')) return;
+  if (ui.tab !== 'modell' || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.zoomed') || document.querySelector('dialog[open]')) return;
   if (e.target.closest && e.target.closest('input,select,textarea,[contenteditable]')) return;
   const n = +e.key; if (n >= 1 && n <= TOPICS.length) { showTopic(TOPICS[n - 1]); e.preventDefault(); }
 });
