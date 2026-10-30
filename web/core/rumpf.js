@@ -106,7 +106,38 @@
     return m / (sRef * cRef);
   }
 
-  const api = { TYPES, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf };
+  // Zusatzwiderstände, die weder Profil noch Rumpf erfassen. Widerstandsflächen Cw·A in cm²:
+  // Klappluftschraube angeklappt 0,25 · Spinnerfläche (Blattwurzeln, Mitnehmer, Stufe am Spinner),
+  // starre Luftschraube stehend 0,06 · Kreisfläche (Zweiblatt), aussenliegende Anlenkung je Stück 0,4 (Horn,
+  // Gabelkopf, Gestänge). Offene Ruderspalte: Cw +0,0008 auf die Fläche mit Rudern (Klappentiefe > 0).
+  // Faktor auf den Profilwiderstand (Welligkeit, Lack, Turbulatoren) und Zuschlag in Prozent auf allen
+  // schädlichen Widerstand (Haube, Übergänge, Kupplung, Rad, Antenne).
+  const DRIVES = { keiner: 'kein Antrieb vorn', klapp: 'Klappluftschraube', starr: 'starre Luftschraube' };
+  const EXTRAS = { profile: 1, other: 0, drive: 'keiner', spinner: 40, prop: 350, horns: 0, horn: 0.4, gaps: 'abgedeckt' };
+  const extrasOf = model => ({ ...EXTRAS, ...(model.drag || {}) });
+  const ruddered = stations => {
+    let a = 0;
+    for (let i = 1; i < stations.length; i++) if (stations[i - 1].flapDepth > 0) a += (stations[i - 1].chord + stations[i].chord) / 2 * Math.abs(stations[i].y - stations[i - 1].y);
+    return 2 * a;
+  };
+  // Feste Zuschläge als Cw auf die Flügelfläche sRef (mm²), unabhängig vom Ca
+  function extraFixed(model, sRef) {
+    const x = extrasOf(model), disc = d => Math.PI / 4 * d * d;
+    const drive = x.drive === 'klapp' ? 0.25 * disc(x.spinner) : x.drive === 'starr' ? 0.06 * disc(x.prop) : 0;
+    const horns = (x.horns || 0) * x.horn * 100;
+    const gaps = x.gaps === 'offen' ? 0.0008 * (ruddered(model.wing.stations) + ruddered(model.tail.stations)) : 0;
+    return { drive: drive / sRef, horns: horns / sRef, gaps: gaps / sRef };
+  }
+  // Teilwiderstände eines Arbeitspunkts mit Zuschlägen: Profile mal Faktor, dazu cdx (Antrieb, Anlenkungen,
+  // Spalte und Prozent-Zuschlag); base ist der Widerstand ohne alle Zuschläge
+  function withExtras(model, sRef, { cdi, cdw, cdt, cdf, cdv }) {
+    const x = extrasOf(model), f = extraFixed(model, sRef), pf = x.profile > 0 ? x.profile : 1;
+    const w = cdw * pf, t = cdt * pf, v = cdv * pf, fixed = f.drive + f.horns + f.gaps;
+    const cdx = fixed + (x.other || 0) / 100 * (w + t + cdf + v + fixed);
+    return { cdw: w, cdt: t, cdv: v, cdx, cd: cdi + w + t + cdf + v + cdx, base: cdi + cdw + cdt + cdf + cdv };
+  }
+
+  const api = { TYPES, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).rumpf = api;
 })(typeof self !== 'undefined' ? self : this);
