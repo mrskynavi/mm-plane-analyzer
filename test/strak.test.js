@@ -108,6 +108,24 @@ test('Klappenschar: Hüllkurve nimmt je Ca die beste Stellung', () => {
   mono.forEach((t, i) => assert.ok(t.E >= env[i].E * 0.97, [t.cl, t.E, env[i].E]));
 });
 
+test('Kreisflug: enger Kreis sinkt mehr, Innenflügel bleibt unter der Grenze, Querneigung aus Radius und Fahrt', () => {
+  const { pj, m } = setup();
+  const fs = S.flapSeries(m, pj.profiles, [0, 4]);
+  while (!fs.done) fs.next();
+  const rows = S.circling(fs.results, [12, 20, 40], { margin: 0.1 });
+  const b = rows.map(q => q.best);
+  b.forEach(q => assert.ok(q && q.inner <= 0.9 + 1e-9, q && q.inner));
+  assert.ok(b[0].sink > b[1].sink && b[1].sink > b[2].sink, b.map(q => q.sink));
+  assert.ok(b[0].bank > b[1].bank && b[1].bank > b[2].bank, b.map(q => q.bank));
+  for (const q of b) {
+    const phi = q.bank * Math.PI / 180;
+    near(q.R, q.v * q.v / (9.81 * Math.tan(phi)), 1e-6 * q.R, 'Radius = V²/(g·tan φ)');
+    near(q.n, 1 / Math.cos(phi), 1e-9, 'n');
+  }
+  // engster Kreis: nicht möglich, weil der Innenflügel abreisst
+  assert.strictEqual(S.circling(fs.results, [2])[0].best, null);
+});
+
 test('Höhenruder: Wirksamkeit wie dünne Profiltheorie, Ausschlag gedämpft und Pendel', () => {
   const { m } = setup();
   m.tail.stations.forEach(s => { s.flapDepth = 30; });

@@ -295,6 +295,8 @@
       const x0 = -rn.Cm * wing.mac / rn.CL;
       table.push({
         cl, v, alpha: al, ewdCur: (W.incidence || 0) - iT, E, sink: v / E, cd, cdi, cdw: x.cdw, cdt: x.cdt, cdf, cdv: x.cdv, cdx: x.cdx, cdBase: x.base, stall, clTail: (r.lift[1] || 0) / (0.5 * tail.area),
+        // Ausnutzung Ca/Ca max je Flügelstreifen [η, Ca/Ca max], für den Innenflügel im Kreisflug
+        use: sw.map(q => [q.y / (wing.projSpan / 2), q.cl / clMaxAt(q.y)]).filter(u => Number.isFinite(u[1]) && u[1] > -10),
         ewd: sigmas.map(sg => { const [, it2] = trimAt(cl, xNP - sg * wing.mac); return (W.incidence || 0) - it2; }),
         neutral: { x: x0, sigma: (xNP - x0) / wing.mac, ewd: (W.incidence || 0) - i0n },
       });

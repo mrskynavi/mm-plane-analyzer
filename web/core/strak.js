@@ -606,13 +606,57 @@
     return { next, results: res, envelope, get done() { return i >= deltas.length; } };
   }
 
+  // Kreisflug in der Thermik: je Radius die Klappe, das Ca und die Querneigung mit dem geringsten Sinken.
+  // Im Kreis mit Radius R und Querneigung φ gilt n = 1/cos φ, Fahrt V = V1·√n (V1 = Geradeausfahrt beim gleichen Ca)
+  // und R = V1²/(g·sin φ), also sin φ = V1²/(g·R). Sinken = Sinken geradeaus · n^1,5.
+  // Der Innenflügel ist langsamer, an der Stelle y um den Faktor 1 − y·cos φ/R; damit er gleich viel trägt wie
+  // geradeaus (sonst rollt das Modell ein, man hält mit dem Querruder dagegen), steigt sein Ca um 1/(1 − y·cos φ/R)².
+  // Diese Ausnutzung muss margin unter Ca max bleiben. Das Leitwerk dreht mit Ω·sin φ und sieht l_H·sin φ/R mehr
+  // Anstellwinkel, die EWD steigt um so viel (mehr Höhe als geradeaus).
+  // res: Ergebnisse der Klappenschar [{ flap, r }]. Zurück je Radius das Beste und das Beste je Klappe.
+  function circling(res, radii, { margin = 0.1, steps = 5 } = {}) {
+    const G = M.G, lerp = (a, b, t) => a + (b - a) * t;
+    // Ca-Raster der Arbeitstabelle fein unterteilen (5 Zwischenwerte je 0,05)
+    const fine = r => {
+      const ok = r.table.filter(t => !t.stall && Number.isFinite(t.sink) && t.use && t.use.length), out = [];
+      ok.forEach((a, i) => {
+        const b = ok[i + 1];
+        if (!b || b.use.length !== a.use.length || Math.abs(b.cl - a.cl) > 0.051) { out.push(a); return; }
+        for (let k = 0; k < steps; k++) {
+          const t = k / steps;
+          out.push({ cl: lerp(a.cl, b.cl, t), v: lerp(a.v, b.v, t), sink: lerp(a.sink, b.sink, t), ewdCur: lerp(a.ewdCur, b.ewdCur, t), use: a.use.map((u, j) => [u[0], lerp(u[1], b.use[j][1], t)]) });
+        }
+      });
+      return out;
+    };
+    const flaps = res.map(({ flap, r }) => ({ flap, rows: fine(r), half: r.wing.projSpan / 2000, lt: (r.tail.xMac + r.tail.mac / 4 - r.xCG) / 1000 }));
+    return radii.map(R => {
+      const byFlap = flaps.map(({ flap, rows, half, lt }) => {
+        let best = null, limit = null;
+        for (const t of rows) {
+          const s = t.v * t.v / (G * R);
+          if (!(s < 1)) continue;
+          const phi = Math.asin(s), c = Math.cos(phi), n = 1 / c;
+          let inner = 0;
+          for (const [eta, q] of t.use) { const f = 1 - eta * half * c / R; inner = Math.max(inner, f > 0.05 ? q / (f * f) : Infinity); }
+          if (inner > 1 - margin) { limit = limit || 'abriss'; continue; }
+          const sink = t.sink * n ** 1.5;
+          if (!best || sink < best.sink) best = { R, flap, cl: t.cl, bank: phi * 180 / Math.PI, n, v: t.v * Math.sqrt(n), sink, inner, ewd: t.ewdCur + lt * s / R * 180 / Math.PI };
+        }
+        return best || { R, flap, none: limit || 'zu schnell' };
+      });
+      const ok = byFlap.filter(q => !q.none);
+      return { R, best: ok.reduce((m, q) => (!m || q.sink < m.sink ? q : m), null), byFlap };
+    });
+  }
+
   // Koordinaten eines Entwurfs (für die Konturen), wie profil.modify
   function coordsOf(d) {
     const B = prepareBase(d.prof);
     return P.modify(d.prof.coords, { thickness: d.q.thickness / B.raw.thickness, camber: B.raw.camber > 1e-4 ? d.q.camber / B.raw.camber : 1, xThickness: d.q.xThickness, xCamber: d.q.xCamber });
   }
 
-  const api = { coordsOf, optimizer, apply, evaluate, context, designOf, bestFlap, flightModes, flapSeries, shape, aeroShape, prepareBase, kulfan, localPolar, cmaes, eigen, rng, DEFAULTS, X };
+  const api = { coordsOf, optimizer, apply, evaluate, context, designOf, bestFlap, flightModes, flapSeries, circling, shape, aeroShape, prepareBase, kulfan, localPolar, cmaes, eigen, rng, DEFAULTS, X };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).strak = api;
 })(typeof self !== 'undefined' ? self : this);

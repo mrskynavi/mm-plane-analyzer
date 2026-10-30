@@ -303,6 +303,9 @@ h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .cbox.zoomed .ct{font-size:1.25rem}
 .cbox.zoomed .zoom{font-size:1.4rem}
 /* Tabellen: ⤢ oben rechts in der Ecke, vergrössert wie die Grafiken */
+.flcircle-in{display:flex;flex-wrap:wrap;gap:8px 16px;margin:6px 0 8px}
+.flcircle-in .field{flex:0 1 auto} .flcircle-in input.txt{width:16em}
+#flCircle td,#flCircle th{text-align:right;white-space:nowrap} #flCircle td.none{text-align:left;color:var(--muted)} #flCircle td.warn{color:var(--warn)}
 .tbox{position:relative;min-width:0}
 .tbox>.tzoom{position:absolute;top:3px;right:3px;z-index:2;width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;padding:0;opacity:.75}
 .tbox>.tzoom:hover{opacity:1;color:var(--accent);border-color:var(--accent)}
@@ -605,7 +608,10 @@ body.zooming .bench-out:has(.zoomed){z-index:96}
             <div class="cbox"><div class="ct">Sinken je Klappe <span>mit Hüllkurve <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flSink"></canvas></div></div>
           </div>
           <span class="legend" id="flLegend"></span>
-          <div id="flEnvWrap" hidden><h3 class="sub">Klappenplan für den Mischer</h3><p class="hint">Je Ca die Klappe, die stetig mit dem Ca mitgeht und der Hüllkurve am nächsten kommt. Die reine Hüllkurve springt dort hin und her, wo sich die Klappen um weniger als ein Prozent unterscheiden. Mit der Klappe ändert sich auch das nötige Höhenruder: Klappe nach unten braucht etwas Tiefe.</p><div class="tablewrap"><table id="flEnv"></table></div></div>
+          <div id="flEnvWrap" hidden><h3 class="sub">Klappenplan für den Mischer</h3><p class="hint">Je Ca die Klappe, die stetig mit dem Ca mitgeht und der Hüllkurve am nächsten kommt. Die reine Hüllkurve springt dort hin und her, wo sich die Klappen um weniger als ein Prozent unterscheiden. Mit der Klappe ändert sich auch das nötige Höhenruder: Klappe nach unten braucht etwas Tiefe.</p><div class="tablewrap"><table id="flEnv"></table></div>
+          <h3 class="sub">Kreisflug in der Thermik</h3><p class="hint">Je Kreisradius die Klappe, das Ca und die Querneigung mit dem geringsten Sinken. Im Kreis trägt der Flügel das Lastvielfache n = 1/cos Querneigung, das Sinken steigt mit n hoch 1,5. Der Innenflügel fliegt langsamer und braucht an der Spitze mehr Ca, damit er gleich viel trägt wie der äussere (Querruder hält dagegen); er muss den eingestellten Abstand zum Abriss behalten. Das Höhenruder enthält die Nickdrehung im Kreis. Gerechnet aus der Klappenschar, Querruder und Seitenruder sind nicht eingerechnet.</p>
+          <div class="flcircle-in"><label class="field"><span>Radien</span><span class="row"><input class="txt" id="flRadii" placeholder="10 15 20 25 30 40"><span class="u">m</span></span></label><label class="field"><span>Innenflügel Abstand zum Abriss</span><span class="row"><input class="num" id="flMargin" type="number" step="1" min="0" max="40"><span class="u">%</span></span></label></div>
+          <div class="tablewrap"><table id="flCircle"></table></div></div>
         <p class="hint" id="flResHint">Noch keine Schar gerechnet. Unter Wölbklappen die Ausschläge eintragen und „Schar rechnen“ drücken.</p></section>
 </div>
 <div class="rview" data-view="opt" hidden>
@@ -1926,7 +1932,26 @@ function renderSeries() {
   const rows = series.plan.filter(t => Math.abs(t.cl * 10 - Math.round(t.cl * 10)) < 1e-6);
   $('flEnv').innerHTML = `<thead><tr><th>Ca</th><th>V km/h</th><th title="Klappenplan für den Mischer: steigt mit Ca nie ab und kommt der Hüllkurve so nahe wie möglich">Klappe °</th><th>Gleitzahl</th><th>Sinken m/s</th><th title="EWD bei Deinem Schwerpunkt">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten. Bauart und Bezug unter Höhenleitwerk">Höhenruder °</th><th>α °</th></tr></thead><tbody>` +
     rows.map(t => `<tr><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.flap, 1)}</td><td>${fmt(t.E, 1)}</td><td>${fmt(t.sink, 3)}</td><td>${fmt(t.ewdCur, 2)}</td><td>${fmtEl(elevAt(m, t.ewdCur))}</td><td>${fmt(t.alpha, 2)}</td></tr>`).join('') + '</tbody>';
+  renderCircle();
 }
+// Kreisflug: je Radius die beste Klappe aus der Schar, Innenflügel mit Abstand zum Abriss
+const DEF_RADII = '10 15 20 25 30 40';
+function renderCircle() {
+  const m = curModel(), F = flapsOf(m);
+  $('flRadii').value = F.radii || ''; $('flMargin').value = F.circleMargin ?? 10;
+  if (!series || series.id !== m.id) return;
+  const radii = [...new Set((F.radii || DEF_RADII).replace(/,/g, ' ').split(/[\s;]+/).map(v => parseFloat(v)).filter(v => Number.isFinite(v) && v >= 3 && v <= 500))].sort((a, b) => a - b).slice(0, 12);
+  const rows = SK.circling(series.fs.results, radii, { margin: (F.circleMargin ?? 10) / 100 });
+  const f0 = series.fs.results.some(q => q.flap === 0), fMax = Math.max(...series.fs.results.map(q => q.flap));
+  $('flCircle').innerHTML = `<thead><tr><th>Radius m</th><th>Klappe °</th><th>Querneigung °</th><th title="Lastvielfaches 1/cos Querneigung">n</th><th>Ca</th><th>V km/h</th><th>Sinken m/s</th>${f0 ? '<th title="geringstes Sinken bei diesem Radius mit Klappe 0°">Sinken Klappe 0°</th>' : ''}<th title="höchstes örtliches Ca/Ca max am Innenflügel">Innenflügel Ca/Ca max</th><th title="EWD bei Deinem Schwerpunkt, mit Nickdrehung im Kreis">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten">Höhenruder °</th></tr></thead><tbody>` +
+    rows.map(({ R, best: b, byFlap }) => {
+      if (!b) return `<tr><td>${fmt(R, 0)}</td><td class="none" colspan="${f0 ? 10 : 9}">nicht möglich, ${byFlap.some(q => q.none === 'abriss') ? 'der Innenflügel reisst ab' : 'zu schnell für diesen Radius'}</td></tr>`;
+      const z = byFlap.find(q => q.flap === 0);
+      return `<tr><td>${fmt(R, 0)}</td>${b.flap === fMax && series.fs.results.length > 1 ? `<td class="warn" title="grösste Klappe der Schar: mehr Klappe könnte noch besser sein, Schar erweitern">${fmt(b.flap, 1)} ↑</td>` : `<td>${fmt(b.flap, 1)}</td>`}<td>${fmt(b.bank, 0)}</td><td>${fmt(b.n, 2)}</td><td>${fmt(b.cl, 2)}</td><td>${fmt(b.v * 3.6, 0)}</td><td>${fmt(b.sink, 3)}</td>${f0 ? `<td>${z && !z.none ? fmt(z.sink, 3) : 'Abriss'}</td>` : ''}<td>${fmt(b.inner * 100, 0)} %</td><td>${fmt(b.ewd, 2)}</td><td>${fmtEl(elevAt(m, b.ewd))}</td></tr>`;
+    }).join('') + '</tbody>';
+}
+$('flRadii').addEventListener('change', () => { flapsOf(curModel()).radii = $('flRadii').value.trim(); persist(); renderCircle(); });
+$('flMargin').addEventListener('change', () => { const v = parseFloat($('flMargin').value); flapsOf(curModel()).circleMargin = Number.isFinite(v) ? Math.min(40, Math.max(0, v)) : 10; persist(); renderCircle(); });
 
 // Strak-Optimierer: Einstellungen je Modell (m.opt)
 function optOf(m) {
