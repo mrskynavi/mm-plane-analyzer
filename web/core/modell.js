@@ -290,7 +290,32 @@
     };
   }
 
-  const api = { analyze, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, RHO, NU, G };
+  // Höhenruder: Bauart „gedaempft“ (feste Flosse mit Ruder) oder „pendel“ (ganzes Leitwerk dreht), dazu die
+  // Bezugs-EWD, bei der das Ruder neutral steht (null = EWD beim Trimm-Ca). Die Rudertiefe ist die Klappentiefe
+  // der Leitwerksstationen. Wirksamkeit τ = Winkeländerung je Grad Ruder aus dem Wirbelgitter, Leitwerk allein.
+  const elevatorOf = model => ({ type: 'gedaempft', ewd: null, ...((model.tail && model.tail.elevator) || {}) });
+  function elevatorTau(stations) {
+    const segs = stations.slice(0, -1);
+    if (!segs.some(s => s.flapDepth > 0)) return 0;
+    return cached('e' + PR.hash(JSON.stringify(stations.map(s => [s.y, s.chord, s.offset, s.dihedral, s.twist, s.flapDepth]))), () => {
+      const clean = stations.map(s => ({ ...s, flap: 0 }));
+      const flapped = stations.map((s, i) => ({ ...s, flap: i < stations.length - 1 && s.flapDepth > 0 ? 1 : 0 }));
+      const opt = { ny: 12, nx: 16 }, ref = { sRef: V.planform(stations).area, cRef: 1 };
+      const sys = V.build(V.panelize(clean, opt));
+      const a = V.solve(sys, 1, ref).CL, f = V.solve({ ...sys, panels: V.panelize(flapped, opt) }, 0, ref).CL;
+      return a ? f / a : 0;
+    });
+  }
+  // Ausschlag in Grad für eine EWD, positiv = Endleiste nach unten (Tiefe). null, wenn das Ruder fehlt.
+  function elevatorDeflection(model, ewd, ewdRef) {
+    const e = elevatorOf(model), ref = e.ewd ?? ewdRef;
+    if (!Number.isFinite(ewd) || !Number.isFinite(ref)) return null;
+    if (e.type === 'pendel') return ref - ewd;
+    const tau = elevatorTau(model.tail.stations);
+    return tau > 0.05 ? (ref - ewd) / tau : null;
+  }
+
+  const api = { analyze, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);

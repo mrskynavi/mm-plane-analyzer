@@ -102,3 +102,16 @@ test('Klappenschar: Hüllkurve nimmt je Ca die beste Stellung', () => {
     assert.strictEqual(t.E, Math.max(...all.map(x => x.E)));
   }
 });
+
+test('Höhenruder: Wirksamkeit wie dünne Profiltheorie, Ausschlag gedämpft und Pendel', () => {
+  const { m } = setup();
+  m.tail.stations.forEach(s => { s.flapDepth = 30; });
+  const tau = M.elevatorTau(m.tail.stations);
+  near(tau, 1 - (Math.acos(-0.4) - Math.sin(Math.acos(-0.4))) / Math.PI, 0.03, 'τ bei 30 % Rudertiefe');
+  near(M.elevatorDeflection(m, 1, 2), 1 / tau, 1e-9, 'gedämpft: weniger EWD heisst Ruder nach unten');
+  m.tail.elevator = { type: 'pendel', ewd: 1.5 };
+  near(M.elevatorDeflection(m, 1, 2), 0.5, 1e-9, 'Pendel mit eigener Bezugs-EWD');
+  m.tail.elevator = { type: 'gedaempft' };
+  m.tail.stations.forEach(s => { s.flapDepth = 0; });
+  assert.strictEqual(M.elevatorDeflection(m, 1, 2), null, 'ohne Ruder kein Ausschlag');
+});
