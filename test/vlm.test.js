@@ -101,3 +101,18 @@ test('Modell: Arbeitstabelle mit EWD je Stabilitätsmass, neutralem Leitwerk und
   assert.ok(r.best && r.best.E > 15 && r.best.E < 60, r.best && r.best.E);
   assert.ok(r.minSink.cl >= r.best.cl);
 });
+
+test('Modell: Abrissstelle und Bewertung, Schränkung schiebt den Abriss nach innen', () => {
+  const pj = PR.createProject();
+  const e = PR.addProfile(pj, { datText: LIB.e374 }), h = PR.addProfile(pj, { datText: LIB.ht14 });
+  const m = PR.createModel('Test', e.id, h.id);
+  // stark zugespitzt, ohne Schränkung: Abriss aussen
+  m.wing.stations = [PR.station(0, 250, 0, { profileId: e.id }), PR.station(1200, 90, 60, { profileId: e.id })];
+  const a = M.analyze(m, pj.profiles);
+  assert.ok(a.stallAt.eta > 0.6 && a.stallAt.rating !== 'gutmütig', JSON.stringify(a.stallAt));
+  assert.ok(Math.abs(a.stallAt.ratio - a.stall) < 1e-12);
+  // 4° Schränkung aussen: Abriss beginnt weiter innen und gutmütiger
+  m.wing.stations[1].twist = -4;
+  const b = M.analyze(m, pj.profiles);
+  assert.ok(b.stallAt.eta < a.stallAt.eta, [a.stallAt.eta, b.stallAt.eta]);
+});
