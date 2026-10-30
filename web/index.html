@@ -216,6 +216,9 @@ tr.low td{color:var(--warn)}
 .st-table .x:hover{color:var(--bad)}
 .st-table th small{text-transform:none;letter-spacing:0}
 td.warn{color:var(--warn);font-weight:600}
+.legend.cleg{margin:6px 0 2px}
+.legend i.dot{width:8px;height:8px;border-radius:50%}
+.legend i.vline{width:0;height:12px;border-left:2px dotted currentColor;background:none!important;margin:0 8px 0 5px}
 .legend i.dashc{background:none!important;border-top:2px dashed currentColor;height:0}
 .progress{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
@@ -408,8 +411,8 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           <p class="hint" id="eInfo"></p>
         </section>
         <div class="charts">
-          <div class="cbox"><div class="ct">Auftriebsverteilung <span><span id="mStallBadge" class="stallbadge"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div></div>
-          <div class="cbox"><div class="ct">Last über die Spannweite <span>Ca·l / l<sub>μ</sub> und Ellipse <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mLoad"></canvas></div></div>
+          <div class="cbox"><div class="ct">Auftriebsverteilung <span><span id="mStallBadge" class="stallbadge"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div><div class="legend cleg" id="mDistLeg"></div></div>
+          <div class="cbox"><div class="ct">Last über die Spannweite <span>Ca·l / l<sub>μ</sub> und Ellipse <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mLoad"></canvas></div><div class="legend cleg" id="mLoadLeg"></div></div>
         </div>
         <section class="pol-box">
           <div class="pol-head"><h2>Gesamtpolare</h2><span class="legend" id="gpLegend"></span></div>
@@ -1499,13 +1502,17 @@ function renderModelResults() {
     badge.className = 'stallbadge ' + (sa ? sa.rating : '');
     badge.textContent = sa ? `Abriss bei ${fmt(sa.eta * 100, 0)} % · ${sa.rating}` : '';
     badge.title = sa ? `Der Abriss beginnt bei ${fmt(sa.eta * 100, 0)} % der Halbspannweite, dort fliegt der Flügel ${fmt(sa.ratio * 100, 0)} % seines Ca max. ` + 'Gutmütig: Abriss beginnt innen (bis 50 % der Halbspannweite), das Modell nickt nur. Kritisch: Abriss beginnt aussen (ab 75 %), das Modell kippt eher über den Flügel.' : '';
+    const leg = (col, label, cls = '') => `<span style="color:${col}"><i class="${cls}" style="background:${col}"></i><span style="color:var(--muted)">${label}</span></span>`;
+    $('mDistLeg').innerHTML = [leg(PALETTE[0], 'Ca örtlich Flügel'), leg(css('--bad'), 'Ca max Profil', 'dashc'), leg(PALETTE[3], 'Ca Leitwerk'),
+      ...(sa ? [leg(stCol, 'Abrisszone', 'dot'), leg(stCol, 'Abriss beginnt', 'vline')] : [])].join('');
     liveChart('mDist', 'y [mm]', 'Ca', [
       line('Ca örtlich', both(s.map(p => ({ x: p.y, y: p.cl }))), PALETTE[0]),
       ...stallSets,
       line('Ca max Profil', both(s.filter(p => Number.isFinite(p.clMax)).map(p => ({ x: p.y, y: p.clMax }))), css('--bad'), { borderDash: [6, 4], borderWidth: 1.5 }),
-      line('Ca Leitwerk', both(r.tailStrips.map(p => ({ x: p.y, y: p.cl }))), PALETTE[2], { borderWidth: 1.5 }),
+      line('Ca Leitwerk', both(r.tailStrips.map(p => ({ x: p.y, y: p.cl }))), PALETTE[3], { borderWidth: 1.5 }),
     ], { x: { min: -half, max: half }, y: { min: Math.min(0, ...s.map(p => p.cl)) } });
     const CL = r.trim.clWing, ell = Array.from({ length: 41 }, (_, i) => { const y = half * i / 40; return { x: y, y: 4 / Math.PI * CL * r.wing.area / (r.wing.span) / r.wing.mac * Math.sqrt(Math.max(0, 1 - (y / half) ** 2)) }; });
+    $('mLoadLeg').innerHTML = [leg(PALETTE[0], 'Last Ca·l / lμ'), leg(css('--muted'), 'elliptisch (Ideal)', 'dashc')].join('');
     liveChart('mLoad', 'y [mm]', 'Ca·l / lμ', [
       line('Last Ca·l / lμ', both(s.map(p => ({ x: p.y, y: p.cl * p.chord / r.wing.mac }))), PALETTE[0]),
       line('elliptisch', both(ell), css('--muted'), { borderDash: [5, 4], borderWidth: 1.5 }),
