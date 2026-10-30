@@ -455,7 +455,7 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
           <div class="pol-head"><h2 class="hi">Strak-Optimierer <button type="button" class="iconbtn sm" data-info="info-opt" aria-expanded="false" aria-controls="info-opt" aria-label="So arbeitet der Optimierer">i</button></h2><span id="oStatus" class="status"></span></div>
           <div class="infopop" id="info-opt" hidden>
             <p>Du gibst das Wurzelprofil vor. Der Optimierer sucht an jeder weiteren Station Dicke, Dickenrücklage, Wölbung und Wölbungsrücklage und dazu den Klappenwinkel für jeden Flugzustand oben, alles gemeinsam. Ziel ist der kleinste Gesamtwiderstand, gewichtet über die Flugzustände, jeder Zustand getrimmt mit Deinem Schwerpunkt. Das Wirbelgitter liefert das örtliche Ca jeder Station, NeuralFoil den Profilwiderstand bei der örtlichen Re. So arbeitet der Aussenflügel bei seiner kleinen Re und seinem eigenen Ca.</p>
-            <p>Randbedingungen: Mindestdicke in % und als Höhe in mm (Holm, Verbinder), Abstand zum Abriss beim langsamsten Zustand, Cm0 der Profile nicht stärker negativ als die Grenze (leer = Wert der Wurzel), glatter Strak über die Spannweite. Gesucht wird mit CMA-ES, einer ableitungsfreien Suche. Das dauert je nach Modell und Rechentiefe 30 Sekunden bis drei Minuten.</p>
+            <p>Randbedingungen: Mindestdicke in % und als Höhe in mm (Holm, Verbinder), Abstand zum Abriss beim langsamsten Zustand, Cm0 der Profile nicht stärker negativ als die Grenze (leer = Wert der Wurzel), glatter Strak über die Spannweite. Gesucht wird mit CMA-ES, einer ableitungsfreien Suche. Das dauert je nach Modell und Rechentiefe 30 Sekunden bis drei Minuten. Abrissverhalten: Beim langsamsten Flugzustand soll der Abriss innen beginnen (gutmütig, das Modell sackt gerade durch) oder wenigstens nicht aussen (nicht kritisch, sonst kippt es über den Flügel). Dafür darf der Optimierer auch die Schränkung jeder Station ändern, negativ heisst Endleiste aussen nach oben. Gutmütig kostet meist etwas Leistung; vorher und nachher stehen im Ergebnis.</p>
             <p>Der Optimierer rechnet schneller als die normale Modellrechnung: Klappe als Knick der Skelettlinie, pro Station nur wenige Punkte um das örtliche Ca. Darum rechnet die App das Ergebnis danach noch einmal mit der normalen Modellrechnung nach. Übernommen wird nur, was Du bestätigst. NeuralFoil ist bei sehr kleinen Unterschieden zwischen zwei Profilen ungenau; das Ergebnis später mit XFOIL gegenprüfen.</p>
           </div>
           <div class="form">
@@ -466,9 +466,11 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
             <label class="field"><span>Cm0 nicht unter</span><span class="row"><input class="num" id="oCm0" type="number" step="0.005" max="0.05" placeholder="auto"></span></label>
             <label class="field"><span>Klappe von … bis</span><span class="row"><input class="num" id="oFlapLo" type="number" step="0.5"><input class="num" id="oFlapHi" type="number" step="0.5"><span class="u">°</span></span></label>
             <div class="field"><span>Glatter Strak</span><span class="seg" id="oSmooth"><button type="button" data-v="0">aus</button><button type="button" data-v="0.0005">leicht</button><button type="button" data-v="0.002">mittel</button><button type="button" data-v="0.01">stark</button></span></div>
+            <div class="field"><span>Abrissverhalten</span><span class="seg" id="oStallMode"><button type="button" data-v="aus" title="nicht beachten">egal</button><button type="button" data-v="neutral" title="Abriss darf nicht aussen beginnen">nicht kritisch</button><button type="button" data-v="gutmuetig" title="Abriss beginnt innen, aussen bleibt Reserve">gutmütig</button></span></div>
+            <label class="field"><span>Schränkung von … bis</span><span class="row"><input class="num" id="oTwLo" type="number" step="0.5"><input class="num" id="oTwHi" type="number" step="0.5"><span class="u">°</span></span></label>
             <div class="field"><span>Rechentiefe</span><span class="seg" id="oDepth"><button type="button" data-v="600">schnell</button><button type="button" data-v="1500">normal</button><button type="button" data-v="3000">gründlich</button></span></div>
           </div>
-          <div class="field"><span>Stellgrössen</span><div class="chips" id="oVars"><button type="button" class="chip" data-v="thickness">Dicke</button><button type="button" class="chip" data-v="xThickness">Dickenrücklage</button><button type="button" class="chip" data-v="camber">Wölbung</button><button type="button" class="chip" data-v="xCamber">Wölbungsrücklage</button><button type="button" class="chip" data-v="flap">Klappenwinkel</button></div></div>
+          <div class="field"><span>Stellgrössen</span><div class="chips" id="oVars"><button type="button" class="chip" data-v="thickness">Dicke</button><button type="button" class="chip" data-v="xThickness">Dickenrücklage</button><button type="button" class="chip" data-v="camber">Wölbung</button><button type="button" class="chip" data-v="xCamber">Wölbungsrücklage</button><button type="button" class="chip" data-v="twist">Schränkung</button><button type="button" class="chip" data-v="flap">Klappenwinkel</button></div></div>
           <div class="btnrow"><button type="button" class="btn" id="oRun">Optimieren</button><button type="button" class="btn ghost" id="oStop" hidden>Abbrechen</button><span class="hint" id="oHint"></span></div>
           <div class="progress" id="oBar" hidden><i></i></div>
           <div id="oResult" hidden>
@@ -1724,7 +1726,7 @@ function renderSeries() {
 
 // Strak-Optimierer: Einstellungen je Modell (m.opt)
 function optOf(m) {
-  const d = { rootId: null, minThick: 7, minHeight: null, stall: 10, cm0Min: null, flapLo: -5, flapHi: 10, smooth: 0.002, maxEvals: 1500, vars: { ...SK.DEFAULTS.vars } };
+  const d = { rootId: null, minThick: 7, minHeight: null, stall: 10, stallMode: 'gutmuetig', twLo: -5, twHi: 2, cm0Min: null, flapLo: -5, flapHi: 10, smooth: 0.002, maxEvals: 1500, vars: { ...SK.DEFAULTS.vars } };
   m.opt = { ...d, ...(m.opt || {}), vars: { ...d.vars, ...((m.opt && m.opt.vars) || {}) } };
   if (!m.opt.rootId || !profById(m.opt.rootId)) m.opt.rootId = m.wing.stations[0].profileId;
   return m.opt;
@@ -1736,11 +1738,13 @@ function syncOpt() {
   $('oFlapLo').value = o.flapLo; $('oFlapHi').value = o.flapHi;
   $('oSmooth').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === o.smooth));
   $('oDepth').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === o.maxEvals));
+  $('oStallMode').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === o.stallMode));
+  $('oTwLo').value = o.twLo; $('oTwHi').value = o.twHi;
   $('oVars').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', !!o.vars[b.dataset.v]));
 }
 const setOpt = (k, v) => { optOf(curModel())[k] = v; persist(); syncOpt(); };
 $('oRoot').onchange = () => setOpt('rootId', $('oRoot').value);
-for (const [id, k, lo, hi, nul] of [['oMinT', 'minThick', 2, 25], ['oMinH', 'minHeight', 0, 100, true], ['oStall', 'stall', 0, 50], ['oCm0', 'cm0Min', -0.3, 0.1, true], ['oFlapLo', 'flapLo', -15, 5], ['oFlapHi', 'flapHi', -5, 20]]) {
+for (const [id, k, lo, hi, nul] of [['oMinT', 'minThick', 2, 25], ['oMinH', 'minHeight', 0, 100, true], ['oStall', 'stall', 0, 50], ['oCm0', 'cm0Min', -0.3, 0.1, true], ['oFlapLo', 'flapLo', -15, 5], ['oFlapHi', 'flapHi', -5, 20], ['oTwLo', 'twLo', -10, 0], ['oTwHi', 'twHi', 0, 6]]) {
   $(id).addEventListener('change', () => {
     const v = parseFloat($(id).value);
     if (!Number.isFinite(v)) { if (nul) setOpt(k, null); else syncOpt(); return; }
@@ -1749,6 +1753,7 @@ for (const [id, k, lo, hi, nul] of [['oMinT', 'minThick', 2, 25], ['oMinH', 'min
 }
 $('oSmooth').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('smooth', +b.dataset.v); };
 $('oDepth').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('maxEvals', +b.dataset.v); };
+$('oStallMode').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('stallMode', b.dataset.v); };
 $('oVars').onclick = e => { const b = e.target.closest('button'); if (!b) return; const o = optOf(curModel()); o.vars[b.dataset.v] = !o.vars[b.dataset.v]; persist(); syncOpt(); };
 
 let optJob = null, optRes = null;
@@ -1757,7 +1762,7 @@ function optSettings(m) {
   return {
     rootId: o.rootId, points: F.modes.map(q => ({ name: q.name, cl: +q.cl, weight: +(q.weight ?? 1) || 0, flap: q.fixed ? +q.flap || 0 : null })),
     vars: o.vars, flapMin: Math.min(o.flapLo, o.flapHi), flapMax: Math.max(o.flapLo, o.flapHi), minThick: o.minThick / 100, minHeight: o.minHeight || 0,
-    stallMargin: o.stall / 100, cm0Min: o.cm0Min, smooth: o.smooth, maxEvals: o.maxEvals, nCrit: lab.nCrit,
+    stallMargin: o.stall / 100, stallMode: o.stallMode, twistMin: Math.min(o.twLo, o.twHi), twistMax: Math.max(o.twLo, o.twHi), cm0Min: o.cm0Min, smooth: o.smooth, maxEvals: o.maxEvals, nCrit: lab.nCrit,
   };
 }
 function optRunning(on) {
@@ -1839,6 +1844,15 @@ function optCheck(job) {
   };
   setTimeout(next, 30);
 }
+// Abrissverhalten beim langsamsten Zustand vorher und nachher, Farbe wie die Ampel in der Auftriebsverteilung
+function stallKpi(B, A) {
+  const crit = S => S.points.reduce((m, p) => (p.stallAt && (!m || p.cl > m.cl) ? p : m), null);
+  const b = crit(B), a = crit(A);
+  if (!a || !a.stallAt) return '';
+  const col = r => (r === 'kritisch' ? 'dn' : r === 'gutmütig' ? 'up' : '');
+  const at = q => `${q.stallAt.rating}, bei ${fmt(q.stallAt.eta * 100, 0)} %`;
+  return `<div class="kpi"><span class="l">Abriss beginnt (${esc(a.name)})</span><span class="v"><span class="d ${col(a.stallAt.rating)}" style="font-size:inherit">${esc(a.stallAt.rating)}</span></span><span class="d">bei ${fmt(a.stallAt.eta * 100, 0)} % Halbspannweite · vorher <span class="${col(b && b.stallAt ? b.stallAt.rating : '')}">${b && b.stallAt ? at(b) : '–'}</span></span></div>`;
+}
 function renderOptResult() {
   const m = curModel(), ok = optRes && optRes.id === m.id;
   $('oResult').hidden = !ok;
@@ -1848,7 +1862,7 @@ function renderOptResult() {
   const k = (l, v, u, d = '') => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d ? `<span class="d">${d}</span>` : ''}</div>`;
   $('oKpis').innerHTML = k('Widerstand gewichtet', (res.gain > 0 ? '−' : '+') + fmt(Math.abs(res.gain) * 100, 1), '%', `${res.evals} Bewertungen · ${fmt(res.seconds, 0)} s`) +
     A.points.map((p, i) => k(`Gleitzahl ${esc(p.name)}`, fmt(p.E, 1), '', `vorher ${fmt(B.points[i].E, 1)} ${dp(B.points[i].E, p.E)}`)).join('') +
-    k('Wurzelprofil', esc(res.rootName), '', `Cm0 ≥ ${fmt(res.limits.cm0Min, 3)} · Ca/Ca max ≤ ${fmt(res.limits.stallLimit * 100, 0)} %`);
+    k('Wurzelprofil', esc(res.rootName), '', `Cm0 ≥ ${fmt(res.limits.cm0Min, 3)} · Ca/Ca max ≤ ${fmt(res.limits.stallLimit * 100, 0)} %`) + stallKpi(B, A);
   const fullE = (kk, i) => { const c = check && check[kk][i]; return c === undefined || !check ? '…' : c ? fmt(c.E, 1) : '–'; };
   $('oPoints').innerHTML = `<thead><tr><th rowspan="2">Zustand</th><th rowspan="2">Ca</th><th rowspan="2">V km/h</th><th class="grp" colspan="2">Klappe °</th><th class="grp" colspan="2">EWD °</th><th class="grp" colspan="3">Gleitzahl</th><th class="grp" colspan="2">Sinken m/s</th><th class="grp" colspan="2" title="normale Modellrechnung mit vollen Polaren">Gegenprobe Gleitzahl</th><th class="grp" rowspan="2" title="beim langsamsten Zustand">Ca/Ca max</th></tr>` +
     `<tr><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th></th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th></tr></thead><tbody>` +
@@ -1861,12 +1875,12 @@ function renderOptResult() {
   $('oStations').innerHTML = `<thead><tr><th rowspan="2">Station</th><th rowspan="2" title="Abstand von der Rumpfmitte entlang der Fläche">Lage y<br><small>mm</small></th><th rowspan="2" title="Profiltiefe an der Station">Tiefe<br><small>mm</small></th><th rowspan="2">Profil vorher</th>` +
     H('Max. Dicke', '% der Tiefe', 'Grösste Profildicke in Prozent der Profiltiefe') + H('Dickenrücklage', '% der Tiefe ab Nase', 'Lage der grössten Dicke, gemessen von der Nasenleiste') +
     H('Max. Wölbung', '% der Tiefe', 'Grösste Wölbung der Skelettlinie in Prozent der Profiltiefe') + H('Wölbungsrücklage', '% der Tiefe ab Nase', 'Lage der grössten Wölbung, gemessen von der Nasenleiste') +
-    H('Bauhöhe', 'mm', 'Grösste Profildicke in mm (Dicke mal Tiefe), Platz für Holm und Verbinder') + H('Cm0', 'Nullmoment', 'Momentenbeiwert um l/4 bei Ca 0, ohne Klappe') + `</tr>` +
-    `<tr>${'<th class="grp">vorher</th><th>nachher</th>'.repeat(6)}</tr></thead><tbody>` +
+    H('Schränkung', '°', 'Einstellwinkel der Station gegenüber der Wurzel, negativ = Endleiste nach oben') + H('Bauhöhe', 'mm', 'Grösste Profildicke in mm (Dicke mal Tiefe), Platz für Holm und Verbinder') + H('Cm0', 'Nullmoment', 'Momentenbeiwert um l/4 bei Ca 0, ohne Klappe') + `</tr>` +
+    `<tr>${'<th class="grp">vorher</th><th>nachher</th>'.repeat(7)}</tr></thead><tbody>` +
     A.stations.map((s, i) => { const b = B.stations[i]; return `<tr><td>${i + 1}${i ? '' : ' (Wurzel)'}</td><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td>${esc(b.profile)}</td>` +
       `<td class="grp">${pc(b.thickness)}</td><td>${pc(s.thickness)}</td><td class="grp">${pc(b.xThickness, 1)}</td><td>${pc(s.xThickness, 1)}</td>` +
       `<td class="grp">${pc(b.camber)}</td><td>${pc(s.camber)}</td><td class="grp">${pc(b.xCamber, 1)}</td><td>${pc(s.xCamber, 1)}</td>` +
-      `<td class="grp">${fmt(b.height, 1)}</td><td>${fmt(s.height, 1)}</td><td class="grp">${fmt(b.cm0, 3)}</td><td>${fmt(s.cm0, 3)}</td></tr>`; }).join('') + '</tbody>';
+      `<td class="grp">${fmt(b.twist ?? 0, 2)}</td><td>${fmt(s.twist ?? 0, 2)}</td><td class="grp">${fmt(b.height, 1)}</td><td>${fmt(s.height, 1)}</td><td class="grp">${fmt(b.cm0, 3)}</td><td>${fmt(s.cm0, 3)}</td></tr>`; }).join('') + '</tbody>';
   if (typeof Chart !== 'undefined') {
     const line = (label, data, c, o = {}) => ({ label, data, showLine: true, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, ...o });
     const ser = (S, key) => S.stations.map(s => ({ x: s.y, y: s[key] * 100 }));

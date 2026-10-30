@@ -69,7 +69,7 @@ test('Klappe in den Stationspolaren: positive Klappe hebt Ca max, Modell mit Wö
 
 test('Strak-Optimierer: weniger Widerstand, Randbedingungen eingehalten, Übernahme ins Modell', () => {
   const { pj, m, e } = setup();
-  const opt = S.optimizer(m, pj.profiles, { maxEvals: 150, minThick: 0.08, seed: 2 });
+  const opt = S.optimizer(m, pj.profiles, { maxEvals: 150, minThick: 0.08, seed: 2, stallMode: 'aus', vars: { twist: false } });
   assert.strictEqual(opt.dims, 3 * 4 + 3);
   while (!opt.done) opt.step();
   const r = opt.result();
@@ -119,4 +119,19 @@ test('Höhenruder: Wirksamkeit wie dünne Profiltheorie, Ausschlag gedämpft und
   m.tail.elevator = { type: 'gedaempft' };
   m.tail.stations.forEach(s => { s.flapDepth = 0; });
   assert.strictEqual(M.elevatorDeflection(m, 1, 2), null, 'ohne Ruder kein Ausschlag');
+});
+
+test('Abrissverhalten: stark zugespitzter Flügel reisst aussen ab, der Optimierer macht ihn gutmütig', () => {
+  const { pj, m } = setup();
+  Object.assign(m.wing.stations[2], { chord: 150 }); Object.assign(m.wing.stations[3], { chord: 70, offset: 60 });
+  const opt = S.optimizer(m, pj.profiles, { maxEvals: 250, stallMode: 'gutmuetig', seed: 2 });
+  while (!opt.done) opt.step();
+  const r = opt.result();
+  assert.strictEqual(r.before.points[2].stallAt.rating, 'kritisch');
+  assert.strictEqual(r.after.points[2].stallAt.rating, 'gutmütig');
+  // Gegenprobe mit der normalen Modellrechnung beim Thermik-Ca
+  const full = (mm, flap) => { const q = M.withFlap(mm, flap); q.clDesign = 0.8; return M.analyze(q, pj.profiles).stallAt; };
+  assert.strictEqual(full(m, r.before.points[2].flap).rating, 'kritisch');
+  assert.notStrictEqual(full(S.apply(m, r), r.after.points[2].flap).rating, 'kritisch');
+  assert.ok(S.apply(m, r).wing.stations[3].twist < r.before.stations[3].twist + 1e-9, 'Schränkung aussen nicht positiver');
 });
