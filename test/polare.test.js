@@ -51,3 +51,13 @@ test('Kennzahlen: dünneres Profil hat im Speedbereich weniger Widerstand', () =
   assert.ok(a.climbMax > 0 && a.ldMax > 30);
   assert.ok(Number.isNaN(POL.metrics(POL.compute(e374, o).points, 0.2, 3).cdMean), 'Bereich über Ca max ist nicht bewertbar');
 });
+
+test('Typ 2: symmetrisches Profil gibt eine punktsymmetrische Polare (Re aus dem Betrag von Ca)', () => {
+  const r = POL.compute(P.naca4('0009'), { type: 2, re: 120000, alphaFrom: -6, alphaTo: 6, alphaStep: 2 });
+  const at = a => r.points.find(p => p.alpha === a);
+  for (const a of [2, 4, 6]) {
+    assert.ok(Math.abs(at(a).cl + at(-a).cl) < 0.01, [at(a).cl, at(-a).cl]);
+    assert.ok(Math.abs(at(a).cd - at(-a).cd) < 2e-4, [at(a).cd, at(-a).cd]);
+    assert.ok(Math.abs(at(a).re - at(-a).re) < 50, [at(a).re, at(-a).re]);
+  }
+});
