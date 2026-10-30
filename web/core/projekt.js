@@ -105,27 +105,27 @@
     p.profiles = (p.profiles || []).map(pr => ({ ...pr, mod: { ...DEFAULT_MOD, ...(pr.mod || {}) } }));
     p.polars = p.polars || [];
     p.variants = (p.variants || []).map(v => ({ ...v, mod: { ...DEFAULT_MOD, ...(v.mod || {}) }, flap: v.flap || null }));
-    p.models = p.models || [];
+    p.models = (p.models || []).filter(validModel);
     return p;
   }
 
-  // Modell für P1: Flügel aus Segmenten, Leitwerk, Massen. Längen in mm, Massen in g, Winkel in Grad.
-  function createModel(name = 'Neues Modell') {
+  // Modell: Flügel und Höhenleitwerk als Stationen wie in XFLR5. Längen in mm, Masse in g, Winkel in Grad.
+  // Eine Station: y (Spannweite entlang der Fläche ab Mitte), Tiefe, Versatz der Nasenleiste, V-Form und Klappe
+  // bis zur nächsten Station, Schränkung, Profil mit eigener Dicke und Wölbung (null = wie das Profil).
+  const station = (y, chord, offset, o = {}) => ({ y, chord, offset, dihedral: 0, twist: 0, profileId: null, thickness: null, camber: null, flapDepth: 25, flap: 0, ...o });
+  function createModel(name = 'Neues Modell', wingProfileId = null, tailProfileId = null) {
+    const w = (y, c, off, o) => station(y, c, off, { dihedral: 3, profileId: wingProfileId, ...o });
+    const t = (y, c, off) => station(y, c, off, { profileId: tailProfileId });
     return {
-      id: uid(), name, class: 'segler', notes: '',
-      wing: {
-        x: 0, z: 0, incidence: 0,
-        root: { chord: 200, profileId: null },
-        segments: [{ span: 1000, chordOut: 150, sweepLE: 0, dihedral: 2, twistOut: 0, profileOutId: null, flaps: [] }],
-      },
-      tail: { type: 'kreuz', distance: 900, root: { chord: 120, profileId: null }, segments: [{ span: 300, chordOut: 80, sweepLE: 20, dihedral: 0, twistOut: 0, profileOutId: null }], incidence: 0 },
-      fin: { height: 250, chordRoot: 200, chordTip: 120, sweepLE: 60 },
-      fuselage: { stations: [] },
-      masses: [],
+      id: uid(), name, notes: '', mass: 1800,
+      wing: { incidence: 0, stations: [w(0, 220, 0), w(600, 210, 3), w(950, 170, 15), w(1250, 100, 50)] },
+      tail: { x: 950, z: 30, stations: [t(0, 130, 0), t(300, 80, 35)] },
+      cg: { mode: 'sigma', sigma: 0.2, x: 60 }, clDesign: 0.4,
     };
   }
+  const validModel = m => m && m.wing && Array.isArray(m.wing.stations) && m.wing.stations.length >= 2 && m.tail && Array.isArray(m.tail.stations);
 
-  const api = { FORMAT, VERSION, createProject, addProfile, deriveProfile, geometry, polarKey, findPolar, storePolar, removeProfile, addVariant, variantToProfile, serialize, parse, createModel, hash, isModified };
+  const api = { FORMAT, VERSION, createProject, addProfile, deriveProfile, geometry, polarKey, findPolar, storePolar, removeProfile, addVariant, variantToProfile, serialize, parse, createModel, station, hash, isModified };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).projekt = api;
 })(typeof self !== 'undefined' ? self : this);
