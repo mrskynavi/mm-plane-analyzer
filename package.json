@@ -1,0 +1,12 @@
+{
+  "name": "mm-plane-analyzer",
+  "productName": "MM Plane Analyzer",
+  "version": "2026.10.0",
+  "description": "Auslegung von Modellflugzeugen von Mächler Modelle: Profile, Polaren, Schwerpunkt, EWD und Festigkeit",
+  "author": "Christoph Mächler",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
