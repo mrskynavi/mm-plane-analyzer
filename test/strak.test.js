@@ -135,3 +135,17 @@ test('Abrissverhalten: stark zugespitzter Flügel reisst aussen ab, der Optimier
   assert.notStrictEqual(full(S.apply(m, r), r.after.points[2].flap).rating, 'kritisch');
   assert.ok(S.apply(m, r).wing.stations[3].twist < r.before.stations[3].twist + 1e-9, 'Schränkung aussen nicht positiver');
 });
+
+test('Strak-Optimierer: nie schlechter als vorher, auch nicht in einem einzelnen Arbeitspunkt', () => {
+  const { pj, m } = setup();
+  const opt = S.optimizer(m, pj.profiles, { maxEvals: 200, seed: 3 });
+  while (!opt.done) opt.step();
+  const r = opt.result(), total = R => R.score + R.penalties.sum;
+  assert.ok(total(r.after) <= total(r.before) + 1e-9, [total(r.after), total(r.before)]);
+  r.after.points.forEach((p, k) => assert.ok(p.cd <= r.before.points[k].cd * 1.002, `${p.name}: ${p.cd} statt ${r.before.points[k].cd}`));
+  // findet die Suche nichts (keine Bewertung), bleibt das Modell unverändert
+  const none = S.optimizer(m, pj.profiles, { maxEvals: 1, seed: 3 });
+  const r0 = none.result();
+  assert.strictEqual(r0.kept, true);
+  assert.deepStrictEqual(S.apply(m, r0), JSON.parse(JSON.stringify(m)));
+});

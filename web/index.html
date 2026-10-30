@@ -1929,7 +1929,12 @@ function optCheck(job) {
   const next = () => {
     if (optRes !== job) return;
     const q = jobs.shift();
-    if (!q) { $('oHint').textContent = `fertig nach ${fmt(job.res.seconds, 0)} s und ${job.res.evals} Bewertungen · Gegenprobe gerechnet`; return; }
+    if (!q) {
+      const worse = job.res.after.points.filter((p, i) => job.check.before[i] && job.check.after[i] && job.check.after[i].E < job.check.before[i].E - 0.05).map(p => p.name);
+      $('oHint').textContent = `fertig nach ${fmt(job.res.seconds, 0)} s und ${job.res.evals} Bewertungen · Gegenprobe gerechnet` +
+        (worse.length ? ` · Achtung: in der vollen Rechnung schlechter bei ${worse.join(', ')}` : '');
+      return;
+    }
     try { job.check[q.k][q.i] = tableAt(MD.analyze(window.MMPA.modell.withFlap(q.mm, q.p.flap), project.profiles, { nCrit: lab.nCrit }), q.p.cl); } catch (err) { job.check[q.k][q.i] = null; }
     renderOptResult();
     setTimeout(next, 0);
@@ -1952,10 +1957,17 @@ function renderOptResult() {
   const { res, check } = optRes, B = res.before, A = res.after;
   const dp = (a, b, d = 1, better = 1) => { if (!Number.isFinite(a) || !Number.isFinite(b) || !a) return ''; const x = (b / a - 1) * 100; return `<span class="d ${x * better > 0.05 ? 'up' : x * better < -0.05 ? 'dn' : ''}">${x >= 0 ? '+' : '−'}${fmt(Math.abs(x), d)} %</span>`; };
   const k = (l, v, u, d = '') => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}<small>${u}</small></span>${d ? `<span class="d">${d}</span>` : ''}</div>`;
-  $('oKpis').innerHTML = k('Widerstand gewichtet', (res.gain > 0 ? '−' : '+') + fmt(Math.abs(res.gain) * 100, 1), '%', `${res.evals} Bewertungen · ${fmt(res.seconds, 0)} s`) +
+  $('oKpis').innerHTML = (res.kept ? k('Widerstand gewichtet', 'unverändert', '', `keine bessere Lösung gefunden, Modell bleibt · ${res.evals} Bewertungen`)
+    : k('Widerstand gewichtet', (res.gain > 0 ? '−' : '+') + fmt(Math.abs(res.gain) * 100, 1), '%', `${res.evals} Bewertungen · ${fmt(res.seconds, 0)} s`)) +
     A.points.map((p, i) => k(`Gleitzahl ${esc(p.name)}`, fmt(p.E, 1), '', `vorher ${fmt(B.points[i].E, 1)} ${dp(B.points[i].E, p.E)}`)).join('') +
     k('Wurzelprofil', esc(res.rootName), '', `Cm0 ≥ ${fmt(res.limits.cm0Min, 3)} · Ca/Ca max ≤ ${fmt(res.limits.stallLimit * 100, 0)} %`) + stallKpi(B, A);
-  const fullE = (kk, i) => { const c = check && check[kk][i]; return c === undefined || !check ? '…' : c ? fmt(c.E, 1) : '–'; };
+  const fullE = (kk, i) => {
+    const c = check && check[kk][i];
+    if (c === undefined || !check) return '…';
+    if (!c) return '–';
+    const b = check.before[i], cls = kk === 'after' && b && c.E < b.E - 0.05 ? ' class="d dn" style="font-size:inherit"' : kk === 'after' && b && c.E > b.E + 0.05 ? ' class="d up" style="font-size:inherit"' : '';
+    return `<span${cls}>${fmt(c.E, 1)}</span>`;
+  };
   $('oPoints').innerHTML = `<thead><tr><th rowspan="2">Zustand</th><th rowspan="2">Ca</th><th rowspan="2">V km/h</th><th class="grp" colspan="2">Klappe °</th><th class="grp" colspan="2">EWD °</th><th class="grp" colspan="3">Gleitzahl</th><th class="grp" colspan="2">Sinken m/s</th><th class="grp" colspan="2" title="normale Modellrechnung mit vollen Polaren">Gegenprobe Gleitzahl</th><th class="grp" rowspan="2" title="beim langsamsten Zustand">Ca/Ca max</th></tr>` +
     `<tr><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th></th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th></tr></thead><tbody>` +
     A.points.map((p, i) => { const b = B.points[i]; return `<tr><td>${esc(p.name)}</td><td>${fmt(p.cl, 2)}</td><td>${fmt(p.v * 3.6, 0)}</td>` +
