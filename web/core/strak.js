@@ -385,6 +385,7 @@
 
   // ---------- Optimierer ----------
 
+  const WORSE_MARGIN = 0.002;
   const DEFAULTS = {
     points: [{ name: 'Speed', cl: 0.15, weight: 1 }, { name: 'Gleiten', cl: 0.45, weight: 2 }, { name: 'Thermik', cl: 0.8, weight: 1 }],
     vars: { thickness: true, camber: true, xThickness: true, xCamber: true, twist: true, flap: true },
@@ -482,7 +483,10 @@
     const u0 = vars.map(v => (v.x0 - v.lo) / (v.hi - v.lo));
     const es = vars.length ? cmaes(u0, 0.12, S.seed) : null;
     const first = fitness(u0);
-    let best = first, evals = 0, stale = 0, done = !vars.length;
+    // best: bester Wert insgesamt; bestOk: bester, bei dem kein Arbeitspunkt schlechter ist als vorher. Das läuft neben der Suche her
+    // und lenkt sie nicht; die kleine Reserve deckt die Abweichung der schnellen Bewertung gegenüber der vollen Rechnung.
+    const isOk = q => q.ev.points.every((p, k) => !Number.isFinite(cdRef[k]) || (p.ok && p.cd <= cdRef[k] * (1 - WORSE_MARGIN)));
+    let best = first, bestOk = isOk(first) ? first : null, evals = 0, stale = 0, done = !vars.length;
     const history = [first.f];
     const t0 = Date.now();
     function step() {
@@ -492,15 +496,22 @@
       es.tell(xs, res.map(q => q.f));
       const gb = res.reduce((a, b) => (b.f < a.f ? b : a));
       if (gb.f < best.f - 1e-6) { best = gb; stale = 0; } else stale++;
+      for (const q of res) if ((!bestOk || q.f < bestOk.f) && isOk(q)) bestOk = q;
       history.push(best.f);
       if (evals >= S.maxEvals || es.sigma < 2e-3 || stale > 40) done = true;
       return progress();
     }
     const progress = () => ({ evals, maxEvals: S.maxEvals, gen: es ? es.gen : 0, best: best.f, start: first.f, gain: 1 - best.f / first.f, done, seconds: (Date.now() - t0) / 1000 });
     function result() {
-      const after = best;
       // Vorher mit denselben Strafen bewerten, damit die Zahlen vergleichbar sind
       const penB = penalties(evBefore, before);
+      // nie schlechter als der Ausgangszustand: findet die Suche nichts Besseres, bleibt das Modell, wie es ist
+      // lieber eine Lösung ohne schlechteren Arbeitspunkt, solange das Abrissverhalten gleich gut bleibt
+      const stallPen = q => q.pen.stall + q.pen.shape;
+      const pick = bestOk && stallPen(bestOk) <= stallPen(best) + 0.01 ? bestOk : best;
+      // nie schlechter als der Ausgangszustand: findet die Suche nichts Besseres, bleibt das Modell, wie es ist
+      const kept = pick.f >= score(evBefore) + penB.sum - 1e-9;
+      const after = kept ? { ev: evBefore, design: before, flaps: flapsBefore, pen: penB } : pick;
       const pack = (ev, design, flaps, pen) => ({
         points: ev.points.map(p => ({ name: p.name, cl: p.cl, flap: p.flap, v: p.v, alpha: p.alpha, ewd: p.ewd, E: p.E, sink: p.sink, cd: p.cd, cdw: p.cdw, cdi: p.cdi, cdt: p.cdt, stall: p.stall, stallAt: p.stallZones ? p.stallZones.at : null, ok: p.ok, clTail: p.clTail })),
         stations: design.map((d, i) => ({ y: st[i].y, chord: st[i].chord, profile: d.prof.name, profileId: d.prof.id, ...d.q, cm0: ev.stations[i].cm0, height: ev.stations[i].height })),
@@ -509,7 +520,7 @@
       return {
         before: pack(evBefore, before, flapsBefore, penB),
         after: pack(after.ev, after.design, after.flaps, after.pen),
-        gain: 1 - score(after.ev) / score(evBefore), evals, seconds: (Date.now() - t0) / 1000, history,
+        gain: 1 - score(after.ev) / score(evBefore), kept, evals, seconds: (Date.now() - t0) / 1000, history,
         limits: { cm0Min, stallLimit, stallMode: S.stallMode, minThick: S.minThick, minHeight: S.minHeight }, rootId: rootProf.id, rootName: rootProf.name,
         xCG: ctx.xCG, xNP: ctx.xNP, vars: vars.map(v => v.kind),
       };
@@ -521,6 +532,7 @@
   // die Klappenwinkel kommen als Flugzustände ins Modell.
   function apply(model, res) {
     const m = JSON.parse(JSON.stringify(model));
+    if (res.kept) return m;
     res.after.stations.forEach((s, i) => {
       const t = m.wing.stations[i];
       if (i === 0 && t.profileId === res.rootId) return;
