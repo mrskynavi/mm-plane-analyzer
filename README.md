@@ -27,6 +27,7 @@ Wölbklappen und Strak-Optimierer (P3):
 - Flugzustände je Modell (z. B. Speed, Gleiten, Thermik) mit Ca, Klappenwinkel und Gewicht: Geschwindigkeit, EWD, Gleitzahl, Sinken und Abrissreserve; „Beste Klappe suchen“ je Zustand
 - Wölbanteil je Klappe (Querruder z. B. 60 %); die Stationspolaren werden mit ausgeschlagener Klappe gerechnet
 - Klappenschar: Gesamtpolare für mehrere Klappenwinkel mit Hüllkurve und Tabelle beste Klappe, EWD je Ca
+- Kreisflug in der Thermik: je Kreisradius die Klappe, das Ca, die Querneigung, Fahrt, Sinken und Höhenruder mit dem geringsten Sinken, aus der Klappenschar. Lastvielfaches n = 1/cos φ, Sinken mal n^1,5, Innenflügel langsamer und mit einstellbarem Abstand zum Abriss, Nickdrehung im Höhenruder
 - Strak-Optimierer (`web/core/strak.js`): Wurzelprofil vorgegeben, Dicke, Dickenrücklage, Wölbung und Wölbungsrücklage je Station und Klappenwinkel je Flugzustand gemeinsam gesucht (CMA-ES im Web Worker). Ziel: kleinster gewichteter Gesamtwiderstand, jeder Zustand getrimmt. Randbedingungen: Mindestdicke in % und mm, Abstand zum Abriss, Cm0-Grenze, glatter Strak
 - Ergebnis als Vorher/Nachher-Tabelle mit Gegenprobe durch die normale Modellrechnung; Übernahme ins Modell oder als neues Modell erst auf Knopfdruck
 - Stationen haben dazu Dicken- und Wölbungsrücklage
@@ -61,7 +62,7 @@ web/core/modell.js      Modellrechnung: Neutralpunkt, Trimm, EWD, Handrechnung, 
 web/core/rumpf.js       Rumpfform, Rumpf- und Seitenleitwerkswiderstand, Rumpfmoment
 web/core/ordner.js      Projektordner: Ordner wählen und merken, Projekte lesen und schreiben
 web/core/excel.js       Modell aus dem Excel-Blatt „Masse, SP“
-web/core/strak.js       Strak-Optimierer, Flugzustände, Klappenschar
+web/core/strak.js       Strak-Optimierer, Flugzustände, Klappenschar, Kreisflug
 web/core/strak-worker.js  Optimierer im Hintergrund (Web Worker)
 web/core/projekt.js     Projektdatei, Fingerabdruck der Polaren, Modell-Grundgerüst für P1
 web/core/bibliothek.js  mitgelieferte Profile (erzeugt aus web/profile/*.dat)
