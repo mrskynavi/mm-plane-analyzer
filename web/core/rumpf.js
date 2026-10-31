@@ -113,7 +113,7 @@
   // Faktor auf den Profilwiderstand (Welligkeit, Lack, Turbulatoren) und Zuschlag in Prozent auf allen
   // schädlichen Widerstand (Haube, Übergänge, Kupplung, Rad, Antenne).
   const DRIVES = { keiner: 'kein Antrieb vorn', klapp: 'Klappluftschraube', starr: 'starre Luftschraube' };
-  const EXTRAS = { profile: 1, other: 0, span: 1, fusAoa: 0, drive: 'keiner', spinner: 40, prop: 350, horns: 0, horn: 0.4, gaps: 'abgedeckt' };
+  const EXTRAS = { profile: 1, other: 0, span: 1, fusAoa: 0, lowRe: 0, drive: 'keiner', spinner: 40, prop: 350, horns: 0, horn: 0.4, gaps: 'abgedeckt' };
   const extrasOf = model => ({ ...EXTRAS, ...(model.drag || {}) });
   const ruddered = stations => {
     let a = 0;
@@ -130,6 +130,15 @@
   }
   // Teilwiderstände eines Arbeitspunkts mit Zuschlägen: Profile mal Faktor, dazu cdx (Antrieb, Anlenkungen,
   // Spalte und Prozent-Zuschlag); base ist der Widerstand ohne alle Zuschläge
+  // Zuschlag kleine Re (Ablöseblasen) auf den Profilwiderstand eines Flügelstreifens: lowRe in % bei Re 100'000
+  // und Ca 1,0, wächst umgekehrt mit der Re (höchstens das Vierfache) und quadratisch mit dem Ca über 0,4.
+  // Gibt eine Funktion (cd, cl, re) → cd zurück, oder null ohne Zuschlag.
+  function lowReDrag(model) {
+    const k = (extrasOf(model).lowRe || 0) / 100;
+    if (!(k > 0)) return null;
+    return (cd, cl, re) => cd * (1 + k * Math.min(4, 1e5 / Math.max(re, 1)) * Math.max(0, (cl - 0.4) / 0.6) ** 2);
+  }
+
   // alpha: Anstellwinkel des Rumpfs (Modellachse) in Grad, für den Rumpfzuschlag im Langsamflug.
   // span: Spannweiten-Wirkungsgrad gegenüber der Rechnung (1 = wie gerechnet), der induzierte Widerstand wird durch span geteilt.
   // fusAoa: Zuschlag auf den Rumpfwiderstand in % bei 5° Anstellwinkel, wächst mit dem Quadrat des Winkels.
@@ -141,7 +150,7 @@
     return { cdi: i, cdf: fu, cdw: w, cdt: t, cdv: v, cdx, cd: i + w + t + fu + v + cdx, base: cdi + cdw + cdt + cdf + cdv };
   }
 
-  const api = { TYPES, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras };
+  const api = { TYPES, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras, lowReDrag };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).rumpf = api;
 })(typeof self !== 'undefined' ? self : this);
