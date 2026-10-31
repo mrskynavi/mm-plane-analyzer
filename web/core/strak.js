@@ -392,12 +392,14 @@
   const DEFAULTS = {
     points: [{ name: 'Speed', cl: 0.15, weight: 1 }, { name: 'Gleiten', cl: 0.45, weight: 2 }, { name: 'Thermik', cl: 0.8, weight: 1 }],
     vars: { thickness: true, camber: true, xThickness: true, xCamber: true, twist: true, flap: true },
-    flapMin: -5, flapMax: 10, minThick: 0.07, minHeight: 0, stallMargin: 0.1, stallMode: 'gutmuetig', twistMin: -5, twistMax: 2, cm0Min: null, smooth: 0.002, maxEvals: 1500, seed: 1,
+    flapMin: -5, flapMax: 10, minThick: 0.07, minHeight: 0, stallMargin: 0.1, stallMode: 'gutmuetig', twistMin: -5, twistMax: 2, cm0Min: null, smooth: 0.002, maxEvals: 1500, seed: 1, start: 'modell', noWorse: true,
   };
 
   // settings: { rootId, points: [{ name, cl, weight, flap (Zahl = fest, null = optimieren) }], vars, flapMin, flapMax,
   //   minThick (Bruchteil), minHeight (mm, 0 = aus), stallMargin, stallMode ('aus' | 'neutral' | 'gutmuetig'),
-  //   twistMin/twistMax (Schränkung in Grad), cm0Min (null = Cm0 der Wurzel), smooth, maxEvals, nCrit }
+  //   twistMin/twistMax (Schränkung in Grad), cm0Min (null = Cm0 der Wurzel), smooth, maxEvals, nCrit,
+//   start ('modell' = Stationen wie im Modell | 'wurzel' = Wölbung und Rücklagen der Wurzel nach aussen übernehmen),
+//   noWorse (true = kein Flugzustand darf schlechter werden) }
   // Gibt einen schrittweisen Optimierer zurück: step() rechnet eine Generation, result() das Ergebnis.
   function optimizer(model, profiles, settings = {}) {
     model = M.resolveTe(model);
@@ -429,7 +431,12 @@
     // Stellgrössen mit Grenzen, alle auf 0 … 1 abgebildet
     const vars = [];
     const add = (kind, i, lo, hi, x0) => { if (hi - lo < 1e-6) return; vars.push({ kind, i, lo, hi, x0: Math.min(hi, Math.max(lo, x0)) }); };
-    const start = st.map((s, i) => (i ? designOf(s, profiles, rootProf).q : r));
+    // Startwerte: wie im Modell oder von der Wurzel aus (Wölbung, Rücklagen und Endleiste der Wurzel, Dicke und Schränkung der Station)
+    const start = st.map((s, i) => {
+      if (!i) return r;
+      const q = designOf(s, profiles, rootProf).q;
+      return S.start === 'wurzel' ? { ...q, camber: r.camber, xThickness: r.xThickness, xCamber: r.xCamber } : q;
+    });
     for (let i = 1; i < n; i++) {
       const c = st[i].chord, s0 = start[i];
       const tLo = Math.max(S.minThick, S.minHeight > 0 ? S.minHeight / c : 0, 0.5 * r.thickness), tHi = Math.max(tLo, Math.min(0.2, 1.3 * r.thickness));
@@ -453,8 +460,10 @@
       let s = 0;
       for (const kind of Object.keys(SCALE)) for (let i = 1; i < n - 1; i++) {
         const h1 = eta[i] - eta[i - 1], h2 = eta[i + 1] - eta[i];
+        // Knick der Steigung mal halber Stationsabstand: die Knickhöhe. So zählen eng liegende Stationen
+        // (z. B. am Randbogen) nicht mehr als weit auseinander liegende.
         const d = (design[i + 1].q[kind] - design[i].q[kind]) / h2 - (design[i].q[kind] - design[i - 1].q[kind]) / h1;
-        s += (d * 0.25 / SCALE[kind]) ** 2;
+        s += (d * (h1 + h2) / 2 / SCALE[kind]) ** 2;
       }
       return s;
     };
@@ -512,7 +521,11 @@
       // nie schlechter als der Ausgangszustand: findet die Suche nichts Besseres, bleibt das Modell, wie es ist
       // lieber eine Lösung ohne schlechteren Arbeitspunkt, solange das Abrissverhalten gleich gut bleibt
       const stallPen = q => q.pen.stall + q.pen.shape;
-      const pick = bestOk && stallPen(bestOk) <= stallPen(best) + 0.01 ? bestOk : best;
+      const pick = S.noWorse && bestOk && stallPen(bestOk) <= stallPen(best) + 0.01 ? bestOk : best;
+      // bessere Lösung verworfen, weil ein Flugzustand schlechter würde: für den Hinweis im Ergebnis
+      const tradeOf = q => q.ev.points.map((p, k) => ({ name: p.name, change: p.ok && Number.isFinite(cdRef[k]) ? p.cd / cdRef[k] - 1 : null }));
+      const traded = pick !== best && best.f < pick.f - 1e-4 && best.f < score(evBefore) + penB.sum - 1e-4
+        ? { gain: 1 - score(best.ev) / score(evBefore), points: tradeOf(best) } : null;
       // nie schlechter als der Ausgangszustand: findet die Suche nichts Besseres, bleibt das Modell, wie es ist
       // unter 0,01 % gilt als Rauschen der schnellen Bewertung (Startwinkel der Ca-Suche hängen von der Reihenfolge ab)
       const kept = pick.f >= score(evBefore) + penB.sum - 1e-4;
@@ -525,7 +538,7 @@
       return {
         before: pack(evBefore, before, flapsBefore, penB),
         after: pack(after.ev, after.design, after.flaps, after.pen),
-        gain: 1 - score(after.ev) / score(evBefore), kept, evals, seconds: (Date.now() - t0) / 1000, history,
+        gain: 1 - score(after.ev) / score(evBefore), kept, traded, start: S.start, noWorse: S.noWorse, evals, seconds: (Date.now() - t0) / 1000, history,
         limits: { cm0Min, stallLimit, stallMode: S.stallMode, minThick: S.minThick, minHeight: S.minHeight }, rootId: rootProf.id, rootName: rootProf.name,
         xCG: ctx.xCG, xNP: ctx.xNP, vars: vars.map(v => v.kind),
       };
