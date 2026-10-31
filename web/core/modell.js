@@ -114,14 +114,16 @@
 
   // Profilwiderstand einer Fläche aus den Streifen: Cw zwischen den Stationen linear verteilt.
   // seg[i] = [Polare innen, Polare aussen] des Segments i (mit dessen Klappe)
-  function profileDrag(strips, stations, seg, sRef) {
+  // corr(cd, cl, re) optional: Zuschlag kleine Re je Streifen, v = Fluggeschwindigkeit in m/s für die Re
+  function profileDrag(strips, stations, seg, sRef, corr = null, v = 0) {
     const P0 = V.stationPoints(stations);
     let D = 0;
     for (const s of strips) {
       let i = 1;
       while (i < P0.length - 1 && s.y > P0[i].le[1]) i++;
       const y0 = P0[i - 1].le[1], y1 = P0[i].le[1], t = Math.min(1, Math.max(0, (s.y - y0) / (y1 - y0 || 1)));
-      const cd = cdOf(seg[i - 1][0], s.cl) * (1 - t) + cdOf(seg[i - 1][1], s.cl) * t;
+      let cd = cdOf(seg[i - 1][0], s.cl) * (1 - t) + cdOf(seg[i - 1][1], s.cl) * t;
+      if (corr) cd = corr(cd, s.cl, v * s.chord / 1000 / NU);
       D += cd * s.chord * s.width;
     }
     return 2 * D / sRef;
@@ -291,7 +293,7 @@
       return [a, i];
     };
     const table = [];
-    const finA = F.finArea(model, tail.area);
+    const finA = F.finArea(model, tail.area), lowRe = F.lowReDrag(model);
     const finCd0 = re => { const q = T.stations[0] && tailPolar(T.stations[0], profiles, re, nCrit); const c = q && cdOf(q, 0); return Number.isFinite(c) ? c : null; };
     for (let k = 2; k <= 28; k++) {
       const cl = Math.round(k * 0.05 * 100) / 100;
@@ -303,9 +305,10 @@
       const reT = v * tail.mac / 1000 / NU;
       const tpols = T.stations.map(q => tailPolar(q, profiles, reT, nCrit));
       const cdi = V.trefftz(r.strips, wing.area);
-      const cdw = profileDrag(sw, W.stations, seg, wing.area), cdt = profileDrag(st, T.stations, tpols.slice(0, -1).map((q, i) => [q, tpols[i + 1]]), wing.area);
+      const cdw = profileDrag(sw, W.stations, seg, wing.area, lowRe, v), cdt = profileDrag(st, T.stations, tpols.slice(0, -1).map((q, i) => [q, tpols[i + 1]]), wing.area);
       const cdf = F.drag(fus, v, wing.area), cdv = F.finDrag(finA, v, wing.area, finCd0);
       const x = F.withExtras(model, wing.area, { cdi, cdw, cdt, cdf, cdv }, al), cd = x.cd, E = cl / cd;
+      if (lowRe) x.base += profileDrag(sw, W.stations, seg, wing.area) - cdw; // „ohne Zuschläge“ auch ohne Blasenzuschlag
       const stall = over || !Number.isFinite(cdw); // Ca einer Station über ihrem Ca max
       // Leitwerk ohne Last: α und Einstellung so, dass Ca erreicht und Leitwerksauftrieb 0
       let a0n = 0, i0n = 0, rn = r0;

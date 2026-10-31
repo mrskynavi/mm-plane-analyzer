@@ -240,11 +240,13 @@
       segEnds.push(pair);
     });
     let D = 0, stall = 0;
+    const lowRe = F.lowReDrag(ctx.model);
     const used = [], half = wing.projSpan / 2;
     segs.forEach((list, i) => {
       const [a, b] = segEnds[i];
       for (const { s, t } of list) {
-        D += (a.cdAt(s.cl) * (1 - t) + b.cdAt(s.cl) * t) * s.chord * s.width;
+        const cd = a.cdAt(s.cl) * (1 - t) + b.cdAt(s.cl) * t;
+        D += (lowRe ? lowRe(cd, s.cl, pt.v * s.chord / 1000 / 1.5e-5) : cd) * s.chord * s.width;
         if (want) { const cm = a.clMax * (1 - t) + b.clMax * t; if (cm > 0) { stall = Math.max(stall, s.cl / cm); used.push({ y: s.y, ratio: s.cl / cm, eta: s.y / half }); } }
       }
     });

@@ -81,3 +81,12 @@ test('Spannweiten-Wirkungsgrad und Rumpf bei Anstellwinkel', () => {
   assert.ok(Math.abs(a.cd - (0.01 + 0.01 + 0.001 + 0.0028 + 0.0005)) < 1e-12);
   assert.ok(Math.abs(c.cd - c.base) < 1e-12, 'ohne Angaben wie bisher');
 });
+
+test('Zuschlag kleine Re: wächst mit 1/Re und Ca über 0,4', () => {
+  assert.strictEqual(F.lowReDrag({ drag: {} }), null);
+  const f = F.lowReDrag({ drag: { lowRe: 60 } });
+  assert.strictEqual(f(0.01, 0.4, 1e5), 0.01, 'bis Ca 0,4 nichts');
+  assert.ok(Math.abs(f(0.01, 1.0, 1e5) - 0.016) < 1e-12, '60 % bei Re 100k, Ca 1');
+  assert.ok(Math.abs(f(0.01, 1.0, 5e4) - 0.022) < 1e-12, 'doppelt bei Re 50k');
+  assert.ok(Math.abs(f(0.01, 1.0, 1e3) - 0.034) < 1e-12, 'höchstens das Vierfache');
+});
