@@ -730,6 +730,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <script>
 'use strict';
 const { profil: PF, polare: POL, projekt: PR, bibliothek: LIB, ordner: DIR } = window.MMPA;
+const MP = window.MMPA.messpolare;
 const $ = id => document.getElementById(id);
 const PALETTE = ['#0b6bcb','#d0552b','#1f8a5c','#8a4fd0','#b8860b','#c2317a','#2a8fa0','#6b7a1f'];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -1989,7 +1990,6 @@ function cmpResult(m) {
   return cmpCache.get(key);
 }
 // Gemessene Polaren (polaren.lua aus dem MM Flight Analyzer): Tabelle, Zuweisung, Vergleich
-const MP = window.MMPA.messpolare;
 function renderMeasured(m, r) {
   const list = project.measured || [];
   const opts = id => `<option value="">– kein Modell –</option>` + project.models.map(x => `<option value="${x.id}" ${x.id === id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
@@ -2010,7 +2010,7 @@ $('mpFile').onchange = async e => {
   if (!f) return;
   try {
     const entries = MP.parseLua(await f.text()), res = MP.importInto(project, entries, f.name);
-    persist(); renderModel();
+    persist(); renderModel(); renderSeries();
     const bad = entries.filter(x => MP.check(x).some(w => w.level === 'err')).map(x => x.name);
     toast(`${entries.length} Polare${entries.length === 1 ? '' : 'n'} eingelesen` + (res.updated ? `, ${res.updated} ersetzt` : '') + (res.assigned ? `, ${res.assigned} automatisch zugewiesen` : '') + (bad.length ? `. Unplausibel: ${bad.join(', ')}` : ''));
   } catch (err) { toast(`${f.name}: ${err.message}`); }
@@ -2018,12 +2018,12 @@ $('mpFile').onchange = async e => {
 $('mpTable').onchange = e => {
   const tr = e.target.closest('tr[data-mp]'), p = tr && (project.measured || []).find(x => x.id === tr.dataset.mp);
   if (!p || e.target.dataset.mpf !== 'model') return;
-  p.modelId = e.target.value || null; persist(); renderModel();
+  p.modelId = e.target.value || null; persist(); renderModel(); renderSeries();
 };
 $('mpTable').onclick = e => {
   const b = e.target.closest('[data-mpf="del"]'), tr = b && b.closest('tr[data-mp]');
   if (!tr) return;
-  project.measured = (project.measured || []).filter(x => x.id !== tr.dataset.mp); persist(); renderModel();
+  project.measured = (project.measured || []).filter(x => x.id !== tr.dataset.mp); persist(); renderModel(); renderSeries();
 };
 function renderPolars(m, r) {
   if (typeof Chart === 'undefined') return;
@@ -2251,12 +2251,17 @@ function renderSeries() {
   const okT = r => r.table.filter(t => !t.stall && Number.isFinite(t.E));
   const line = (label, data, c, o = {}) => ({ label, data, showLine: true, borderColor: c, backgroundColor: c, borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 4, ...o });
   const env = series.env, fg = css('--fg');
-  const vmax = Math.max(...sets.flatMap(q => okT(q.r).map(t => t.v * 3.6)));
+  // Gemessene Polaren des Modells (Flight Analyzer) gegen Schar und Hüllkurve
+  const MC = '#c2317a', meas = MP.forModel(project, m.id).map(p => ({ p, pts: MP.curve(p) }));
+  const mlab = p => `gemessen${meas.length > 1 ? ' ' + p.name : ''}`;
+  const vmax = Math.max(...sets.flatMap(q => okT(q.r).map(t => t.v * 3.6)), ...meas.map(o => o.p.vMax * 3.6));
   liveChart('flE', 'V [km/h]', 'Gleitzahl', sets.map((q, i) => line(`Klappe ${fmt(q.flap, 1)}°`, okT(q.r).map(t => ({ x: t.v * 3.6, y: t.E })), col(i)))
-    .concat([line('Hüllkurve', env.map(t => ({ x: t.v * 3.6, y: t.E })), fg, { borderWidth: 2.6, borderDash: [6, 4] })]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
+    .concat([line('Hüllkurve', env.map(t => ({ x: t.v * 3.6, y: t.E })), fg, { borderWidth: 2.6, borderDash: [6, 4] })])
+    .concat(meas.map(o => line(mlab(o.p), o.pts.filter(t => Number.isFinite(t.E)).map(t => ({ x: t.v * 3.6, y: t.E })), MC, { borderWidth: 2.6, borderDash: [2, 3] }))), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
   liveChart('flSink', 'V [km/h]', 'Sinken [m/s]', sets.map((q, i) => line(`Klappe ${fmt(q.flap, 1)}°`, okT(q.r).map(t => ({ x: t.v * 3.6, y: -t.sink })), col(i)))
-    .concat([line('Hüllkurve', env.map(t => ({ x: t.v * 3.6, y: -t.sink })), fg, { borderWidth: 2.6, borderDash: [6, 4] })]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
-  $('flLegend').innerHTML = sets.map((q, i) => `<span><i style="background:${col(i)}"></i>${fmt(q.flap, 1)}°</span>`).join('') + `<span><i class="dashc" style="color:${fg}"></i>Hüllkurve</span>` + (stale ? '<span class="tag warn">Modell seither geändert, neu rechnen</span>' : '');
+    .concat([line('Hüllkurve', env.map(t => ({ x: t.v * 3.6, y: -t.sink })), fg, { borderWidth: 2.6, borderDash: [6, 4] })])
+    .concat(meas.map(o => line(mlab(o.p), o.pts.map(t => ({ x: t.v * 3.6, y: -t.sink })), MC, { borderWidth: 2.6, borderDash: [2, 3] }))), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
+  $('flLegend').innerHTML = sets.map((q, i) => `<span><i style="background:${col(i)}"></i>${fmt(q.flap, 1)}°</span>`).join('') + `<span><i class="dashc" style="color:${fg}"></i>Hüllkurve</span>` + (meas.length ? `<span><i class="dashc" style="color:${MC}"></i>gemessen</span>` : '') + (stale ? '<span class="tag warn">Modell seither geändert, neu rechnen</span>' : '');
   const rows = series.plan.filter(t => Math.abs(t.cl * 10 - Math.round(t.cl * 10)) < 1e-6);
   $('flEnv').innerHTML = `<thead><tr><th>Ca</th><th>V km/h</th><th title="Klappenplan für den Mischer: steigt mit Ca nie ab und kommt der Hüllkurve so nahe wie möglich">Klappe °</th><th>Gleitzahl</th><th>Sinken m/s</th><th title="EWD bei Deinem Schwerpunkt">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten. Bauart und Bezug unter Höhenleitwerk">Höhenruder °</th><th>α °</th></tr></thead><tbody>` +
     rows.map(t => `<tr><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.flap, 1)}</td><td>${fmt(t.E, 1)}</td><td>${fmt(t.sink, 3)}</td><td>${fmt(t.ewdCur, 2)}</td><td>${fmtEl(elevAt(m, t.ewdCur))}</td><td>${fmt(t.alpha, 2)}</td></tr>`).join('') + '</tbody>';
