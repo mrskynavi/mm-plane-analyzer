@@ -17,6 +17,7 @@
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
 <script src="core/ordner.js"></script>
+<script src="core/frage.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -325,6 +326,37 @@ body.zooming{overflow:hidden}
 body.zooming .bench-out:has(.zoomed){z-index:96}
 @media (max-width:1200px){body.zooming .bench-out{position:relative}}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
+/* Fragemodus: Schalter oben, Rahmen um das Element unter der Maus, Sprechblase daneben */
+.askbtn[aria-pressed="true"]{background:var(--accent);color:#fff}
+#setModel button{white-space:nowrap}
+body.asking,body.asking *{cursor:help!important}
+body.asking .askpop,body.asking .askpop *{cursor:auto!important}
+body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
+.askhl{position:fixed;z-index:110;pointer-events:none;border:2px dashed var(--accent);border-radius:8px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.asktarget{outline:2px solid var(--accent)!important;outline-offset:2px;border-radius:6px}
+.askbanner{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:125;background:var(--accent);color:#fff;padding:5px 14px;border-radius:99px;font-size:.85rem;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:calc(100% - 24px)}
+.askbanner kbd{font:600 .75rem var(--mono);background:rgba(255,255,255,.2);border-radius:4px;padding:0 5px}
+.askpop{position:fixed;z-index:130;width:min(440px,calc(100vw - 16px));max-height:min(78vh,720px);display:flex;flex-direction:column;gap:8px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;box-shadow:0 12px 40px rgba(0,0,0,.28);font-size:.9rem}
+.askpop .ah{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+.askpop .actx{font:500 .78rem var(--mono);color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:3px 8px;overflow-wrap:anywhere}
+.askpop .x{border:0;background:none;color:var(--muted);font-size:1.3rem;line-height:1;cursor:pointer;padding:0 2px}
+.askpop .x:hover{color:var(--bad)}
+.askpop .alog{overflow:auto;display:grid;gap:8px;min-height:0}
+.askpop .alog:empty{display:none}
+.askpop .aq.q{justify-self:end;max-width:88%;background:var(--accent-soft);border-radius:10px 10px 2px 10px;padding:6px 10px;white-space:pre-wrap}
+.askpop .aq.a{line-height:1.45}
+.askpop .aq.a p{margin:0 0 6px} .askpop .aq.a p.h{font-weight:600}
+.askpop .aq.a ul,.askpop .aq.a ol{margin:0 0 6px;padding-left:20px}
+.askpop .aq.a code{font:.82rem var(--mono);background:var(--bg);border-radius:4px;padding:0 4px}
+.askpop .aq.c{font:.72rem var(--mono);color:var(--muted);border-top:1px solid var(--line);padding-top:4px}
+.askpop .aerr{color:var(--bad)}
+.askpop .adots{color:var(--muted);font-style:italic}
+.askpop textarea{font:inherit;resize:vertical;min-height:52px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);padding:6px 8px}
+.askpop textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.askpop .arow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.askpop .amodel{height:28px;font-size:.8rem}
+.askpop .acost{font:.75rem var(--mono);color:var(--muted);margin-left:auto}
+.askpop .anokey{margin:0}
 </style>
 
 <div class="wrap">
@@ -335,6 +367,7 @@ body.zooming .bench-out:has(.zoomed){z-index:96}
     </div>
     <div class="proj">Projekt <b id="projName"></b></div>
     <div class="actions">
+      <button class="btn ghost askbtn" type="button" id="askToggle" aria-pressed="false" title="Fragemodus: auf ein Feld, eine Tabellenzeile oder eine Grafik klicken und Claude fragen">? Fragen</button>
       <button class="btn ghost" type="button" id="openBtn">Projekt öffnen …</button>
       <button class="btn ghost" type="button" id="saveBtn">Speichern</button>
       <button type="button" class="iconbtn gear" id="openSettings" aria-label="Einstellungen" title="Einstellungen">⚙</button>
@@ -662,6 +695,13 @@ body.zooming .bench-out:has(.zoomed){z-index:96}
       <div class="row" id="dirBtns"><button type="button" class="btn ghost sm" id="dirPick">Ordner wählen …</button><button type="button" class="btn ghost sm" id="dirGrant" hidden>Zugriff erlauben</button><button type="button" class="btn ghost sm" id="dirClear" hidden>Ordner entfernen</button></div>
       <label class="chk" id="dirAutoRow" hidden><input type="checkbox" id="dirAuto"> Änderungen automatisch in den Ordner speichern</label>
       <p class="hint" id="dirHint"></p>
+    </div>
+    <div class="field"><span>Claude API für den Fragemodus</span>
+      <div class="row"><input class="txt" id="setKey" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 16em;width:auto"><button type="button" class="btn ghost sm" id="setKeyClear">Schlüssel löschen</button></div>
+      <p class="hint" id="setKeyState"></p>
+      <div class="row"><span class="hint">Modell</span><span class="seg" id="setModel"></span></div>
+      <p class="hint" id="setCost"></p>
+      <p class="hint">Der Schlüssel bleibt nur in diesem Browser (localStorage), kommt nicht in die Projektdatei und geht nur direkt an api.anthropic.com. Ohne Schlüssel kopiert der Fragemodus Frage und Daten in die Zwischenablage.</p>
     </div>
     <div class="row"><button type="button" class="btn ghost" id="newProj">Neues Projekt</button><span class="hint">Das aktuelle Projekt vorher speichern.</span></div>
     <div class="row end"><button type="button" class="btn" id="setClose">Fertig</button></div>
@@ -2217,7 +2257,7 @@ document.querySelectorAll('.tablewrap').forEach(w => {
   w.replaceWith(box); box.append(t, w, b);
 });
 document.querySelectorAll('.cbox .zoom, .tbox .tzoom').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setZoom(b.closest('.cbox,.tbox')); }));
-document.addEventListener('click', e => { const z = document.querySelector('.zoomed'); if (z && !z.contains(e.target) && !e.target.closest?.('dialog')) { e.stopPropagation(); e.preventDefault(); setZoom(null); } }, true);
+document.addEventListener('click', e => { const z = document.querySelector('.zoomed'); if (z && !z.contains(e.target) && !e.target.closest?.('dialog, .askpop, #askToggle')) { e.stopPropagation(); e.preventDefault(); setZoom(null); } }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.zoomed') && !document.querySelector('dialog[open]')) setZoom(null); });
 
 // ---------- Werkbank: Themen links, Ergebnisse rechts ----------
@@ -2304,4 +2344,5 @@ function renderAll() {
 }
 renderAll();
 </script>
+<script src="frage-ui.js"></script>
 
