@@ -15,6 +15,26 @@
   const RHO = 1.225, NU = 1.5e-5, G = 9.81;
   const XS = P.cosspace(60);
 
+  // Endleiste: gebaut wird sie nie messerscharf. Dicke in mm für das ganze Modell (model.drag.te, Standard 0,7 mm),
+  // je Station überschreibbar (station.te). Weil die Dicke in mm gilt, ist sie bei kleiner Tiefe relativ grösser.
+  const TE_MM = 0.7;
+  const teMm = (model, st) => {
+    const v = st.te ?? (model.drag && model.drag.te) ?? TE_MM;
+    return Number.isFinite(+v) ? Math.max(0, +v) : TE_MM;
+  };
+  // Kopie des Modells, in der jede Station ihre Endleistendicke als Bruchteil der Tiefe trägt (teGap)
+  function resolveTe(model) {
+    const res = list => list.map(s => ({ ...s, teGap: s.chord > 0 ? teMm(model, s) / s.chord : 0 }));
+    return { ...model, wing: { ...model.wing, stations: res(model.wing.stations) }, tail: { ...model.tail, stations: res(model.tail.stations) } };
+  }
+  // Dasselbe Modell mit einer Endleistendicke für alle Stationen (0 = scharf, zum Vergleich)
+  function withTe(model, mm) {
+    const m = JSON.parse(JSON.stringify(model));
+    m.drag = { ...(m.drag || {}), te: mm };
+    for (const s of m.wing.stations.concat(m.tail.stations)) delete s.te;
+    return m;
+  }
+
   // Profil einer Station mit eigener Dicke und Wölbung (absolut, Bruchteil der Tiefe)
   function stationProfile(st, profiles) {
     const p = st.profileId && profiles.find(q => q.id === st.profileId);
@@ -26,6 +46,8 @@
     // Rücklagen absolut (Bruchteil der Tiefe), null = wie das Profil
     if (st.xThickness != null) mod.xThickness = st.xThickness;
     if (st.xCamber != null) mod.xCamber = st.xCamber;
+    // Endleistendicke (Bruchteil der Tiefe), null = wie das Profil
+    if (st.teGap != null) mod.teGap = st.teGap;
     return { profile: p, mod, coords: p.coords };
   }
   const cache = new Map();
@@ -37,7 +59,7 @@
     return cached('g' + PR.hash(JSON.stringify([sp.coords, sp.mod])), () => {
       const geo = PR.geometry({ coords: sp.coords, mod: sp.mod });
       const { c } = P.thicknessCamber(geo, XS);
-      return { geo, camber: { xs: XS, zs: c }, stats: P.stats(geo), name: sp.profile.name };
+      return { geo, camber: { xs: XS, zs: c }, stats: P.stats(geo), name: sp.profile.name, teGap: sp.mod.teGap ?? 0 };
     });
   }
 
@@ -48,9 +70,9 @@
     if (!g) return null;
     const re = Math.round(POL.reSqrtCl(wingLoading, st.chord) / 100) * 100;
     flap = Math.round((flap || 0) * 100) / 100;
-    return cached('p' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, re, nCrit, flap, flap ? flapDepth : 0])), () => {
+    return cached('p' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, g.teGap, re, nCrit, flap, flap ? flapDepth : 0])), () => {
       const geo = flap ? P.flap(g.geo, flap, 1 - flapDepth / 100) : g.geo;
-      const r = POL.compute(geo, { type: 2, re, alphaFrom: -6, alphaTo: 16, alphaStep: 1, nCrit });
+      const r = POL.compute(geo, { type: 2, re, alphaFrom: -6, alphaTo: 16, alphaStep: 1, nCrit, teGap: g.teGap });
       return { re, flap, ...r.summary, pts: r.points };
     });
   }
@@ -75,8 +97,8 @@
     const g = stationGeometry(st, profiles);
     if (!g) return null;
     re = Math.max(20000, Math.round(re / 5000) * 5000);
-    return cached('t' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, re, nCrit])), () => {
-      const r = POL.compute(g.geo, { type: 1, re, alphaFrom: -8, alphaTo: 8, alphaStep: 1, nCrit });
+    return cached('t' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, g.teGap, re, nCrit])), () => {
+      const r = POL.compute(g.geo, { type: 1, re, alphaFrom: -8, alphaTo: 8, alphaStep: 1, nCrit, teGap: g.teGap });
       return { re, ...r.summary, pts: r.points };
     });
   }
@@ -170,6 +192,7 @@
 
   // Hauptrechnung. Gibt alles zurück, was die Oberfläche zeigt.
   function analyze(model, profiles, { ny = 30, nx = 8, nyTail = 10, nxTail = 5, nCrit = 9 } = {}) {
+    model = resolveTe(model);
     const W = model.wing, T = model.tail;
     const wing = V.planform(W.stations), tail = V.planform(T.stations, T.x);
     const wingGeo = W.stations.map(s => stationGeometry(s, profiles));
@@ -362,7 +385,7 @@
     return tau > 0.05 ? (ref - ewd) / tau : null;
   }
 
-  const api = { analyze, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
+  const api = { analyze, resolveTe, withTe, teMm, TE_MM, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);

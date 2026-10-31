@@ -12,7 +12,16 @@
     return out;
   };
 
-  // opts: { type: 1|2, re, alphaFrom, alphaTo, alphaStep, nCrit, xtrTop, xtrBot }
+  // Basiswiderstand einer stumpfen Endleiste nach Hoerner (Fluid-Dynamic Drag, Kap. 6): auf die Fläche der Endleiste
+  // bezogen Cw_b = 0,135 / ∛Cw_f, mit Cw_f = Profilwiderstand auf dieselbe Fläche bezogen. Auf die Tiefe bezogen:
+  // ΔCw = 0,135·(h/l)^(4/3) / ∛Cw. h/l = Endleistendicke durch Tiefe. NeuralFoil (gelernt an XFOIL) enthält diesen
+  // Totwasser-Anteil kaum, deshalb kommt er hier dazu.
+  function baseDrag(cd, gap) {
+    if (!(gap > 0) || !(cd > 0)) return 0;
+    return 0.135 * Math.pow(gap, 4 / 3) / Math.cbrt(Math.max(cd, 0.002));
+  }
+
+  // opts: { type: 1|2, re, alphaFrom, alphaTo, alphaStep, nCrit, xtrTop, xtrBot, teGap (Endleistendicke / Tiefe, für den Basiswiderstand) }
   // Typ 2: re ist Re·√Ca (wie in XFOIL), die örtliche Re = re / √Ca
   function compute(coords, opts = {}) {
     const o = { type: 1, re: 200000, alphaFrom: -5, alphaTo: 12, alphaStep: 0.5, nCrit: 9, xtrTop: 1, xtrBot: 1, ...opts };
@@ -32,7 +41,8 @@
           r = at(alpha, Re, o.nCrit, o.xtrTop, o.xtrBot);
         }
       }
-      pts.push({ alpha, cl: r.cl, cd: r.cd, cm: r.cm, xtrTop: r.xtrTop, xtrBot: r.xtrBot, conf: r.conf, re: Re });
+      const cdB = baseDrag(r.cd, o.teGap);
+      pts.push({ alpha, cl: r.cl, cd: r.cd + cdB, cdBase: cdB, cm: r.cm, xtrTop: r.xtrTop, xtrBot: r.xtrBot, conf: r.conf, re: Re });
     }
     return { opts: o, points: pts, summary: summary(pts) };
   }
@@ -133,7 +143,7 @@
     };
   }
 
-  const api = { compute, summary, cdAtCl, envelope, range, metrics, reSqrtCl };
+  const api = { compute, baseDrag, summary, cdAtCl, envelope, range, metrics, reSqrtCl };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).polare = api;
 })(typeof self !== 'undefined' ? self : this);

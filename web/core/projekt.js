@@ -41,7 +41,7 @@
     return prof;
   }
 
-  const isModified = mod => mod && (mod.thickness !== 1 || mod.camber !== 1 || mod.xThickness != null || mod.xCamber != null);
+  const isModified = mod => mod && (mod.thickness !== 1 || mod.camber !== 1 || mod.xThickness != null || mod.xCamber != null || mod.teGap != null);
 
   // Geometrie, wie gerechnet wird: normiert, neu verteilt, Dicke/Wölbung angewendet, Klappe gedreht
   function geometry(prof, flap = null) {
