@@ -138,6 +138,8 @@ input.num:focus-visible,input.txt:focus-visible,select.sel:focus-visible{outline
 .cbox .ct{display:flex;justify-content:space-between;gap:12px;font:600 1rem var(--display);letter-spacing:.03em}
 .cbox .ct span{font:400 .78rem var(--mono);color:var(--muted)}
 .cbox .cv{position:relative;height:280px}
+.cbox .cv canvas{touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.cbox.zoomed .cv canvas{touch-action:none}
 .tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
 table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
 th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -302,6 +304,8 @@ h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .cbox.zoomed{position:fixed;inset:max(3vh,16px) max(3vw,16px);z-index:95;display:flex;flex-direction:column;gap:6px;padding:12px 16px 10px;border:1px solid var(--line);border-radius:12px;box-shadow:0 0 0 100vmax color-mix(in srgb,#000 50%,transparent),0 12px 40px rgba(0,0,0,.35)}
 .cbox.zoomed .cv,.cbox.zoomed .plan,.cbox.zoomed .contour{flex:1 1 auto;height:auto!important;min-height:0;aspect-ratio:auto}
 .cbox.zoomed .ct{font-size:1.25rem}
+.zlegend{font-size:.85rem;gap:4px 18px}
+.zlegend i{width:22px;height:3px}
 .cbox.zoomed .zoom{font-size:1.4rem}
 /* Tabellen: ⤢ oben rechts in der Ecke, vergrössert wie die Grafiken */
 .flcircle-in{display:flex;flex-wrap:wrap;gap:8px 16px;margin:6px 0 8px}
@@ -1299,6 +1303,111 @@ const bandPlugin = {
   },
 };
 if (typeof Chart !== 'undefined') Chart.register(bandPlugin);
+// Fadenkreuz statt Chart.js-Tooltip: senkrechte und waagrechte Linie bis an die Achsen, Werte an den Achsen,
+// darunter für jede sichtbare Kurve der interpolierte Wert bei diesem x in ihrer Farbe. Maus und Finger (ziehen).
+// Der Kasten sucht sich die Ecke, in der am wenigsten Kurve liegt, damit er nichts verdeckt.
+const axDec = s => { const r = Math.abs(s.max - s.min); return r > 0 ? Math.max(0, Math.min(5, Math.ceil(-Math.log10(r / 200)))) : 2; };
+const dsColor = d => typeof d.borderColor === 'string' ? d.borderColor : typeof d.backgroundColor === 'string' ? d.backgroundColor : css('--fg');
+// y einer Kurve bei x: alle Segmente, die x überstreichen; bei mehreren (z. B. Polare Ca über Cw) das nächste zum Zeiger
+function curveAt(data, x, yNear) {
+  let best = null;
+  for (let i = 1; i < data.length; i++) {
+    const a = data[i - 1], b = data[i];
+    if (!a || !b || !Number.isFinite(a.x + a.y + b.x + b.y)) continue;
+    if ((x - a.x) * (x - b.x) > 0) continue;
+    const y = b.x === a.x ? (Math.abs(a.y - yNear) < Math.abs(b.y - yNear) ? a.y : b.y) : a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x);
+    if (best == null || Math.abs(y - yNear) < Math.abs(best - yNear)) best = y;
+  }
+  return best;
+}
+const xhairPlugin = {
+  id: 'xhair',
+  afterEvent(ch, args) {
+    const e = args.event, a = ch.chartArea;
+    if (e.type === 'mouseout') { if (ch.$xh) { ch.$xh = null; args.changed = true; } return; }
+    if (!['mousemove', 'touchstart', 'touchmove', 'click'].includes(e.type)) return;
+    const inside = e.x >= a.left && e.x <= a.right && e.y >= a.top && e.y <= a.bottom;
+    ch.$xh = inside ? { x: e.x, y: e.y } : null; args.changed = true;
+  },
+  afterDraw(ch) {
+    const p = ch.$xh; if (!p) return;
+    const a = ch.chartArea, g = ch.ctx, sx = ch.scales.x, sy = ch.scales.y;
+    const xv = sx.getValueForPixel(p.x), yv = sy.getValueForPixel(p.y), dx = axDec(sx), dy = axDec(sy);
+    const fg = css('--fg'), panel = css('--panel'), line = css('--muted'), mono = css('--mono');
+    const xName = sx.options.title?.text || 'x', yName = sy.options.title?.text || 'y';
+    // Werte der Kurven
+    const rows = [];
+    ch.data.datasets.forEach((d, i) => {
+      if (!ch.isDatasetVisible(i) || !d.data?.length) return;
+      if (d.showLine && d.data.length > 1) {
+        const y = curveAt(d.data, xv, yv); if (y == null) return;
+        rows.push({ label: d.label || '', y, col: dsColor(d), px: sy.getPixelForValue(y) });
+      } else {
+        // Einzelpunkte (Bestwerte): nur zeigen, wenn der Zeiger nahe dran ist
+        for (const q of d.data) {
+          if (!q || !Number.isFinite(q.x + q.y)) continue;
+          if (Math.abs(sx.getPixelForValue(q.x) - p.x) <= 10) rows.push({ label: d.label || '', x: q.x, y: q.y, col: dsColor(d), px: sy.getPixelForValue(q.y), pt: true });
+        }
+      }
+    });
+    g.save();
+    // Linien
+    g.strokeStyle = line; g.lineWidth = 1; g.setLineDash([4, 3]);
+    g.beginPath(); g.moveTo(p.x, a.top); g.lineTo(p.x, a.bottom); g.moveTo(a.left, p.y); g.lineTo(a.right, p.y); g.stroke();
+    g.setLineDash([]);
+    // Punkte auf den Kurven
+    for (const r of rows) {
+      if (r.pt || r.px < a.top || r.px > a.bottom) continue;
+      g.beginPath(); g.arc(p.x, r.px, 4, 0, 2 * Math.PI); g.fillStyle = r.col; g.fill(); g.lineWidth = 1.5; g.strokeStyle = panel; g.stroke();
+    }
+    // Achsenmarken
+    g.font = `600 11px ${mono}`; g.textBaseline = 'middle';
+    const tag = (txt, cx, cy, align) => {
+      const w = g.measureText(txt).width + 10, h = 18;
+      let x0 = align === 'center' ? cx - w / 2 : cx - w;
+      x0 = Math.max(0, Math.min(ch.width - w, x0));
+      g.fillStyle = fg; g.fillRect(x0, cy - h / 2, w, h);
+      g.fillStyle = panel; g.textAlign = 'left'; g.fillText(txt, x0 + 5, cy + 0.5);
+    };
+    tag(fmt(xv, dx), p.x, a.bottom + 11, 'center');
+    tag(fmt(yv, dy), a.left - 2, p.y, 'right');
+    // Kasten mit den Werten
+    if (rows.length) {
+      g.font = `11px ${mono}`;
+      const head = `${xName} ${fmt(xv, dx)}`;
+      const lines = rows.map(r => r.pt ? `${r.label}: ${fmt(r.x, dx)} · ${fmt(r.y, dy)}` : `${r.label}: ${fmt(r.y, dy)}`);
+      const lh = 16, pad = 7, sw = 10;
+      const w = Math.max(g.measureText(head).width, ...lines.map(t => g.measureText(t).width + sw + 6)) + 2 * pad;
+      const h = (lines.length + 1) * lh + 2 * pad;
+      const m = 6, cands = [
+        [a.left + m, a.top + m], [a.right - w - m, a.top + m], [a.left + m, a.bottom - h - m], [a.right - w - m, a.bottom - h - m],
+        [p.x + 14, p.y + 14], [p.x - w - 14, p.y + 14], [p.x + 14, p.y - h - 14], [p.x - w - 14, p.y - h - 14],
+      ].filter(([x0, y0]) => x0 >= a.left && y0 >= a.top && x0 + w <= a.right && y0 + h <= a.bottom);
+      // Kurvenpixel im Kasten zählen (Segmente abgetastet), Zeiger im Kasten ist schlecht
+      const pts = [];
+      ch.data.datasets.forEach((d, i) => {
+        if (!ch.isDatasetVisible(i)) return;
+        const P = (d.data || []).filter(q => q && Number.isFinite(q.x + q.y)).map(q => [sx.getPixelForValue(q.x), sy.getPixelForValue(q.y)]);
+        P.forEach((q, j) => { pts.push(q); if (j && d.showLine) for (let k = 1; k < 8; k++) pts.push([P[j - 1][0] + (q[0] - P[j - 1][0]) * k / 8, P[j - 1][1] + (q[1] - P[j - 1][1]) * k / 8]); });
+      });
+      const score = ([x0, y0]) => pts.reduce((s, [x, y]) => s + (x >= x0 - 4 && x <= x0 + w + 4 && y >= y0 - 4 && y <= y0 + h + 4), 0)
+        + (p.x >= x0 - 8 && p.x <= x0 + w + 8 && p.y >= y0 - 8 && p.y <= y0 + h + 8 ? 1000 : 0);
+      const [x0, y0] = cands.length ? cands.reduce((b, c) => score(c) < score(b) ? c : b) : [a.left + m, a.top + m];
+      g.globalAlpha = 0.94; g.fillStyle = panel; g.strokeStyle = css('--line');
+      g.beginPath(); g.roundRect ? g.roundRect(x0, y0, w, h, 6) : g.rect(x0, y0, w, h); g.fill(); g.globalAlpha = 1; g.stroke();
+      g.textAlign = 'left'; g.fillStyle = fg; g.font = `600 11px ${mono}`;
+      g.fillText(head, x0 + pad, y0 + pad + lh / 2);
+      g.font = `11px ${mono}`;
+      lines.forEach((t, j) => {
+        const cy = y0 + pad + (j + 1.5) * lh;
+        g.fillStyle = rows[j].col; g.fillRect(x0 + pad, cy - sw / 2, sw, sw);
+        g.fillStyle = fg; g.fillText(t, x0 + pad + sw + 6, cy);
+      });
+    }
+    g.restore();
+  },
+};
+if (typeof Chart !== 'undefined') Chart.register(xhairPlugin);
 // Diagramme im Labor bleiben bestehen und bekommen nur neue Daten, damit die Schieber flüssig bleiben
 function liveChart(id, xLabel, yLabel, datasets, lim = {}, band = null) {
   const c = charts[id];
@@ -1307,6 +1416,7 @@ function liveChart(id, xLabel, yLabel, datasets, lim = {}, band = null) {
   for (const ax of ['x', 'y']) { c.options.scales[ax].min = lim[ax]?.min; c.options.scales[ax].max = lim[ax]?.max; }
   c.options.plugins.band = band || {};
   c.update('none');
+  if (c.canvas.closest('.zoomed')) zoomLegend();
 }
 
 function renderLab() {
@@ -2218,8 +2328,8 @@ function chart(id, xLabel, yLabel, datasets, lim = {}) {
     data: { datasets },
     options: {
       animation: false, responsive: true, maintainAspectRatio: false, parsing: false,
-      interaction: { mode: 'nearest', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${xLabel} ${fmt(c.parsed.x, 4)} · ${yLabel} ${fmt(c.parsed.y, 3)}` } } },
+      interaction: { mode: 'nearest', intersect: true },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: { x: { ...axis(xLabel), ...lim.x }, y: { ...axis(yLabel), ...lim.y } },
     },
   };
@@ -2250,7 +2360,26 @@ function setZoom(box) {
   let veil = document.querySelector('.zoomveil');
   if (on && !veil) { veil = document.createElement('div'); veil.className = 'zoomveil'; veil.addEventListener('click', () => setZoom(null)); document.body.append(veil); }
   else if (!on && veil) veil.remove();
+  zoomLegend();
   requestAnimationFrame(redrawCanvases);
+}
+// Gross: Kurven im Kopf nochmals anschreiben (Name in Kurvenfarbe), wenn das Feld keine eigene Legende hat
+function zoomLegend() {
+  document.querySelectorAll('.zlegend').forEach(l => { if (!l.closest('.zoomed')) l.remove(); });
+  const box = document.querySelector('.cbox.zoomed'); if (!box) return;
+  const ch = Object.values(charts).find(c => box.contains(c.canvas));
+  if (!ch || [...box.querySelectorAll('.legend:not(.zlegend)')].some(l => l.textContent.trim())) return;
+  const seen = new Set(), items = [];
+  ch.data.datasets.forEach((d, i) => {
+    if (!d.showLine || !d.label || !ch.isDatasetVisible(i) || seen.has(d.label)) return;
+    seen.add(d.label);
+    const col = dsColor(d), dash = d.borderDash?.length;
+    items.push(`<span style="color:${col}"><i class="${dash ? 'dashc' : ''}" style="background:${col}"></i><span style="color:var(--fg)">${esc(d.label)}</span></span>`);
+  });
+  let l = box.querySelector('.zlegend');
+  if (!items.length) { l?.remove(); return; }
+  if (!l) { l = document.createElement('div'); l.className = 'legend zlegend'; box.querySelector('.ct').after(l); }
+  l.innerHTML = items.join('');
 }
 // Untertitel der Diagramme kürzen statt umbrechen, damit ⤢ immer in der Kopfzeile bleibt
 document.querySelectorAll('.cbox .ct > span').forEach(sp => [...sp.childNodes].forEach(n => {
