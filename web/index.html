@@ -1336,7 +1336,7 @@ const xhairPlugin = {
     const fg = css('--fg'), panel = css('--panel'), line = css('--muted'), mono = css('--mono');
     const xName = sx.options.title?.text || 'x', yName = sy.options.title?.text || 'y';
     // Werte der Kurven
-    const rows = [];
+    const rows = [], marks = [];
     ch.data.datasets.forEach((d, i) => {
       if (!ch.isDatasetVisible(i) || !d.data?.length) return;
       if (d.showLine && d.data.length > 1) {
@@ -1346,10 +1346,16 @@ const xhairPlugin = {
         // Einzelpunkte (Bestwerte): nur zeigen, wenn der Zeiger nahe dran ist
         for (const q of d.data) {
           if (!q || !Number.isFinite(q.x + q.y)) continue;
-          if (Math.abs(sx.getPixelForValue(q.x) - p.x) <= 10) rows.push({ label: d.label || '', x: q.x, y: q.y, col: dsColor(d), px: sy.getPixelForValue(q.y), pt: true });
+          if (Math.abs(sx.getPixelForValue(q.x) - p.x) <= 10) marks.push({ d, q });
         }
       }
     });
+    // Bestwert eines Flugzeugs kommt in dessen Zeile statt in eine eigene, so bleibt es eine Zeile pro Kurve
+    for (const { d, q } of marks) {
+      const r = d.mark && rows.find(r => !r.pt && r.label === d.mark.of);
+      if (r) r.note = `${d.mark.what} bei ${fmt(q.x, dx)}`;
+      else rows.push({ label: d.label || '', x: q.x, y: q.y, col: dsColor(d), px: sy.getPixelForValue(q.y), pt: true });
+    }
     g.save();
     // Linien
     g.strokeStyle = line; g.lineWidth = 1; g.setLineDash([4, 3]);
@@ -1375,7 +1381,7 @@ const xhairPlugin = {
     if (rows.length) {
       g.font = `11px ${mono}`;
       const head = `${xName} ${fmt(xv, dx)}`;
-      const lines = rows.map(r => r.pt ? `${r.label}: ${fmt(r.x, dx)} · ${fmt(r.y, dy)}` : `${r.label}: ${fmt(r.y, dy)}`);
+      const lines = rows.map(r => r.pt ? `${r.label}: ${fmt(r.x, dx)} · ${fmt(r.y, dy)}` : `${r.label}: ${fmt(r.y, dy)}${r.note ? ` (${r.note})` : ''}`);
       const lh = 16, pad = 7, sw = 10;
       const w = Math.max(g.measureText(head).width, ...lines.map(t => g.measureText(t).width + sw + 6)) + 2 * pad;
       const h = (lines.length + 1) * lh + 2 * pad;
@@ -1868,10 +1874,10 @@ function renderPolars(m, r) {
   const sets = [{ m, r, col: PALETTE[0], main: true }].concat(others.map((o, i) => ({ m: o, r: cmpResult(o), col: PALETTE[(i + 1) % PALETTE.length] }))).filter(q => q.r);
   const ok = q => q.r.table.filter(t => !t.stall && Number.isFinite(t.E));
   const line = (q, data, o = {}) => ({ label: q.m.name, data, showLine: true, borderColor: q.col, backgroundColor: q.col, borderWidth: q.main ? 2.4 : 1.6, pointRadius: 2, pointHoverRadius: 4, ...o });
-  const mark = (q, t, y) => ({ label: `${q.m.name} Bestwert`, data: [{ x: t.v * 3.6, y }], showLine: false, pointRadius: 5, pointStyle: 'rectRot', borderColor: q.col, backgroundColor: q.col });
+  const mark = (q, t, y, what) => ({ label: `${q.m.name} ${what}`, mark: { of: q.m.name, what }, data: [{ x: t.v * 3.6, y }], showLine: false, pointRadius: 5, pointStyle: 'rectRot', borderColor: q.col, backgroundColor: q.col });
   const vmax = Math.max(...sets.flatMap(q => ok(q).map(t => t.v * 3.6)));
-  liveChart('gpSink', 'V [km/h]', 'Sinken [m/s]', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: -t.sink }))), ...(q.r.minSink ? [mark(q, q.r.minSink, -q.r.minSink.sink)] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
-  liveChart('gpE', 'V [km/h]', 'Gleitzahl', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: t.E }))), ...(q.r.best ? [mark(q, q.r.best, q.r.best.E)] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
+  liveChart('gpSink', 'V [km/h]', 'Sinken [m/s]', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: -t.sink }))), ...(q.r.minSink ? [mark(q, q.r.minSink, -q.r.minSink.sink, 'min. Sinken')] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
+  liveChart('gpE', 'V [km/h]', 'Gleitzahl', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: t.E }))), ...(q.r.best ? [mark(q, q.r.best, q.r.best.E, 'beste Gleitzahl')] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
   liveChart('gpPol', 'Cw', 'Ca', sets.map(q => line(q, ok(q).map(t => ({ x: t.cd, y: t.cl })))), { x: { min: 0 } });
   const T = ok(sets[0]), parts = [['cdi', 'induziert'], ['cdw', 'Flügelprofil'], ['cdt', 'Höhenleitwerk'], ['cdf', 'Rumpf'], ['cdv', 'Seitenleitwerk'], ['cdx', 'Zusatz']];
   let acc = T.map(() => 0);
