@@ -322,8 +322,9 @@ h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .tbox.zoomed .st-table td,.tbox.zoomed .st-table th{padding:6px 7px}
 .tbox.zoomed .st-table th{font-size:.78rem}
 body.zooming{overflow:hidden}
-body.zooming .bench-out:has(.zoomed){z-index:96}
-@media (max-width:1200px){body.zooming .bench-out{position:relative}}
+.zoomhome{min-width:0}
+.zoomveil{position:fixed;inset:0;z-index:94;cursor:pointer;-webkit-tap-highlight-color:transparent}
+@supports (height:100dvh){.cbox.zoomed{inset:max(3dvh,16px) max(3vw,16px)}.tbox.zoomed{inset:max(3dvh,16px) max(3vw,16px) auto;max-height:calc(100dvh - 2 * max(3dvh,16px))}}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--fg);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:120;max-width:calc(100% - 32px)}
 </style>
 
@@ -2189,11 +2190,26 @@ function chart(id, xLabel, yLabel, datasets, lim = {}) {
 function redrawCanvases() {
   if (ui.tab === 'modell') { drawPlan(curModel(), lastModel); if (ui.view === 'opt') renderOptResult(); } else scheduleLab();
 }
+// Das vergrösserte Feld wird direkt an den body gehängt: In Safari (iPad) schneidet ein scrollender oder
+// klebender Vorfahre (.bench-out) ein position:fixed-Kind sonst ab. Ein Platzhalter hält die Lücke.
+let zoomHome = null;
 function setZoom(box) {
   const cur = document.querySelector('.zoomed');
-  if (cur) { cur.classList.remove('zoomed'); cur.querySelector('.zoom,.tzoom')?.setAttribute('aria-label', cur.matches('.tbox') ? 'Tabelle gross' : 'Diagramm gross'); }
-  if (box && box !== cur) { box.classList.add('zoomed'); box.querySelector('.zoom,.tzoom')?.setAttribute('aria-label', box.matches('.tbox') ? 'Tabelle klein' : 'Diagramm klein'); }
-  document.body.classList.toggle('zooming', !!document.querySelector('.zoomed'));
+  if (cur) {
+    cur.classList.remove('zoomed'); cur.querySelector('.zoom,.tzoom')?.setAttribute('aria-label', cur.matches('.tbox') ? 'Tabelle gross' : 'Diagramm gross');
+    if (zoomHome) { zoomHome.replaceWith(cur); zoomHome = null; }
+  }
+  if (box && box !== cur) {
+    zoomHome = document.createElement('div'); zoomHome.className = 'zoomhome'; zoomHome.style.height = box.offsetHeight + 'px';
+    box.replaceWith(zoomHome); document.body.append(box);
+    box.classList.add('zoomed'); box.querySelector('.zoom,.tzoom')?.setAttribute('aria-label', box.matches('.tbox') ? 'Tabelle klein' : 'Diagramm klein');
+  }
+  const on = !!document.querySelector('.zoomed');
+  document.body.classList.toggle('zooming', on);
+  // eigene Fläche hinter dem Feld, damit ein Tipp daneben auch auf Touch (iOS) sicher schliesst
+  let veil = document.querySelector('.zoomveil');
+  if (on && !veil) { veil = document.createElement('div'); veil.className = 'zoomveil'; veil.addEventListener('click', () => setZoom(null)); document.body.append(veil); }
+  else if (!on && veil) veil.remove();
   requestAnimationFrame(redrawCanvases);
 }
 // Untertitel der Diagramme kürzen statt umbrechen, damit ⤢ immer in der Kopfzeile bleibt
