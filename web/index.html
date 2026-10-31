@@ -1401,7 +1401,10 @@ const xhairPlugin = {
       });
       const score = ([x0, y0]) => pts.reduce((s, [x, y]) => s + (x >= x0 - 4 && x <= x0 + w + 4 && y >= y0 - 4 && y <= y0 + h + 4), 0)
         + (p.x >= x0 - 8 && p.x <= x0 + w + 8 && p.y >= y0 - 8 && p.y <= y0 + h + 8 ? 1000 : 0);
-      const [x0, y0] = cands.length ? cands.reduce((b, c) => score(c) < score(b) ? c : b) : [a.left + m, a.top + m];
+      // Gross: Kasten bleibt fest oben rechts, damit er beim Fahren nicht springt
+      const fixed = ch.canvas.closest('.zoomed');
+      const [x0, y0] = fixed ? [Math.max(a.left + m, a.right - w - m), a.top + m]
+        : cands.length ? cands.reduce((b, c) => score(c) < score(b) ? c : b) : [a.left + m, a.top + m];
       g.globalAlpha = 0.94; g.fillStyle = panel; g.strokeStyle = css('--line');
       g.beginPath(); g.roundRect ? g.roundRect(x0, y0, w, h, 6) : g.rect(x0, y0, w, h); g.fill(); g.globalAlpha = 1; g.stroke();
       g.textAlign = 'left'; g.fillStyle = fg; g.font = `600 11px ${mono}`;
