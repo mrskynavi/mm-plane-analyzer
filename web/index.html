@@ -10,6 +10,7 @@
 <script src="core/neuralfoil.js"></script>
 <script src="core/polare.js"></script>
 <script src="core/projekt.js"></script>
+<script src="core/messpolare.js"></script>
 <script src="core/bibliothek.js"></script>
 <script src="core/vlm.js"></script>
 <script src="core/rumpf.js"></script>
@@ -311,6 +312,7 @@ h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .flcircle-in{display:flex;flex-wrap:wrap;gap:8px 16px;margin:6px 0 8px}
 .flcircle-in .field{flex:0 1 auto} .flcircle-in input.txt{width:16em}
 #flCircle td,#flCircle th{text-align:right;white-space:nowrap} #flCircle td.none{text-align:left;color:var(--muted)} #flCircle td.warn{color:var(--warn)}
+#mpTable .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem} #mpTable .x:hover{color:var(--bad)} #mpTable td.none{color:var(--muted)} #mpTable td{vertical-align:top} #mpTable td:nth-child(6){min-width:16em;white-space:normal}
 .tbox{position:relative;min-width:0}
 .tbox>.tzoom{position:absolute;top:3px;right:3px;z-index:2;width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;padding:0;opacity:.75}
 .tbox>.tzoom:hover{opacity:1;color:var(--accent);border-color:var(--accent)}
@@ -629,6 +631,10 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
             <div class="cbox"><div class="ct">Widerstandsanteile <span><span id="gpCdLeg" class="legend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpCd"></canvas></div></div>
             <div class="cbox"><div class="ct">Polare <span>Ca über Cw <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpPol"></canvas></div></div>
           </div>
+          <h3 class="sub">Gemessene Polaren</h3>
+          <p class="hint">Aus dem MM Flight Analyzer (polaren.lua): Sinken = a·v² + b·v + c im gemessenen Bereich. Einem Modell zugewiesen, erscheint die Messung gestrichelt in seiner Farbe in der Geschwindigkeitspolare und der Gleitzahl. Die Zuweisung wird im Projekt gespeichert.</p>
+          <div class="btnrow" style="margin:8px 0"><button type="button" class="btn ghost sm" id="mpImport">Polaren importieren …</button><input type="file" id="mpFile" accept=".lua,.txt" hidden><span class="hint" id="mpCmp"></span></div>
+          <div class="tablewrap"><table id="mpTable"></table></div>
         </section>
 </div>
 <div class="rview" data-view="ops" hidden>
@@ -1979,6 +1985,43 @@ function cmpResult(m) {
   if (!cmpCache.has(key)) { if (cmpCache.size > 20) cmpCache.clear(); try { cmpCache.set(key, MD.analyze(m, project.profiles, { nCrit: lab.nCrit })); } catch (e) { cmpCache.set(key, null); } }
   return cmpCache.get(key);
 }
+// Gemessene Polaren (polaren.lua aus dem MM Flight Analyzer): Tabelle, Zuweisung, Vergleich
+const MP = window.MMPA.messpolare;
+function renderMeasured(m, r) {
+  const list = project.measured || [];
+  const opts = id => `<option value="">– kein Modell –</option>` + project.models.map(x => `<option value="${x.id}" ${x.id === id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
+  $('mpTable').innerHTML = !list.length ? '<tbody><tr><td class="none">Noch keine gemessene Polare. „Polaren importieren …“ liest die polaren.lua aus dem Flight Analyzer.</td></tr></tbody>'
+    : `<thead><tr><th>Messung</th><th>Modell</th><th>Bereich km/h</th><th>beste Gleitzahl</th><th>min. Sinken m/s</th><th>Hinweis</th><th></th></tr></thead><tbody>` + list.map(p => {
+      const s = MP.summary(p), w = MP.check(p);
+      const at = t => t ? ` bei ${fmt(t.v * 3.6, 0)}` : '';
+      return `<tr data-mp="${p.id}" title="Sinken = ${p.a} · v² ${p.b < 0 ? '−' : '+'} ${Math.abs(p.b)} · v ${p.c < 0 ? '−' : '+'} ${Math.abs(p.c)} (v in m/s)"><td>${esc(p.name)}</td><td><select class="sel" data-mpf="model" aria-label="Modell für ${esc(p.name)}">${opts(p.modelId)}</select></td>` +
+        `<td>${fmt(p.vMin * 3.6, 0)}–${fmt(p.vMax * 3.6, 0)}</td><td>${s.best ? fmt(s.best.E, 1) + at(s.best) : '–'}</td><td>${s.minSink ? fmt(s.minSink.sink, 2) + at(s.minSink) : '–'}</td>` +
+        `<td class="${w.some(x => x.level === 'err') ? 'warn' : ''}">${w.length ? w.map(x => esc(x.text)).join('<br>') : 'plausibel'}</td><td><button type="button" class="x" data-mpf="del" title="Messung entfernen" aria-label="Messung ${esc(p.name)} entfernen">×</button></td></tr>`;
+    }).join('') + '</tbody>';
+  const mine = MP.forModel(project, m.id).map(p => ({ p, s: MP.summary(p) })).filter(o => o.s.best);
+  $('mpCmp').textContent = mine.length && r && r.best ? mine.map(({ p, s }) => `${p.name} gemessen: E ${fmt(s.best.E, 1)} bei ${fmt(s.best.v * 3.6, 0)} km/h, berechnet ${fmt(r.best.E, 1)} bei ${fmt(r.best.v * 3.6, 0)} km/h (Messung ${signed((s.best.E / r.best.E - 1) * 100, 0)} %)`).join(' · ') : '';
+}
+$('mpImport').onclick = () => $('mpFile').click();
+$('mpFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const entries = MP.parseLua(await f.text()), res = MP.importInto(project, entries, f.name);
+    persist(); renderModel();
+    const bad = entries.filter(x => MP.check(x).some(w => w.level === 'err')).map(x => x.name);
+    toast(`${entries.length} Polare${entries.length === 1 ? '' : 'n'} eingelesen` + (res.updated ? `, ${res.updated} ersetzt` : '') + (res.assigned ? `, ${res.assigned} automatisch zugewiesen` : '') + (bad.length ? `. Unplausibel: ${bad.join(', ')}` : ''));
+  } catch (err) { toast(`${f.name}: ${err.message}`); }
+};
+$('mpTable').onchange = e => {
+  const tr = e.target.closest('tr[data-mp]'), p = tr && (project.measured || []).find(x => x.id === tr.dataset.mp);
+  if (!p || e.target.dataset.mpf !== 'model') return;
+  p.modelId = e.target.value || null; persist(); renderModel();
+};
+$('mpTable').onclick = e => {
+  const b = e.target.closest('[data-mpf="del"]'), tr = b && b.closest('tr[data-mp]');
+  if (!tr) return;
+  project.measured = (project.measured || []).filter(x => x.id !== tr.dataset.mp); persist(); renderModel();
+};
 function renderPolars(m, r) {
   if (typeof Chart === 'undefined') return;
   const others = cmpIds().map(id => project.models.find(x => x.id === id)).filter(x => x && x !== m);
@@ -1986,9 +2029,16 @@ function renderPolars(m, r) {
   const ok = q => q.r.table.filter(t => !t.stall && Number.isFinite(t.E));
   const line = (q, data, o = {}) => ({ label: q.m.name, data, showLine: true, borderColor: q.col, backgroundColor: q.col, borderWidth: q.main ? 2.4 : 1.6, pointRadius: 2, pointHoverRadius: 4, ...o });
   const mark = (q, t, y, what) => ({ label: `${q.m.name} ${what}`, mark: { of: q.m.name, what }, data: [{ x: t.v * 3.6, y }], showLine: false, pointRadius: 5, pointStyle: 'rectRot', borderColor: q.col, backgroundColor: q.col });
-  const vmax = Math.max(...sets.flatMap(q => ok(q).map(t => t.v * 3.6)));
-  liveChart('gpSink', 'V [km/h]', 'Sinken [m/s]', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: -t.sink }))), ...(q.r.minSink ? [mark(q, q.r.minSink, -q.r.minSink.sink, 'min. Sinken')] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
-  liveChart('gpE', 'V [km/h]', 'Gleitzahl', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: t.E }))), ...(q.r.best ? [mark(q, q.r.best, q.r.best.E, 'beste Gleitzahl')] : [])]), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
+  // Gemessene Polaren der Modelle: gestrichelt in der Farbe des Modells
+  const meas = sets.flatMap(q => MP.forModel(project, q.m.id).map(p => ({ q, p, pts: MP.curve(p), s: MP.summary(p), label: `${q.m.name} gemessen${MP.forModel(project, q.m.id).length > 1 ? ' ' + p.name : ''}` })));
+  const mline = (o, data) => ({ label: o.label, data, showLine: true, borderColor: o.q.col, backgroundColor: o.q.col, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 4 });
+  const mmark = (o, t, y, what) => ({ label: `${o.label} ${what}`, mark: { of: o.label, what }, data: [{ x: t.v * 3.6, y }], showLine: false, pointRadius: 5, pointStyle: 'triangle', borderColor: o.q.col, backgroundColor: o.q.col });
+  const vmax = Math.max(...sets.flatMap(q => ok(q).map(t => t.v * 3.6)), ...meas.map(o => o.p.vMax * 3.6));
+  const climb = Math.max(0, ...meas.flatMap(o => o.pts.map(t => -t.sink)));
+  liveChart('gpSink', 'V [km/h]', 'Sinken [m/s]', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: -t.sink }))), ...(q.r.minSink ? [mark(q, q.r.minSink, -q.r.minSink.sink, 'min. Sinken')] : [])])
+    .concat(meas.flatMap(o => [mline(o, o.pts.map(t => ({ x: t.v * 3.6, y: -t.sink }))), ...(o.s.minSink ? [mmark(o, o.s.minSink, -o.s.minSink.sink, 'min. Sinken')] : [])])), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: climb > 0 ? Math.ceil(climb * 2) / 2 : 0 } });
+  liveChart('gpE', 'V [km/h]', 'Gleitzahl', sets.flatMap(q => [line(q, ok(q).map(t => ({ x: t.v * 3.6, y: t.E }))), ...(q.r.best ? [mark(q, q.r.best, q.r.best.E, 'beste Gleitzahl')] : [])])
+    .concat(meas.flatMap(o => [mline(o, o.pts.filter(t => Number.isFinite(t.E)).map(t => ({ x: t.v * 3.6, y: t.E }))), ...(o.s.best ? [mmark(o, o.s.best, o.s.best.E, 'beste Gleitzahl')] : [])])), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { min: 0 } });
   liveChart('gpPol', 'Cw', 'Ca', sets.map(q => line(q, ok(q).map(t => ({ x: t.cd, y: t.cl })))), { x: { min: 0 } });
   const T = ok(sets[0]), parts = [['cdi', 'induziert'], ['cdw', 'Flügelprofil'], ['cdt', 'Höhenleitwerk'], ['cdf', 'Rumpf'], ['cdv', 'Seitenleitwerk'], ['cdx', 'Zusatz']];
   let acc = T.map(() => 0);
@@ -1997,7 +2047,7 @@ function renderPolars(m, r) {
     return { label: l, data: T.map((t, j) => ({ x: t.cl, y: acc[j] })), showLine: true, fill: i ? '-1' : 'origin', borderColor: PALETTE[i], backgroundColor: PALETTE[i] + '55', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3 };
   }), { x: { min: 0 }, y: { min: 0 } });
   $('gpCdLeg').innerHTML = parts.map(([, l], i) => `<span><i style="background:${PALETTE[i]}"></i>${l}</span>`).join('');
-  $('gpLegend').innerHTML = sets.map(q => `<span><i style="background:${q.col}"></i>${esc(q.m.name)}</span>`).join('');
+  $('gpLegend').innerHTML = sets.map(q => `<span><i style="background:${q.col}"></i>${esc(q.m.name)}</span>`).join('') + (meas.length ? '<span style="color:var(--muted)"><i class="dashc"></i>gemessen</span>' : '');
 }
 // Trimmpunkt in Worten: wo in der Polare das Modell ohne Höhenruderausschlag fliegt
 const ZONE = { keine: 'kein Gleichgewicht', abriss: 'über Ca max', hoch: 'nahe Abriss', langsam: 'langsamer als min. Sinken', thermik: 'Thermik', gleiten: 'beste Gleitzahl', schnell: 'Schnellflug', unbekannt: '' };
@@ -2059,6 +2109,7 @@ function renderModelResults() {
   const xb = r.best;
   $('xdInfo').textContent = xb && xb.cdBase ? `bei bester Gleitzahl ${signed((xb.cd / xb.cdBase - 1) * 100, 0)} % Widerstand · Gleitzahl ohne Zuschläge ${fmt(xb.cl / xb.cdBase, 1)}` : '';
   renderPolars(m, r);
+  renderMeasured(m, r);
   renderTe();
   // Gegenprobe
   const h = r.hand, row = (l, a, b, d, u = '') => `<tr><td>${l}</td><td>${fmt(a, d)}${u}</td><td>${fmt(b, d)}${u}</td><td>${Number.isFinite(a - b) ? signed(b - a, d) + u : '–'}</td></tr>`;
