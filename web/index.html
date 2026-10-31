@@ -245,7 +245,7 @@ h3.sub{font:600 .95rem/1.2 var(--display);letter-spacing:.04em;text-transform:up
 .ct .stallbadge.neutral{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
 .ct .stallbadge.kritisch{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
 td.gain{color:var(--good)} td.loss{color:var(--warn)}
-#oPoints .grp,#oStations .grp{border-left:1px solid var(--line)}
+#oPoints .grp,#oStations .grp,#flEnv .grp{border-left:1px solid var(--line)}
 #oStations th,#oPoints th{text-transform:none;letter-spacing:.02em;line-height:1.2;vertical-align:bottom}
 #oStations th small,#oPoints th small{color:var(--muted);font-size:.66rem}
 #oStations tr>:first-child,#oPoints tr>:first-child{position:sticky;left:0;background:var(--panel);z-index:1}
@@ -2269,8 +2269,16 @@ function renderSeries() {
     .concat(meas.map(o => line(mlab(o.p), o.pts.map(t => ({ x: t.v * 3.6, y: -t.sink })), MC, { borderWidth: 2.6, borderDash: [2, 3] }))), { x: { min: 0, max: Math.ceil(vmax / 10) * 10 }, y: { max: 0 } });
   $('flLegend').innerHTML = sets.map((q, i) => `<span><i style="background:${col(i)}"></i>${fmt(q.flap, 1)}°</span>`).join('') + `<span><i class="dashc" style="color:${fg}"></i>Hüllkurve</span>` + (meas.length ? `<span><i class="dashc" style="color:${MC}"></i>gemessen</span>` : '') + (stale ? '<span class="tag warn">Modell seither geändert, neu rechnen</span>' : '');
   const rows = series.plan.filter(t => Math.abs(t.cl * 10 - Math.round(t.cl * 10)) < 1e-6);
-  $('flEnv').innerHTML = `<thead><tr><th>Ca</th><th>V km/h</th><th title="Klappenplan für den Mischer: steigt mit Ca nie ab und kommt der Hüllkurve so nahe wie möglich">Klappe °</th><th>Gleitzahl</th><th>Sinken m/s</th><th title="EWD bei Deinem Schwerpunkt">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten. Bauart und Bezug unter Höhenleitwerk">Höhenruder °</th><th>α °</th></tr></thead><tbody>` +
-    rows.map(t => `<tr><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.flap, 1)}</td><td>${fmt(t.E, 1)}</td><td>${fmt(t.sink, 3)}</td><td>${fmt(t.ewdCur, 2)}</td><td>${fmtEl(elevAt(m, t.ewdCur))}</td><td>${fmt(t.alpha, 2)}</td></tr>`).join('') + '</tbody>';
+  // Vergleich ohne Klappen: gleiche Ca heisst gleiche Fahrt, nur die Klappe ist 0° (oder der Winkel der Schar, der 0° am nächsten liegt)
+  const z = sets.reduce((b, q) => Math.abs(q.flap) < Math.abs(b.flap) ? q : b, sets[0]), zl = fmt(z.flap, z.flap % 1 ? 1 : 0);
+  const at0 = cl => z.r.table.find(q => Math.abs(q.cl - cl) < 1e-6);
+  $('flEnv').innerHTML = `<thead><tr><th>Ca</th><th>V km/h</th><th title="Klappenplan für den Mischer: steigt mit Ca nie ab und kommt der Hüllkurve so nahe wie möglich">Klappe °</th><th>Gleitzahl</th><th>Sinken m/s</th><th class="grp" title="gleiche Fahrt mit Klappe ${zl}°: was der Klappenplan bringt">Gleitzahl ${zl}°</th><th title="Sinken bei gleicher Fahrt mit Klappe ${zl}°">Sinken ${zl}°</th><th title="Gleitzahl mit Klappenplan gegenüber Klappe ${zl}°">Gewinn</th><th class="grp" title="EWD bei Deinem Schwerpunkt">EWD °</th><th title="nötiger Höhenruderausschlag, positiv = Endleiste nach unten. Bauart und Bezug unter Höhenleitwerk">Höhenruder °</th><th>α °</th></tr></thead><tbody>` +
+    rows.map(t => {
+      const o = at0(t.cl), ok0 = o && !o.stall && Number.isFinite(o.E);
+      return `<tr><td>${fmt(t.cl, 1)}</td><td>${fmt(t.v * 3.6, 0)}</td><td>${fmt(t.flap, 1)}</td><td>${fmt(t.E, 1)}</td><td>${fmt(t.sink, 3)}</td>` +
+        (ok0 ? `<td class="grp">${fmt(o.E, 1)}</td><td>${fmt(o.sink, 3)}</td><td>${signed((t.E / o.E - 1) * 100, 0)} %</td>` : `<td class="grp" title="mit Klappe ${zl}° über Ca max">Abriss</td><td>–</td><td>–</td>`) +
+        `<td class="grp">${fmt(t.ewdCur, 2)}</td><td>${fmtEl(elevAt(m, t.ewdCur))}</td><td>${fmt(t.alpha, 2)}</td></tr>`;
+    }).join('') + '</tbody>';
   renderCircle();
 }
 // Kreisflug: je Radius die beste Klappe aus der Schar, Innenflügel mit Abstand zum Abriss
