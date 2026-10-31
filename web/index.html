@@ -1997,7 +1997,7 @@ function renderMeasured(m, r) {
     : `<thead><tr><th>Messung</th><th>Modell</th><th>Bereich km/h</th><th>beste Gleitzahl</th><th>min. Sinken m/s</th><th>Hinweis</th><th></th></tr></thead><tbody>` + list.map(p => {
       const s = MP.summary(p), w = MP.check(p);
       const at = t => t ? ` bei ${fmt(t.v * 3.6, 0)}` : '';
-      return `<tr data-mp="${p.id}" title="Sinken = ${p.a} · v² ${p.b < 0 ? '−' : '+'} ${Math.abs(p.b)} · v ${p.c < 0 ? '−' : '+'} ${Math.abs(p.c)} (v in m/s)"><td>${esc(p.name)}</td><td><select class="sel" data-mpf="model" aria-label="Modell für ${esc(p.name)}">${opts(p.modelId)}</select></td>` +
+      return `<tr data-mp="${p.id}" title="${esc(MP.formula(p))} (v in m/s)${MP.sign(p) < 0 ? ', Sinken negativ geschrieben' : ''}"><td>${esc(p.name)}</td><td><select class="sel" data-mpf="model" aria-label="Modell für ${esc(p.name)}">${opts(p.modelId)}</select></td>` +
         `<td>${fmt(p.vMin * 3.6, 0)}–${fmt(p.vMax * 3.6, 0)}</td><td>${s.best ? fmt(s.best.E, 1) + at(s.best) : '–'}</td><td>${s.minSink ? fmt(s.minSink.sink, 2) + at(s.minSink) : '–'}</td>` +
         `<td class="${w.some(x => x.level === 'err') ? 'warn' : ''}">${w.length ? w.map(x => esc(x.text)).join('<br>') : 'plausibel'}</td><td><button type="button" class="x" data-mpf="del" title="Messung entfernen" aria-label="Messung ${esc(p.name)} entfernen">×</button></td></tr>`;
     }).join('') + '</tbody>';
