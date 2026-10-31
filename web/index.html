@@ -22,7 +22,7 @@
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
   --bg:#eef1f4; --panel:#ffffff; --fg:#17202b; --muted:#5b6876; --line:#d5dbe2;
-  --accent:#0b6bcb; --accent-soft:#dbe9f8; --warn:#b85c00; --bad:#c2312f; --good:#1f7a4d;
+  --accent:#0b6bcb; --accent-soft:#dbe9f8; --warn:#b85c00; --bad:#c2312f; --good:#1f7a4d; --violet:#7a45c4;
   --ghost:#9aa6b2;
   --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -30,11 +30,11 @@
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0f141a; --panel:#171e26; --fg:#e4e9ef; --muted:#93a1b0; --line:#2a3440;
-  --accent:#4ea3f5; --accent-soft:#16304a; --warn:#f0a040; --bad:#f06a66; --good:#4cc38a; --ghost:#5d6a78; color-scheme:dark}}
+  --accent:#4ea3f5; --accent-soft:#16304a; --warn:#f0a040; --bad:#f06a66; --good:#4cc38a; --violet:#b48cf2; --ghost:#5d6a78; color-scheme:dark}}
 :root[data-theme="light"]{color-scheme:light}
 :root[data-theme="dark"]{
   --bg:#0f141a; --panel:#171e26; --fg:#e4e9ef; --muted:#93a1b0; --line:#2a3440;
-  --accent:#4ea3f5; --accent-soft:#16304a; --warn:#f0a040; --bad:#f06a66; --good:#4cc38a; --ghost:#5d6a78; color-scheme:dark}
+  --accent:#4ea3f5; --accent-soft:#16304a; --warn:#f0a040; --bad:#f06a66; --good:#4cc38a; --violet:#b48cf2; --ghost:#5d6a78; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);margin:0}
@@ -1803,11 +1803,79 @@ function drawPlan(m, r) {
       }
     }
   }
+  // Dicken- und Wölbungsrücklage: je Station aus dem Profil, als Linie über die Spannweite
+  const big = !!cv.closest('.zoomed'), MDp = window.MMPA.modell, rueck = [];
+  for (const [si, s] of surf.entries()) {
+    const ss = s.st.map(st => { try { return MDp.stationGeometry(st, project.profiles)?.stats || null; } catch (e) { return null; } });
+    for (const [key, col, name] of [['xThickness', css('--warn'), 'Dickenrücklage'], ['xCamber', css('--violet'), 'Wölbungsrücklage']]) {
+      // symmetrische Profile (Leitwerk) haben keine Wölbungsrücklage
+      const ok = ss.map(q => !!q && (key === 'xThickness' || Math.abs(q.camber) > 0.002));
+      if (!ok.some(Boolean)) continue;
+      const at = i => [s.P[i].le[1], s.P[i].le[0] + ss[i][key] * s.P[i].chord];
+      g.strokeStyle = col; g.lineWidth = big ? 1.8 : 1.4; g.setLineDash(key === 'xCamber' ? [6, 3] : []);
+      for (const side of [1, -1]) {
+        g.beginPath();
+        s.P.forEach((_, i) => {
+          if (!ok[i]) return;
+          const [y, x] = at(i);
+          i && ok[i - 1] ? g.lineTo(X(side * y), Y(x)) : g.moveTo(X(side * y), Y(x));
+          if (!(i + 1 < s.P.length && ok[i + 1])) g.lineTo(X(side * y) + 0.01, Y(x));
+        });
+        g.stroke();
+      }
+      g.setLineDash([]);
+      const v = ss.filter((q, i) => ok[i]).map(q => q[key] * 100), lo = Math.min(...v), hi = Math.max(...v);
+      const pct = Math.round(lo) === Math.round(hi) ? `${fmt(lo, 0)} %` : `${fmt(lo, 0)}–${fmt(hi, 0)} %`;
+      rueck.push({ si, key, col, name, pct, ok, at, P: s.P });
+    }
+  }
+  g.lineWidth = 1.5;
   // Mittellinie
   g.strokeStyle = css('--line'); g.beginPath(); g.moveTo(X(0), pad / 2); g.lineTo(X(0), rc.height - pad / 2); g.stroke();
+  // Grossansicht: Beschriftung direkt an den Linien, damit ersichtlich ist, was was ist
+  const tag = (txt, px, py, col, align = 'left') => {
+    g.font = '600 12px ' + css('--mono'); g.textAlign = align; g.textBaseline = 'middle';
+    const w = g.measureText(txt).width, x0 = align === 'right' ? px - w : align === 'center' ? px - w / 2 : px;
+    g.fillStyle = css('--panel'); g.globalAlpha = 0.85; g.fillRect(x0 - 3, py - 8, w + 6, 16); g.globalAlpha = 1;
+    g.fillStyle = col; g.fillText(txt, px, py); g.textBaseline = 'alphabetic';
+  };
+  // Punkt einer Linie über die Spannweite bei der Halbspannweite y (zwischen den Stationen interpoliert)
+  const along = (P, f, y) => {
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1].le[1], b = P[i].le[1];
+      if (y >= a && y <= b) { const [ya, xa] = f(i - 1), [yb, xb] = f(i); const t = b > a ? (y - a) / (b - a) : 0; return xa + t * (xb - xa); }
+    }
+    return null;
+  };
+  if (big) {
+    // Flügel: Labels auf der linken Hälfte bei 55 % der Halbspannweite, das vordere oberhalb, das hintere unterhalb
+    const yL = 0.55 * ymax, wr = rueck.filter(q => q.si === 0);
+    const pos = wr.map(q => ({ q, x: along(q.P, i => q.ok[i] ? q.at(i) : [q.P[i].le[1], NaN], yL) })).filter(o => Number.isFinite(o.x)).sort((a, b) => a.x - b.x);
+    pos.forEach((o, k) => tag(`${o.q.name} ${o.q.pct}`, X(-yL), Y(o.x) + (k ? 13 : -13), o.q.col, 'center'));
+    // Leitwerk: kurzes Label neben der rechten Hälfte
+    const tr = rueck.filter(q => q.si === 1), Pt0 = surf[1]?.P;
+    if (Pt0?.length) {
+      const tip = Pt0[Pt0.length - 1];
+      tag('Höhenleitwerk', X(tip.le[1]) + 8, Y(tip.le[0] + tip.chord / 2) - (tr.length ? 9 : 0), css('--muted'));
+      tr.forEach((q, k) => tag(`${q.name} ${q.pct}`, X(tip.le[1]) + 8, Y(tip.le[0] + tip.chord / 2) + 9 + 16 * k, q.col));
+    }
+    // Nasen- und Endleiste, Klappen am linken Flügel aussen
+    const Pw0 = surf[0].P, yE = 0.85 * ymax;
+    const le = along(Pw0, i => [Pw0[i].le[1], Pw0[i].le[0]], yE), te = along(Pw0, i => [Pw0[i].le[1], Pw0[i].le[0] + Pw0[i].chord], yE);
+    if (le != null) tag('Nasenleiste', X(-yE), Y(le) - 12, css('--accent'), 'center');
+    if (te != null) tag('Endleiste', X(-yE), Y(te) + 12, css('--accent'), 'center');
+    const fi = surf[0].st.findIndex((st, i) => i < Pw0.length - 1 && st.flapDepth > 0);
+    if (fi >= 0) {
+      const f = 1 - surf[0].st[fi].flapDepth / 100, a = Pw0[fi], b = Pw0[fi + 1], ym = (a.le[1] + b.le[1]) / 2;
+      const xm = (a.le[0] + f * a.chord + b.le[0] + f * b.chord) / 2;
+      tag('Klappe', X(ym), Y(xm) + 2, css('--muted'), 'center');
+    }
+    if (fsh.pts?.length) tag('Rumpf', X(0) + 10, Y(fsh.x0 + (fsh.x3 - fsh.x0) * 0.08), css('--muted'));
+  }
   if (!r) return;
   // l_μ auf der rechten Seite
   g.strokeStyle = css('--fg'); g.lineWidth = 2; g.beginPath(); g.moveTo(X(r.wing.yMac), Y(r.wing.xMac)); g.lineTo(X(r.wing.yMac), Y(r.wing.xMac + r.wing.mac)); g.stroke();
+  if (big) tag(`lμ ${fmt(r.wing.mac, 0)} mm`, X(r.wing.yMac) + 6, Y(r.wing.xMac + r.wing.mac) + 12, css('--fg'));
   const mark = (x, col, label, shape, left) => {
     const px = X(0), py = Y(x);
     g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 1.5;
@@ -1815,12 +1883,12 @@ function drawPlan(m, r) {
     g.beginPath();
     if (shape === 'tri') { g.moveTo(px, py - 6); g.lineTo(px + 6, py + 5); g.lineTo(px - 6, py + 5); g.closePath(); g.fill(); }
     else { g.arc(px, py, 6, 0, 2 * Math.PI); g.fill(); g.fillStyle = css('--panel'); g.beginPath(); g.moveTo(px, py); g.arc(px, py, 6, 0, Math.PI / 2); g.lineTo(px, py); g.moveTo(px, py); g.arc(px, py, 6, Math.PI, 1.5 * Math.PI); g.fill(); }
-    g.fillStyle = col; g.font = '600 12px ' + css('--mono'); g.textAlign = left ? 'right' : 'left';
-    g.fillText(label, X((left ? -1 : 1) * ymax * 0.14), py + 4);
+    tag(label, X((left ? -1 : 1) * ymax * 0.14), py, col, left ? 'right' : 'left');
   };
   mark(r.xNP, css('--good'), `NP ${fmt(r.xNP, 0)} mm`, 'tri');
   mark(r.xCG, css('--bad'), `SP ${fmt(r.xCG, 0)} mm`, 'cg', true);
-  $('planLegend').innerHTML = `<span><i style="background:${css('--fg')}"></i>l<sub>μ</sub> ${fmt(r.wing.mac, 0)} mm</span><span>Klappen gestrichelt</span>`;
+  $('planLegend').innerHTML = `<span><i style="background:${css('--fg')}"></i>l<sub>μ</sub> ${fmt(r.wing.mac, 0)} mm</span><span><i class="dash"></i>Klappen</span>` +
+    rueck.filter(q => q.si === 0).map(q => `<span title="${q.name} ${q.pct}"><i class="${q.key === 'xCamber' ? 'dashc' : ''}" style="background:${q.col};color:${q.col}"></i>${q.key === 'xCamber' ? 'Wölbung' : 'Dicke'}</span>`).join('');
 }
 
 let lastModel = null, lastModelId = null, modelTimer = null;
@@ -2454,7 +2522,7 @@ document.addEventListener('click', e => { const z = document.querySelector('.zoo
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.zoomed') && !document.querySelector('dialog[open]')) setZoom(null); });
 
 // ---------- Werkbank: Themen links, Ergebnisse rechts ----------
-const TOPIC_VIEW = { grund: 'polar', wing: 'dist', tail: 'plan', flaps: 'flaps', opt: 'opt', check: 'ops' };
+const TOPIC_VIEW = { grund: 'polar', wing: 'plan', tail: 'plan', flaps: 'flaps', opt: 'opt', check: 'ops' };
 const TOPICS = Object.keys(TOPIC_VIEW);
 Object.assign(ui, {
   topic: TOPICS.includes(store.get('mmpa.topic')) ? store.get('mmpa.topic') : 'grund',
