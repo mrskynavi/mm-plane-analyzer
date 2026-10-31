@@ -191,3 +191,19 @@ test('Endleiste: Optimierer und Flugzustände rechnen mit der Endleistendicke, B
   const d = S.designOf(M.resolveTe(m).wing.stations[3], pj.profiles);
   near(P.stats(S.coordsOf(d)).teThickness, 0.7 / m.wing.stations[3].chord, 1e-6, 'Endleiste in den Konturen');
 });
+
+test('Strak-Optimierer: eng liegende Stationen (Randbogen) blähen die Glättung nicht auf, Start von der Wurzel', () => {
+  const { pj, m } = setup();
+  const st = m.wing.stations, last = st[st.length - 1];
+  // zusätzliche Station 20 mm vor dem Rand mit leicht anderer Wölbung, wie am Randbogen eines gemessenen Modells
+  st.splice(st.length - 1, 0, { ...last, y: last.y - 20, chord: last.chord + 3, offset: last.offset - 1, camber: 0.025 });
+  st.forEach((s, i) => { if (i) s.camber = s.camber ?? 0.02; });
+  const run = set => { const o = S.optimizer(m, pj.profiles, { maxEvals: 1, seed: 1, ...set }); return o.result(); };
+  const r = run({});
+  assert.ok(r.before.penalties.smooth < 0.3, `Glättung ${r.before.penalties.smooth}`);
+  assert.strictEqual(r.start, 'modell');
+  // Start von der Wurzel: der erste Entwurf hat aussen die Wölbung der Wurzel
+  const o = S.optimizer(m, pj.profiles, { maxEvals: 1, seed: 1, start: 'wurzel' });
+  assert.ok(o.progress().start > 0);
+  assert.strictEqual(o.result().start, 'wurzel');
+});
