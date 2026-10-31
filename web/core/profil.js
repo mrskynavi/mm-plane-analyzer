@@ -185,8 +185,21 @@
     return x => Math.pow(x, p);
   }
 
+  // Offene Endleiste (wie XFOIL GDES TGAP): die Dicke über die hinteren blend der Tiefe sanft so ändern, dass sie an
+  // der Hinterkante genau gap ist (Bruchteil der Tiefe). Der Zuschlag wächst mit s² (s = 0 am Beginn, 1 an der
+  // Hinterkante): vorne knickfrei, an der Hinterkante öffnet sich der Keil. Vor 1 − blend bleibt das Profil gleich,
+  // grösste Dicke und Wölbung ändern sich also nicht. t: Dicken an den Stellen x (x steigend, letzter Wert bei 1).
+  const TE_BLEND = 0.2;
+  const teBlend = (x, blend = TE_BLEND) => { const s = (x - (1 - blend)) / blend; return s <= 0 ? 0 : s >= 1 ? 1 : s * s; };
+  function teGapThickness(t, x, gap, blend = TE_BLEND) {
+    if (gap == null || !Number.isFinite(gap)) return t;
+    const d = Math.max(0, gap) - t[t.length - 1];
+    return t.map((v, k) => v + d * teBlend(x[k], blend));
+  }
+
   // Dicke und Wölbung skalieren und ihre Lage verschieben (wie XFOIL GDES TFAC/HIGH).
-  // mod: { thickness: Faktor, camber: Faktor, xThickness: neue Lage oder null, xCamber: neue Lage oder null }
+  // mod: { thickness: Faktor, camber: Faktor, xThickness: neue Lage oder null, xCamber: neue Lage oder null,
+  //        teGap: Endleistendicke als Bruchteil der Tiefe oder null (= wie das Profil) }
   function modify(coords, mod = {}, nPerSide = 100) {
     const base = normalize(coords).coords;
     const s = stats(base);
@@ -196,10 +209,10 @@
     const mc = shiftMap(s.xCamber, mod.xCamber ?? s.xCamber);
     const xt = x.map(mt), xc = x.map(mc);
     // interpSide braucht steigende x, beide Abbildungen sind monoton
-    const t = thicknessCamber(base, xt).t;
+    const t = teGapThickness(thicknessCamber(base, xt).t.map(v => tf * v), x, mod.teGap);
     const c = thicknessCamber(base, xc).c;
-    const up = x.map((xv, k) => [xv, cf * c[k] + tf * t[k] / 2]);
-    const lo = x.map((xv, k) => [xv, cf * c[k] - tf * t[k] / 2]);
+    const up = x.map((xv, k) => [xv, cf * c[k] + t[k] / 2]);
+    const lo = x.map((xv, k) => [xv, cf * c[k] - t[k] / 2]);
     return up.slice().reverse().concat(lo.slice(1));
   }
 
@@ -236,7 +249,7 @@
     return up.slice().reverse().concat(lo.slice(1));
   }
 
-  const api = { parseDat, toDat, normalize, surfaces, interpSide, repanel, thicknessCamber, stats, modify, flap, naca4, cosspace, leIndex };
+  const api = { parseDat, toDat, normalize, teGapThickness, teBlend, TE_BLEND, surfaces, interpSide, repanel, thicknessCamber, stats, modify, flap, naca4, cosspace, leIndex };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).profil = api;
 })(typeof self !== 'undefined' ? self : this);

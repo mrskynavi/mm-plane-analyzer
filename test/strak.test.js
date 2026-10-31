@@ -41,7 +41,8 @@ test('Schnelle Bewertung trifft die normale Modellrechnung, auch mit Klappe', ()
   const { pj, m } = setup();
   const points = [{ name: 'Speed', cl: 0.15 }, { name: 'Gleiten', cl: 0.45 }, { name: 'Thermik', cl: 0.8 }];
   const ctx = S.context(m, pj.profiles, { points });
-  const design = m.wing.stations.map(s => S.designOf(s, pj.profiles));
+  // Entwürfe aus den Stationen mit aufgelöster Endleistendicke, wie im Optimierer
+  const design = M.resolveTe(m).wing.stations.map(s => S.designOf(s, pj.profiles));
   for (const flap of [0, 4]) {
     const ev = S.evaluate(ctx, design, points.map(() => flap));
     const r = M.analyze(M.withFlap(m, flap), pj.profiles);
@@ -142,6 +143,8 @@ test('Höhenruder: Wirksamkeit wie dünne Profiltheorie, Ausschlag gedämpft und
 test('Abrissverhalten: stark zugespitzter Flügel reisst aussen ab, der Optimierer macht ihn gutmütig', () => {
   const { pj, m } = setup();
   Object.assign(m.wing.stations[2], { chord: 150 }); Object.assign(m.wing.stations[3], { chord: 70, offset: 60 });
+  // scharfe Endleiste: mit 0,7 mm (1 % an der 70-mm-Spitze) findet die Suche den gutmütigen Abriss eher über die Dicke als über die Schränkung
+  m.drag = { te: 0 };
   const opt = S.optimizer(m, pj.profiles, { maxEvals: 250, stallMode: 'gutmuetig', seed: 2 });
   while (!opt.done) opt.step();
   const r = opt.result();
@@ -166,4 +169,25 @@ test('Strak-Optimierer: nie schlechter als vorher, auch nicht in einem einzelnen
   const r0 = none.result();
   assert.strictEqual(r0.kept, true);
   assert.deepStrictEqual(S.apply(m, r0), JSON.parse(JSON.stringify(m)));
+});
+
+test('Endleiste: Optimierer und Flugzustände rechnen mit der Endleistendicke, Bewertung trifft die Modellrechnung', () => {
+  const { pj, m } = setup();
+  const points = [{ name: 'Speed', cl: 0.15 }, { name: 'Gleiten', cl: 0.45 }, { name: 'Thermik', cl: 0.8 }];
+  const res = {};
+  for (const te of [0, 1]) {
+    const mm = M.withTe(m, te);
+    const ctx = S.context(mm, pj.profiles, { points });
+    const design = M.resolveTe(mm).wing.stations.map(s => S.designOf(s, pj.profiles));
+    design.forEach((d, i) => near(d.q.teGap, te / m.wing.stations[i].chord, 1e-12, 'teGap im Entwurf'));
+    const ev = S.evaluate(ctx, design, points.map(() => 0));
+    const r = M.analyze(mm, pj.profiles);
+    ev.points.forEach(p => near(p.E / r.table.find(q => Math.abs(q.cl - p.cl) < 1e-9).E, 1, 0.03, `Gleitzahl ${p.name} Endleiste ${te} mm`));
+    res[te] = ev.points;
+  }
+  // 1 mm Endleiste kostet in jedem Arbeitspunkt Gleitzahl
+  res[1].forEach((p, k) => assert.ok(p.E < res[0][k].E, `${p.name}: ${p.E} statt weniger als ${res[0][k].E}`));
+  // Konturen eines Entwurfs haben die Endleiste
+  const d = S.designOf(M.resolveTe(m).wing.stations[3], pj.profiles);
+  near(P.stats(S.coordsOf(d)).teThickness, 0.7 / m.wing.stations[3].chord, 1e-6, 'Endleiste in den Konturen');
 });

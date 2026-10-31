@@ -19,6 +19,7 @@
   const P = isNode ? require('./profil.js') : root.MMPA.profil;
   const PR = isNode ? require('./projekt.js') : root.MMPA.projekt;
   const NF = isNode ? require('./neuralfoil.js') : root.MMPA.neuralfoil;
+  const POL = isNode ? require('./polare.js') : root.MMPA.polare;
   const V = isNode ? require('./vlm.js') : root.MMPA.vlm;
   const F = isNode ? require('./rumpf.js') : root.MMPA.rumpf;
   const M = isNode ? require('./modell.js') : root.MMPA.modell;
@@ -79,13 +80,13 @@
     return baseCache.get(key);
   }
 
-  // Dicke und Skelettlinie auf X für ein Profil mit absoluten Kennwerten q = { thickness, camber, xThickness, xCamber }
+  // Dicke und Skelettlinie auf X für ein Profil mit absoluten Kennwerten q = { thickness, camber, xThickness, xCamber, teGap }
   function shape(B, q) {
     const s = B.stats;
     const tf = q.thickness / B.raw.thickness, cf = B.raw.camber > 1e-4 ? q.camber / B.raw.camber : 1;
     const mt = shiftMap(s.xThickness, q.xThickness ?? s.xThickness), mc = shiftMap(s.xCamber, q.xCamber ?? s.xCamber);
     const t = P.thicknessCamber(B.coords, X.map(mt)).t, c = P.thicknessCamber(B.coords, X.map(mc)).c;
-    return { t: t.map(v => v * tf), c: c.map(v => v * cf) };
+    return { t: P.teGapThickness(t.map(v => v * tf), X, q.teGap), c: c.map(v => v * cf), teGap: q.teGap ?? 0 };
   }
 
   // Klappe als Knick der Skelettlinie hinter xh, dann so gedreht, dass die Hinterkante auf der Sehne liegt
@@ -97,11 +98,12 @@
     const c2 = X.map((x, i) => cz[i] - x * zte);
     const up = X.map((x, i) => c2[i] + sh.t[i] / 2), lo = X.map((x, i) => c2[i] - sh.t[i] / 2);
     const y = up.slice().reverse().concat(lo.slice(1));
-    return { k: kulfan(y), da: -Math.atan(zte) * 180 / Math.PI, reK: Math.sqrt(1 + zte * zte), yq: 0.25 * zte };
+    return { k: kulfan(y), da: -Math.atan(zte) * 180 / Math.PI, reK: Math.sqrt(1 + zte * zte), yq: 0.25 * zte, teGap: sh.teGap || 0 };
   }
   const nfAt = (a, alpha, re, nCrit) => {
     const r = NF.fromKulfan(a.k, alpha + a.da, re * a.reK, nCrit);
     r.cm += r.cd * a.yq;
+    r.cd += POL.baseDrag(r.cd, a.teGap);
     return r;
   };
 
@@ -110,10 +112,10 @@
   function localPolar(a, re, clT, spread, nCrit, hint, wantClMax) {
     const pts = [], ev = al => { const r = nfAt(a, al, re, nCrit); const p = { alpha: al, cl: r.cl, cd: r.cd, cm: r.cm }; pts.push(p); return p; };
     let p0 = ev(Number.isFinite(hint) ? hint : clT * 9 - 2), p1 = ev(p0.alpha + 1.5);
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 4; k++) {
       const s = (p1.cl - p0.cl) / (p1.alpha - p0.alpha);
-      if (!(s > 0.02)) break;
-      const al = Math.min(18, Math.max(-12, p1.alpha + (clT - p1.cl) / s));
+      // flach oder fallend: Start lag im Abriss oder auf einem Plateau der Polare (mit Klappe häufig), tiefer neu ansetzen
+      const al = s > 0.02 ? Math.min(18, Math.max(-12, p1.alpha + (clT - p1.cl) / s)) : Math.max(-12, Math.min(p0.alpha, p1.alpha) - 3);
       p0 = p1; p1 = ev(al);
       if (Math.abs(p1.cl - clT) < 0.01) break;
     }
@@ -159,6 +161,7 @@
   // Grundriss, Gleichungssystem, Neutralpunkt, Schwerpunkt und alles, was sich während der Suche nicht ändert.
   // points: [{ name, cl, weight }]
   function context(model, profiles, { points, nCrit = 9, ny = 30, nx = 8, nyTail = 10, nxTail = 5 } = {}) {
+    model = M.resolveTe(model);
     const W = model.wing, T = model.tail;
     const wing = V.planform(W.stations), tail = V.planform(T.stations, T.x);
     const tailGeo = T.stations.map(s => M.stationGeometry(s, profiles));
@@ -285,10 +288,10 @@
     if (prof && prof !== sp.profile) {
       // anderes Ausgangsprofil: Dicke und Wölbung der Station übernehmen, Rücklagen vom neuen Profil
       const g = M.stationGeometry(st, profiles).stats;
-      return { prof: p, q: { thickness: g.thickness, camber: B.raw.camber > 1e-4 ? g.camber : B.raw.camber, xThickness: B.stats.xThickness, xCamber: B.stats.xCamber, twist: st.twist || 0 } };
+      return { prof: p, q: { thickness: g.thickness, camber: B.raw.camber > 1e-4 ? g.camber : B.raw.camber, xThickness: B.stats.xThickness, xCamber: B.stats.xCamber, twist: st.twist || 0, teGap: st.teGap ?? null } };
     }
     const mod = sp.mod;
-    return { prof: p, q: { thickness: (mod.thickness ?? 1) * B.raw.thickness, camber: (mod.camber ?? 1) * B.raw.camber, xThickness: mod.xThickness ?? B.stats.xThickness, xCamber: mod.xCamber ?? B.stats.xCamber, twist: st.twist || 0 } };
+    return { prof: p, q: { thickness: (mod.thickness ?? 1) * B.raw.thickness, camber: (mod.camber ?? 1) * B.raw.camber, xThickness: mod.xThickness ?? B.stats.xThickness, xCamber: mod.xCamber ?? B.stats.xCamber, twist: st.twist || 0, teGap: st.teGap ?? null } };
   }
 
   // Bester Klappenwinkel für einen Arbeitspunkt (Goldener Schnitt), mit Strafe für zu wenig Abrissreserve
@@ -397,6 +400,7 @@
   //   twistMin/twistMax (Schränkung in Grad), cm0Min (null = Cm0 der Wurzel), smooth, maxEvals, nCrit }
   // Gibt einen schrittweisen Optimierer zurück: step() rechnet eine Generation, result() das Ergebnis.
   function optimizer(model, profiles, settings = {}) {
+    model = M.resolveTe(model);
     const S = { ...DEFAULTS, ...settings, vars: { ...DEFAULTS.vars, ...(settings.vars || {}) } };
     const W = model.wing, st = W.stations, n = st.length;
     const rootProf = profiles.find(p => p.id === (S.rootId || st[0].profileId));
@@ -510,7 +514,8 @@
       const stallPen = q => q.pen.stall + q.pen.shape;
       const pick = bestOk && stallPen(bestOk) <= stallPen(best) + 0.01 ? bestOk : best;
       // nie schlechter als der Ausgangszustand: findet die Suche nichts Besseres, bleibt das Modell, wie es ist
-      const kept = pick.f >= score(evBefore) + penB.sum - 1e-9;
+      // unter 0,01 % gilt als Rauschen der schnellen Bewertung (Startwinkel der Ca-Suche hängen von der Reihenfolge ab)
+      const kept = pick.f >= score(evBefore) + penB.sum - 1e-4;
       const after = kept ? { ev: evBefore, design: before, flaps: flapsBefore, pen: penB } : pick;
       const pack = (ev, design, flaps, pen) => ({
         points: ev.points.map(p => ({ name: p.name, cl: p.cl, flap: p.flap, v: p.v, alpha: p.alpha, ewd: p.ewd, E: p.E, sink: p.sink, cd: p.cd, cdw: p.cdw, cdi: p.cdi, cdt: p.cdt, stall: p.stall, stallAt: p.stallZones ? p.stallZones.at : null, ok: p.ok, clTail: p.clTail })),
@@ -548,6 +553,7 @@
 
   // Flugzustände des Modells mit den aktuellen Profilen schnell bewerten; best = Klappe je Zustand suchen
   function flightModes(model, profiles, modes, { nCrit = 9, best = false, flapMin = -5, flapMax = 10 } = {}) {
+    model = M.resolveTe(model);
     const ctx = context(model, profiles, { points: modes.map(q => ({ name: q.name, cl: q.cl, weight: 1 })), nCrit });
     const design = model.wing.stations.map(s => designOf(s, profiles));
     if (design.some(d => !d)) throw new Error('Jede Flügelstation braucht ein Profil');
@@ -653,7 +659,7 @@
   // Koordinaten eines Entwurfs (für die Konturen), wie profil.modify
   function coordsOf(d) {
     const B = prepareBase(d.prof);
-    return P.modify(d.prof.coords, { thickness: d.q.thickness / B.raw.thickness, camber: B.raw.camber > 1e-4 ? d.q.camber / B.raw.camber : 1, xThickness: d.q.xThickness, xCamber: d.q.xCamber });
+    return P.modify(d.prof.coords, { thickness: d.q.thickness / B.raw.thickness, camber: B.raw.camber > 1e-4 ? d.q.camber / B.raw.camber : 1, xThickness: d.q.xThickness, xCamber: d.q.xCamber, teGap: d.q.teGap ?? null });
   }
 
   const api = { coordsOf, optimizer, apply, evaluate, context, designOf, bestFlap, flightModes, flapSeries, circling, shape, aeroShape, prepareBase, kulfan, localPolar, cmaes, eigen, rng, DEFAULTS, X };

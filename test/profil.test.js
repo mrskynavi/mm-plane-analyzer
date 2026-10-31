@@ -84,3 +84,19 @@ test('toDat und wieder einlesen', () => {
   assert.strictEqual(d.name, 'NACA 2412');
   assert.strictEqual(d.coords.length, c.length);
 });
+
+test('Endleiste öffnen: Dicke an der Hinterkante wie verlangt, vorne und grösste Dicke unverändert', () => {
+  const c = P.parseDat(text('e374')).coords;
+  const a = P.modify(c, {}), b = P.modify(c, { teGap: 0.005 }), z = P.modify(P.modify(c, { teGap: 0.01 }), { teGap: 0 });
+  close(P.stats(b).teThickness, 0.005, 1e-9, 'Endleiste');
+  close(P.stats(z).teThickness, 0, 1e-9, 'wieder geschlossen');
+  close(P.stats(b).thickness, P.stats(a).thickness, 1e-9, 'grösste Dicke');
+  close(P.stats(b).camber, P.stats(a).camber, 1e-9, 'Wölbung');
+  // vor 80 % der Tiefe gleich, dahinter dicker
+  const x = [0.3, 0.79, 0.9, 0.97];
+  const ta = P.thicknessCamber(a, x).t, tb = P.thicknessCamber(b, x).t;
+  close(tb[0], ta[0], 1e-9, 'x 0.3'); close(tb[1], ta[1], 1e-9, 'x 0.79');
+  assert.ok(tb[2] > ta[2] && tb[3] - ta[3] > tb[2] - ta[2], 'hinten zunehmend dicker');
+  // skaliert: Dicke an der Hinterkante bleibt die verlangte
+  close(P.stats(P.modify(c, { thickness: 0.8, teGap: 0.007 })).teThickness, 0.007, 1e-9, 'mit Dickenfaktor');
+});

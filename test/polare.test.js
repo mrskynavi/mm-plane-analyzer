@@ -61,3 +61,11 @@ test('Typ 2: symmetrisches Profil gibt eine punktsymmetrische Polare (Re aus dem
     assert.ok(Math.abs(at(a).re - at(-a).re) < 50, [at(a).re, at(-a).re]);
   }
 });
+
+test('Basiswiderstand der stumpfen Endleiste nach Hoerner', () => {
+  // h/l = 0,5 %, Cw 0,01: 0,135·0,005^(4/3)/∛0,01 ≈ 0,00054
+  assert.ok(Math.abs(POL.baseDrag(0.01, 0.005) - 0.135 * Math.pow(0.005, 4 / 3) / Math.cbrt(0.01)) < 1e-12);
+  assert.ok(POL.baseDrag(0.01, 0.005) > 0.0005 && POL.baseDrag(0.01, 0.005) < 0.0006);
+  assert.strictEqual(POL.baseDrag(0.01, 0), 0);
+  assert.strictEqual(POL.baseDrag(0.01, null), 0);
+});

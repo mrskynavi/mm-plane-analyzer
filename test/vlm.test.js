@@ -143,3 +143,28 @@ test('Modell: gebaute EWD vorgeben ergibt Trimm-Ca, Bereich und Warnungen', () =
   assert.strictEqual(un.trim.zone.key, 'keine');
   assert.strictEqual(un.trim.byEwd.stable, false);
 });
+
+test('Modell: Endleistendicke in mm, je Station relativ zur Tiefe, Standard 0,7 mm, Station überschreibt', () => {
+  const pj = PR.createProject();
+  const e = PR.addProfile(pj, { datText: LIB.e374 }), h = PR.addProfile(pj, { datText: LIB.ht14 });
+  const m = PR.createModel('Test', e.id, h.id);
+  // alte Projektdatei ohne Angabe: 0,7 mm
+  const rs = M.resolveTe(m);
+  rs.wing.stations.forEach((s, i) => assert.ok(Math.abs(s.teGap - 0.7 / m.wing.stations[i].chord) < 1e-12));
+  assert.ok(rs.wing.stations[3].teGap > rs.wing.stations[0].teGap, 'aussen relativ dicker');
+  const geo = s => M.stationGeometry(s, pj.profiles).stats.teThickness;
+  assert.ok(Math.abs(geo(rs.wing.stations[3]) - 0.7 / 100) < 1e-9);
+  // Station überschreibt, Modellwert gilt sonst
+  m.drag = { te: 0.5 }; m.wing.stations[3].te = 1;
+  const r2 = M.resolveTe(m);
+  assert.ok(Math.abs(r2.wing.stations[0].teGap - 0.5 / 220) < 1e-12 && Math.abs(r2.wing.stations[3].teGap - 1 / 100) < 1e-12);
+  // das Original bleibt unverändert
+  assert.strictEqual(m.wing.stations[0].teGap, undefined);
+  // dickere Endleiste: schlechtere beste Gleitzahl, mehr Profilwiderstand im Gleitflug
+  // (beim grossen Ca kann NeuralFoil mit offener Endleiste etwas mehr Auftrieb sehen, das Sinken bleibt dort fast gleich)
+  const sharp = M.analyze(M.withTe(m, 0), pj.profiles), thick = M.analyze(M.withTe(m, 1), pj.profiles);
+  assert.ok(thick.best.E < sharp.best.E, [thick.best.E, sharp.best.E]);
+  const at = (r, cl) => r.table.find(t => Math.abs(t.cl - cl) < 1e-9);
+  for (const cl of [0.2, 0.5]) assert.ok(at(thick, cl).cdw > at(sharp, cl).cdw * 1.02 && at(thick, cl).sink > at(sharp, cl).sink, `Ca ${cl}`);
+  assert.strictEqual(M.withTe(m, 0).wing.stations[3].te, undefined);
+});
