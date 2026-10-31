@@ -254,9 +254,9 @@
     const cdw = 2 * D / wing.area;
     const cdt = M.profileDrag(tStrips, ctx.T.stations, pt.tailSeg, wing.area);
     const cdi = V.trefftz(r.strips, wing.area);
-    const x = F.withExtras(ctx.model, wing.area, { cdi, cdw, cdt, cdf: pt.cdf, cdv: pt.cdv }), cd = x.cd, E = CL / cd;
+    const x = F.withExtras(ctx.model, wing.area, { cdi, cdw, cdt, cdf: pt.cdf, cdv: pt.cdv }, al), cd = x.cd, E = CL / cd;
     return {
-      name: pt.name, cl: CL, flap, v: pt.v, alpha: al, ewd: (W.incidence || 0) - it, cd, cdi, cdw: x.cdw, cdt: x.cdt, cdf: pt.cdf, cdv: x.cdv, cdx: x.cdx, E, sink: pt.v / E,
+      name: pt.name, cl: CL, flap, v: pt.v, alpha: al, ewd: (W.incidence || 0) - it, cd, cdi: x.cdi, cdw: x.cdw, cdt: x.cdt, cdf: x.cdf, cdv: x.cdv, cdx: x.cdx, E, sink: pt.v / E,
       stall: want ? stall : null, stallZones, ok: ok && Number.isFinite(cd), evals,
       strips: strips.map(s => ({ y: s.y, cl: s.cl })), clTail: (r.lift[1] || 0) / (0.5 * ctx.tail.area),
     };
