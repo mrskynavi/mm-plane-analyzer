@@ -113,7 +113,7 @@
   // Faktor auf den Profilwiderstand (Welligkeit, Lack, Turbulatoren) und Zuschlag in Prozent auf allen
   // schädlichen Widerstand (Haube, Übergänge, Kupplung, Rad, Antenne).
   const DRIVES = { keiner: 'kein Antrieb vorn', klapp: 'Klappluftschraube', starr: 'starre Luftschraube' };
-  const EXTRAS = { profile: 1, other: 0, drive: 'keiner', spinner: 40, prop: 350, horns: 0, horn: 0.4, gaps: 'abgedeckt' };
+  const EXTRAS = { profile: 1, other: 0, span: 1, fusAoa: 0, drive: 'keiner', spinner: 40, prop: 350, horns: 0, horn: 0.4, gaps: 'abgedeckt' };
   const extrasOf = model => ({ ...EXTRAS, ...(model.drag || {}) });
   const ruddered = stations => {
     let a = 0;
@@ -130,11 +130,15 @@
   }
   // Teilwiderstände eines Arbeitspunkts mit Zuschlägen: Profile mal Faktor, dazu cdx (Antrieb, Anlenkungen,
   // Spalte und Prozent-Zuschlag); base ist der Widerstand ohne alle Zuschläge
-  function withExtras(model, sRef, { cdi, cdw, cdt, cdf, cdv }) {
+  // alpha: Anstellwinkel des Rumpfs (Modellachse) in Grad, für den Rumpfzuschlag im Langsamflug.
+  // span: Spannweiten-Wirkungsgrad gegenüber der Rechnung (1 = wie gerechnet), der induzierte Widerstand wird durch span geteilt.
+  // fusAoa: Zuschlag auf den Rumpfwiderstand in % bei 5° Anstellwinkel, wächst mit dem Quadrat des Winkels.
+  function withExtras(model, sRef, { cdi, cdw, cdt, cdf, cdv }, alpha = 0) {
     const x = extrasOf(model), f = extraFixed(model, sRef), pf = x.profile > 0 ? x.profile : 1;
+    const e = x.span > 0 ? x.span : 1, i = cdi / e, fu = cdf * (1 + (x.fusAoa || 0) / 100 * (alpha / 5) ** 2);
     const w = cdw * pf, t = cdt * pf, v = cdv * pf, fixed = f.drive + f.horns + f.gaps;
-    const cdx = fixed + (x.other || 0) / 100 * (w + t + cdf + v + fixed);
-    return { cdw: w, cdt: t, cdv: v, cdx, cd: cdi + w + t + cdf + v + cdx, base: cdi + cdw + cdt + cdf + cdv };
+    const cdx = fixed + (x.other || 0) / 100 * (w + t + fu + v + fixed);
+    return { cdi: i, cdf: fu, cdw: w, cdt: t, cdv: v, cdx, cd: i + w + t + fu + v + cdx, base: cdi + cdw + cdt + cdf + cdv };
   }
 
   const api = { TYPES, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras };

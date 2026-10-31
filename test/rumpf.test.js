@@ -70,3 +70,14 @@ test('Zusatzwiderstände: ohne Eingaben unverändert, jeder Zuschlag senkt die G
   const h = F.extraFixed({ ...m, drag: { horns: 2 } }, S);
   assert.ok(Math.abs(h.horns * S - 80) < 1e-9);
 });
+
+test('Spannweiten-Wirkungsgrad und Rumpf bei Anstellwinkel', () => {
+  const m = { wing: { stations: [] }, tail: { stations: [] }, drag: { span: 0.9, fusAoa: 40 } };
+  const parts = { cdi: 0.009, cdw: 0.01, cdt: 0.001, cdf: 0.002, cdv: 0.0005 };
+  const a = F.withExtras(m, 1e6, parts, 5), b = F.withExtras(m, 1e6, parts, 2.5), c = F.withExtras({ ...m, drag: {} }, 1e6, parts, 5);
+  assert.ok(Math.abs(a.cdi - 0.01) < 1e-12, 'induziert durch e');
+  assert.ok(Math.abs(a.cdf - 0.0028) < 1e-12, '+40 % bei 5°');
+  assert.ok(Math.abs(b.cdf - 0.0022) < 1e-12, 'ein Viertel bei 2,5°');
+  assert.ok(Math.abs(a.cd - (0.01 + 0.01 + 0.001 + 0.0028 + 0.0005)) < 1e-12);
+  assert.ok(Math.abs(c.cd - c.base) < 1e-12, 'ohne Angaben wie bisher');
+});
