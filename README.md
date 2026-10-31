@@ -45,6 +45,15 @@ Profil-Labor:
 - Projektdatei (`.mmpa.json`) speichern und öffnen; im Browser wird automatisch zwischengespeichert
 - Projektordner in den Einstellungen (Chrome, Edge): Projekte direkt in einem Ordner auf dem Rechner oder einem Netzlaufwerk speichern und von dort öffnen, auf Wunsch automatisch bei jeder Änderung (`web/core/ordner.js`, File System Access API). Andere Browser speichern per Download
 
+## Fragemodus (Claude)
+
+Schalter „? Fragen“ oben rechts, dann auf ein Feld, eine Tabellenzeile, eine Kennzahl oder eine Grafik klicken. Daneben öffnet sich eine Sprechblase. Die Frage geht mit dem Angeklickten (Name, Wert, Einheit, bei Grafiken die Kurven, bei Tabellen die ganze Tabelle) und den Daten des aktuellen Modells oder Profil-Labors als JSON an Claude.
+
+- Mit eigenem API-Schlüssel (⚙ Einstellungen): direkter Aufruf der Messages API aus dem Browser (`anthropic-dangerous-direct-browser-access`), Antwort gestreamt in der Blase, Nachfragen möglich. Modell Sonnet 5.5 (Standard), Opus 5.5 oder Haiku 5.5; geschätzte Kosten vor dem Senden, tatsächliche Kosten aus den Token danach. Der Schlüssel liegt nur im localStorage (`mmpa.claudeKey`), nie in der Projektdatei oder im Repo.
+- Ohne Schlüssel: „Kopieren“ legt Frage, Kontext und Daten in die Zwischenablage, zum Einfügen in claude.ai.
+
+Bausteine ohne DOM (Systemprompt, Preise, Anfrage, Stream-Leser, Markdown) in `web/core/frage.js`, die Oberfläche in `web/frage-ui.js`.
+
 ## Polarenrechnung
 
 Die Polaren rechnet [NeuralFoil](https://github.com/peterdsharpe/NeuralFoil) (Peter Sharpe, MIT-Lizenz), hier nach JavaScript übertragen (`web/core/neuralfoil.js`). Das Netz ist auf XFOIL-Rechnungen trainiert, konvergiert immer und liefert eine Konfidenz pro Punkt. Die Tests vergleichen die JavaScript-Fassung mit dem Python-Original (Abweichung unter 1e-9). XFOIL selbst soll später über die Desktop-App dazukommen.
