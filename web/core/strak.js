@@ -189,7 +189,8 @@
       const finCd0 = re => { const q = T.stations[0] && M.tailPolar(T.stations[0], profiles, re, nCrit); const c = q && M.cdOf(q, 0); return Number.isFinite(c) ? c : null; };
       return { ...p, v, tailSeg: tp.slice(0, -1).map((q, i) => [q, tp[i + 1]]), cdf: F.drag(fus, v, wing.area), cdv: F.finDrag(finA, v, wing.area, finCd0) };
     });
-    const crit = points.reduce((b, p, i) => (p.cl > points[b].cl ? i : b), 0);
+    // langsamster Zustand für Abriss und Abrissverhalten; Hilfspunkte (Nachbarn der Zielgeschwindigkeit) zählen nicht
+    const crit = points.reduce((b, p, i) => (p.role !== 'nb' && (points[b].role === 'nb' || p.cl > points[b].cl) ? i : b), 0);
     return { model, profiles, W, T, wing, tail, ptl, sys, run, cA, mA, cI, mI, xNP, xCG, pts, crit, P0, nCrit, ny, nx, hints: new Map(), trims: new Map() };
   }
 
@@ -401,12 +402,28 @@
   //   minThick (Bruchteil), minHeight (mm, 0 = aus), stallMargin, stallMode ('aus' | 'neutral' | 'gutmuetig'),
   //   twistMin/twistMax (Schränkung in Grad), cm0Min (null = Cm0 der Wurzel), smooth, maxEvals, nCrit,
 //   start ('modell' = Stationen wie im Modell | 'wurzel' = Wölbung und Rücklagen der Wurzel nach aussen übernehmen),
-//   noWorse (true = kein Flugzustand darf schlechter werden) }
+//   noWorse (true = kein Flugzustand darf schlechter werden),
+//   vBest (m/s, null = aus): bei dieser Geschwindigkeit soll das beste Gleiten liegen; dazu kommen der Zielpunkt und je ein
+//     Nachbar bei V ± vBestSpan (Standard 10 %), deren Gleitzahl nicht höher sein darf als im Zielpunkt,
+//   rootCamber (true = Wölbung und Wölbungsrücklage der Wurzel mit optimieren) }
   // Gibt einen schrittweisen Optimierer zurück: step() rechnet eine Generation, result() das Ergebnis.
   function optimizer(model, profiles, settings = {}) {
     model = M.resolveTe(model);
     const S = { ...DEFAULTS, ...settings, vars: { ...DEFAULTS.vars, ...(settings.vars || {}) } };
     const W = model.wing, st = W.stations, n = st.length;
+    // Zielgeschwindigkeit fürs beste Gleiten: Zielpunkt und zwei Nachbarn als zusätzliche Arbeitspunkte
+    const userPts = (S.points || []).map((p, k) => ({ ...p, role: 'user', mi: p.mi ?? k }));
+    let target = null;
+    if (Number.isFinite(+S.vBest) && +S.vBest > 0) {
+      const area = V.planform(st).area, span = Math.min(0.25, Math.max(0.03, S.vBestSpan ?? 0.1));
+      const clAt = v => 2 * model.mass / 1000 * G / (RHO * area / 1e6 * v * v);
+      const v = +S.vBest, wT = userPts.reduce((a, p) => a + (+p.weight || 0), 0) || 1;
+      if (clAt(v * (1 + span)) < 0.02 || clAt(v * (1 - span)) > 1.3) throw new Error(`Bestes Gleiten bei ${Math.round(v * 3.6)} km/h passt nicht zur Flächenbelastung (Ca ${clAt(v).toFixed(2)})`);
+      const pts = [{ name: 'Bestes Gleiten', cl: clAt(v), weight: wT, role: 'target' }, { name: `V −${Math.round(span * 100)} %`, cl: clAt(v * (1 - span)), weight: 0, role: 'nb' }, { name: `V +${Math.round(span * 100)} %`, cl: clAt(v * (1 + span)), weight: 0, role: 'nb' }];
+      target = { v, span, i: userPts.length, lo: userPts.length + 1, hi: userPts.length + 2 };
+      S.points = userPts.concat(pts.map(p => ({ ...p, flap: null })));
+    } else S.points = userPts;
+    if (!S.points.length) throw new Error('Zuerst Flugzustände oder eine Geschwindigkeit fürs beste Gleiten eintragen');
     const rootProf = profiles.find(p => p.id === (S.rootId || st[0].profileId));
     if (!rootProf) throw new Error('Kein Wurzelprofil gewählt');
     if (st.some(s => !M.stationProfile(s, profiles))) throw new Error('Jede Flügelstation braucht ein Profil');
@@ -418,17 +435,22 @@
     // Vorher: Profile wie im Modell, Klappen je Arbeitspunkt bestmöglich (sonst wäre der Vergleich unfair)
     const before = st.map(s => designOf(s, profiles));
     const fixedFlap = k => (!hasFlap ? 0 : S.points[k].flap != null && Number.isFinite(+S.points[k].flap) ? +S.points[k].flap : null);
-    const flapFree = k => S.vars.flap && fixedFlap(k) == null;
+    // Nachbarn fliegen mit der Klappe des Zielpunkts: sonst könnte die Suche ihre Klappe absichtlich schlecht stellen
+    const isNb = k => S.points[k].role === 'nb';
+    const flapFree = k => S.vars.flap && fixedFlap(k) == null && !isNb(k);
     const shB = prepareShapes(ctx, before);
-    const flapsBefore = S.points.map((p, k) => (fixedFlap(k) != null ? fixedFlap(k) : (S.vars.flap ? bestFlap(ctx, before, k, S.flapMin, S.flapMax, stallLimit, shB) : 0)));
+    const flapsBefore = S.points.map((p, k) => (isNb(k) ? 0 : fixedFlap(k) != null ? fixedFlap(k) : (S.vars.flap ? bestFlap(ctx, before, k, S.flapMin, S.flapMax, stallLimit, shB) : 0)));
+    if (target) flapsBefore[target.lo] = flapsBefore[target.hi] = flapsBefore[target.i];
     const evBefore = evaluate(ctx, before, flapsBefore);
     const cdRef = evBefore.points.map(p => (p.ok ? p.cd : NaN));
 
     // Wurzel bleibt, wie sie im Modell steht (oder das gewählte Profil unverändert)
     const rootDesign = st[0].profileId === rootProf.id ? designOf(st[0], profiles) : designOf({ ...st[0], profileId: rootProf.id, thickness: null, camber: null, xThickness: null, xCamber: null }, profiles);
     const r = rootDesign.q, symmetric = B.raw.camber < 2e-3;
+    const rootFree = !!S.rootCamber && !symmetric && (S.vars.camber || S.vars.xCamber);
     const cm0Root = evaluate(ctx, [rootDesign].concat(st.slice(1).map(s => designOf(s, profiles, rootProf))), flapsBefore).stations[0].cm0;
-    const cm0Min = S.cm0Min != null && Number.isFinite(+S.cm0Min) ? +S.cm0Min : Math.floor((cm0Root - 0.005) * 200) / 200;
+    const cm0Set = S.cm0Min != null && Number.isFinite(+S.cm0Min);
+    const cm0Min = cm0Set ? +S.cm0Min : Math.floor((cm0Root - 0.005) * 200) / 200;
 
     // Stellgrössen mit Grenzen, alle auf 0 … 1 abgebildet
     const vars = [];
@@ -439,6 +461,11 @@
       const q = designOf(s, profiles, rootProf).q;
       return S.start === 'wurzel' ? { ...q, camber: r.camber, xThickness: r.xThickness, xCamber: r.xCamber } : q;
     });
+    // Wölbung der Wurzel: Dicke und Dickenrücklage bleiben, Wölbung 50 … 150 %, Rücklage ± 10 % der Tiefe
+    if (rootFree) {
+      if (S.vars.camber) add('camber', 0, 0.5 * r.camber, 1.5 * r.camber + 0.003, r.camber);
+      if (S.vars.xCamber) add('xCamber', 0, Math.max(0.15, r.xCamber - 0.1), Math.min(0.65, r.xCamber + 0.1), r.xCamber);
+    }
     for (let i = 1; i < n; i++) {
       const c = st[i].chord, s0 = start[i];
       const tLo = Math.max(S.minThick, S.minHeight > 0 ? S.minHeight / c : 0, 0.5 * r.thickness), tHi = Math.max(tLo, Math.min(0.2, 1.3 * r.thickness));
@@ -452,7 +479,8 @@
     const decode = u => {
       const q = start.map(s => ({ ...s })), flaps = S.points.map((p, k) => (fixedFlap(k) != null ? fixedFlap(k) : flapsBefore[k]));
       vars.forEach((v, j) => { const x = v.lo + Math.min(1, Math.max(0, u[j])) * (v.hi - v.lo); if (v.kind === 'flap') flaps[v.i] = x; else q[v.i][v.kind] = x; });
-      return { design: q.map((qq, i) => ({ prof: rootProf, q: qq })).map((d, i) => (i ? d : rootDesign)), flaps };
+      if (target) flaps[target.lo] = flaps[target.hi] = flaps[target.i];
+      return { design: q.map((qq, i) => ({ prof: rootProf, q: qq })).map((d, i) => (i ? d : rootFree ? { prof: rootDesign.prof, q: q[0] } : rootDesign)), flaps };
     };
 
     // glatter Strak: Knick der Verläufe über der Spannweite bestrafen
@@ -484,9 +512,19 @@
       const exc = !z || S.stallMode === 'aus' ? 0 : S.stallMode === 'neutral' ? Math.max(0, z.outer - Math.max(z.inner, z.mid) + 0.01)
         : Math.max(0, z.mid - z.inner + 0.01, z.outer - z.inner + 0.04);
       const pShape = 400 * exc * exc;
-      const pCm = ev.stations.slice(1).reduce((a, s) => a + 2000 * Math.max(0, cm0Min - s.cm0) ** 2, 0);
+      // Wurzel nur mit eigener Cm0-Grenze: ihr Moment trimmt das Höhenleitwerk weg, das zählt schon im Widerstand
+      const pCm = ev.stations.slice(rootFree && cm0Set ? 0 : 1).reduce((a, s) => a + 2000 * Math.max(0, cm0Min - s.cm0) ** 2, 0);
       const pSmooth = S.smooth * roughness(design);
-      return { stall: pStall, shape: pShape, cm0: pCm, smooth: pSmooth, sum: pStall + pShape + pCm + pSmooth };
+      // bestes Gleiten bei der Zielgeschwindigkeit: kein Nachbar darf besser gleiten als der Zielpunkt
+      // Mit „kein Zustand schlechter“ hält eine Strafe die Suche bei Lösungen, die keinen Zustand verschlechtern,
+      // sonst würde sie für die Lage des Bestwerts die ganze Polare flacher machen.
+      let pPeak = 0, pWorse = 0;
+      if (target) {
+        const t = ev.points[target.i];
+        for (const k of [target.lo, target.hi]) { const q = ev.points[k]; pPeak += !t.ok || !q.ok ? 1 : 100 * Math.max(0, q.E / t.E - 1) ** 2; }
+        if (S.noWorse) ev.points.forEach((p, k) => { if (!isNb(k) && Number.isFinite(cdRef[k])) pWorse += p.ok ? 400 * Math.max(0, p.cd / cdRef[k] - 1) ** 2 : 1; });
+      }
+      return { stall: pStall, shape: pShape, cm0: pCm, smooth: pSmooth, peak: pPeak, worse: pWorse, sum: pStall + pShape + pCm + pSmooth + pPeak + pWorse };
     };
     const fitness = u => {
       const { design, flaps } = decode(u);
@@ -500,7 +538,7 @@
     const first = fitness(u0);
     // best: bester Wert insgesamt; bestOk: bester, bei dem kein Arbeitspunkt schlechter ist als vorher. Das läuft neben der Suche her
     // und lenkt sie nicht; die kleine Reserve deckt die Abweichung der schnellen Bewertung gegenüber der vollen Rechnung.
-    const isOk = q => q.ev.points.every((p, k) => !Number.isFinite(cdRef[k]) || (p.ok && p.cd <= cdRef[k] * (1 - WORSE_MARGIN)));
+    const isOk = q => q.ev.points.every((p, k) => S.points[k].role === 'nb' || !Number.isFinite(cdRef[k]) || (p.ok && p.cd <= cdRef[k] * (1 - WORSE_MARGIN)));
     let best = first, bestOk = isOk(first) ? first : null, evals = 0, stale = 0, done = !vars.length;
     const history = [first.f];
     const t0 = Date.now();
@@ -522,10 +560,10 @@
       const penB = penalties(evBefore, before);
       // nie schlechter als der Ausgangszustand: findet die Suche nichts Besseres, bleibt das Modell, wie es ist
       // lieber eine Lösung ohne schlechteren Arbeitspunkt, solange das Abrissverhalten gleich gut bleibt
-      const stallPen = q => q.pen.stall + q.pen.shape;
+      const stallPen = q => q.pen.stall + q.pen.shape + q.pen.peak;
       const pick = S.noWorse && bestOk && stallPen(bestOk) <= stallPen(best) + 0.01 ? bestOk : best;
       // bessere Lösung verworfen, weil ein Flugzustand schlechter würde: für den Hinweis im Ergebnis
-      const tradeOf = q => q.ev.points.map((p, k) => ({ name: p.name, change: p.ok && Number.isFinite(cdRef[k]) ? p.cd / cdRef[k] - 1 : null }));
+      const tradeOf = q => q.ev.points.filter((p, k) => S.points[k].role !== 'nb').map((p, k) => ({ name: p.name, change: p.ok && Number.isFinite(cdRef[k]) ? p.cd / cdRef[k] - 1 : null }));
       const traded = pick !== best && best.f < pick.f - 1e-4 && best.f < score(evBefore) + penB.sum - 1e-4
         ? { gain: 1 - score(best.ev) / score(evBefore), points: tradeOf(best) } : null;
       // nie schlechter als der Ausgangszustand: findet die Suche nichts Besseres, bleibt das Modell, wie es ist
@@ -533,16 +571,16 @@
       const kept = pick.f >= score(evBefore) + penB.sum - 1e-4;
       const after = kept ? { ev: evBefore, design: before, flaps: flapsBefore, pen: penB } : pick;
       const pack = (ev, design, flaps, pen) => ({
-        points: ev.points.map(p => ({ name: p.name, cl: p.cl, flap: p.flap, v: p.v, alpha: p.alpha, ewd: p.ewd, E: p.E, sink: p.sink, cd: p.cd, cdw: p.cdw, cdi: p.cdi, cdt: p.cdt, stall: p.stall, stallAt: p.stallZones ? p.stallZones.at : null, ok: p.ok, clTail: p.clTail })),
+        points: ev.points.map((p, k) => ({ name: p.name, role: S.points[k].role, mi: S.points[k].mi, cl: p.cl, flap: p.flap, v: p.v, alpha: p.alpha, ewd: p.ewd, E: p.E, sink: p.sink, cd: p.cd, cdw: p.cdw, cdi: p.cdi, cdt: p.cdt, stall: p.stall, stallAt: p.stallZones ? p.stallZones.at : null, ok: p.ok, clTail: p.clTail })),
         stations: design.map((d, i) => ({ y: st[i].y, chord: st[i].chord, profile: d.prof.name, profileId: d.prof.id, ...d.q, cm0: ev.stations[i].cm0, height: ev.stations[i].height })),
-        flaps, score: score(ev), penalties: pen,
+        flaps, score: score(ev), penalties: pen, vBest: target ? peakSpeed(ev.points[target.lo], ev.points[target.i], ev.points[target.hi]) : null,
       });
       return {
         before: pack(evBefore, before, flapsBefore, penB),
         after: pack(after.ev, after.design, after.flaps, after.pen),
         gain: 1 - score(after.ev) / score(evBefore), kept, traded, start: S.start, noWorse: S.noWorse, evals, seconds: (Date.now() - t0) / 1000, history,
         limits: { cm0Min, stallLimit, stallMode: S.stallMode, minThick: S.minThick, minHeight: S.minHeight }, rootId: rootProf.id, rootName: rootProf.name,
-        xCG: ctx.xCG, xNP: ctx.xNP, vars: vars.map(v => v.kind),
+        xCG: ctx.xCG, xNP: ctx.xNP, vars: vars.map(v => v.kind), rootFree, target: target ? { v: target.v, span: target.span } : null, mass: model.mass,
       };
     }
     return { step, result, progress, get done() { return done; }, dims: vars.length, ctx };
@@ -555,14 +593,32 @@
     if (res.kept) return m;
     res.after.stations.forEach((s, i) => {
       const t = m.wing.stations[i];
-      if (i === 0 && t.profileId === res.rootId) return;
+      if (i === 0 && !res.rootFree && t.profileId === res.rootId) return;
       Object.assign(t, { profileId: res.rootId, thickness: round(s.thickness, 5), camber: round(s.camber, 5), xThickness: round(s.xThickness, 4), xCamber: round(s.xCamber, 4) });
       if (i && s.twist != null) t.twist = round(s.twist, 2);
-      if (i === 0) Object.assign(t, { thickness: null, camber: null, xThickness: null, xCamber: null });
+      if (i === 0 && !res.rootFree) Object.assign(t, { thickness: null, camber: null, xThickness: null, xCamber: null });
     });
     const old = (m.flaps && m.flaps.modes) || [];
-    m.flaps = { ...(m.flaps || {}), modes: res.after.points.map((p, k) => ({ ...(old[k] || {}), name: p.name, cl: p.cl, flap: round(p.flap, 2) })) };
+    // Nachbarn der Zielgeschwindigkeit sind nur Hilfspunkte; der Zielpunkt kommt als eigener Flugzustand dazu
+    const keep = old.filter(q => !q.target || !res.target);
+    const modes = res.after.points.filter(p => p.role !== 'nb').map((p, k) => (p.role === 'target'
+      ? { name: p.name, cl: round(p.cl, 4), flap: round(p.flap, 2), weight: 1, target: true }
+      : { ...((p.mi != null ? old[p.mi] : keep[k]) || {}), name: p.name, cl: p.cl, flap: round(p.flap, 2) }));
+    m.flaps = { ...(m.flaps || {}), modes };
     return m;
+  }
+  // Geschwindigkeit des besten Gleitens aus drei Punkten (Parabel durch E über V); ohne Scheitel der beste der drei
+  function peakSpeed(a, b, c) {
+    if (!a || !b || !c || !a.ok || !b.ok || !c.ok) return null;
+    const [x1, x2, x3] = [a.v, b.v, c.v], [y1, y2, y3] = [a.E, b.E, c.E];
+    const d = (x1 - x2) * (x1 - x3) * (x2 - x3);
+    const A = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / d, Bq = (x3 * x3 * (y1 - y2) + x2 * x2 * (y3 - y1) + x1 * x1 * (y2 - y3)) / d;
+    const best = [a, b, c].reduce((m, q) => (q.E > m.E ? q : m));
+    if (!(A < 0)) return { v: best.v, E: best.E, edge: best !== b };
+    const v = -Bq / (2 * A), lo = Math.min(x1, x3), hi = Math.max(x1, x3);
+    if (v < lo || v > hi) return { v: best.v, E: best.E, edge: true };
+    const C = y1 - A * x1 * x1 - Bq * x1;
+    return { v, E: A * v * v + Bq * v + C, edge: false };
   }
   const round = (v, d) => (v == null ? null : Math.round(v * 10 ** d) / 10 ** d);
 
@@ -677,7 +733,7 @@
     return P.modify(d.prof.coords, { thickness: d.q.thickness / B.raw.thickness, camber: B.raw.camber > 1e-4 ? d.q.camber / B.raw.camber : 1, xThickness: d.q.xThickness, xCamber: d.q.xCamber, teGap: d.q.teGap ?? null });
   }
 
-  const api = { coordsOf, optimizer, apply, evaluate, context, designOf, bestFlap, flightModes, flapSeries, circling, shape, aeroShape, prepareBase, kulfan, localPolar, cmaes, eigen, rng, DEFAULTS, X };
+  const api = { peakSpeed, coordsOf, optimizer, apply, evaluate, context, designOf, bestFlap, flightModes, flapSeries, circling, shape, aeroShape, prepareBase, kulfan, localPolar, cmaes, eigen, rng, DEFAULTS, X };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).strak = api;
 })(typeof self !== 'undefined' ? self : this);
