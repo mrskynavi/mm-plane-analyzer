@@ -12,7 +12,7 @@ const setup = () => {
   return { pj, m: PR.createModel('Test', e.id, h.id) };
 };
 
-test('Rumpf: Form reicht von der Nase bis zum Leitwerk, dicke Keule hat mehr Fläche und Widerstand', () => {
+test('Rumpf: Form reicht von der Nase bis zum Leitwerk, Oldtimer hat mehr Fläche und Widerstand', () => {
   const { m } = setup();
   const S = V.planform(m.wing.stations).area, out = {};
   for (const type of Object.keys(F.TYPES)) {
@@ -23,16 +23,16 @@ test('Rumpf: Form reicht von der Nase bis zum Leitwerk, dicke Keule hat mehr Fl�
     assert.ok(Math.max(...s.pts.map(p => p.r)) <= s.D / 2 + 1e-9);
     out[type] = { swet: s.swet, cd: F.drag(s, 12, S) };
   }
-  assert.ok(out.stab.swet < out['keule-klein'].swet && out['keule-klein'].swet < out['keule-gross'].swet);
-  assert.ok(out.stab.cd < out['keule-klein'].cd && out['keule-klein'].cd < out['keule-gross'].cd);
-  // Grössenordnung: Rumpf eines 2,5-m-Seglers Cw 0,0005 … 0,005 auf die Flügelfläche
-  for (const o of Object.values(out)) assert.ok(o.cd > 5e-4 && o.cd < 5e-3, o.cd);
+  assert.ok(out.stab.swet < out.modern.swet && out.modern.swet < out.oldtimer.swet);
+  assert.ok(out.stab.cd < out.modern.cd && out.modern.cd < out.oldtimer.cd);
+  // Grössenordnung: Rumpf eines 2,5-m-Seglers Cw 0,0005 … 0,007 (Oldtimer) auf die Flügelfläche
+  for (const o of Object.values(out)) assert.ok(o.cd > 5e-4 && o.cd < 7e-3, o.cd);
 });
 
 test('Rumpf: schiebt den Neutralpunkt nach vorn, mehr bei dicker und langer Nase (Grössenordnung wie Raymer)', () => {
   const { pj, m } = setup();
   const np = f => { m.fuselage = f; return M.analyze(m, pj.profiles); };
-  const a = np({ type: 'stab', nose: 400 }), b = np({ type: 'keule-gross', nose: 400 }), c = np({ type: 'keule-gross', nose: 700 });
+  const a = np({ type: 'stab', nose: 400 }), b = np({ type: 'oldtimer', nose: 400 }), c = np({ type: 'oldtimer', nose: 700 });
   assert.ok(a.fuselage.dNP < 0 && b.fuselage.dNP < a.fuselage.dNP && c.fuselage.dNP < b.fuselage.dNP, [a.fuselage.dNP, b.fuselage.dNP, c.fuselage.dNP]);
   assert.ok(Math.abs(a.xNP0 - b.xNP0) < 1e-6, 'ohne Rumpf gleich');
   // Raymer: dCm/dα = K·W²·L/(c·S) je Grad, K ≈ 0,011 bei Flügel auf 30 % der Rumpflänge
@@ -44,7 +44,7 @@ test('Gesamtpolare: Rumpf und Seitenleitwerk machen die Gleitzahl kleiner', () =
   const { pj, m } = setup();
   m.fuselage = { type: 'stab', nose: 300, fin: 0 };
   const a = M.analyze(m, pj.profiles);
-  m.fuselage = { type: 'keule-gross', nose: 300, fin: 5 };
+  m.fuselage = { type: 'oldtimer', nose: 300, fin: 5 };
   const b = M.analyze(m, pj.profiles);
   assert.ok(b.best.E < a.best.E, [a.best.E, b.best.E]);
   const t = b.table.find(q => q.cl === 0.5);
@@ -89,4 +89,18 @@ test('Zuschlag kleine Re: wächst mit 1/Re und Ca über 0,4', () => {
   assert.ok(Math.abs(f(0.01, 1.0, 1e5) - 0.016) < 1e-12, '60 % bei Re 100k, Ca 1');
   assert.ok(Math.abs(f(0.01, 1.0, 5e4) - 0.022) < 1e-12, 'doppelt bei Re 50k');
   assert.ok(Math.abs(f(0.01, 1.0, 1e3) - 0.034) < 1e-12, 'höchstens das Vierfache');
+});
+
+test('Rumpf: frühere Keulenformen werden zu modernem Segler und Oldtimer, Oldtimer bremst bei gleichem Durchmesser mehr', () => {
+  const { m } = setup();
+  const S = V.planform(m.wing.stations).area;
+  m.fuselage = { type: 'keule-klein', nose: 400 };
+  assert.strictEqual(F.of(m).type, 'modern');
+  m.fuselage = { type: 'keule-gross', nose: 400 };
+  assert.strictEqual(F.of(m).type, 'oldtimer');
+  const cd = type => { m.fuselage = { type, nose: 400, diameter: 120 }; return F.drag(F.shape(m), 15, S); };
+  assert.ok(cd('oldtimer') > 1.5 * cd('modern'), [cd('modern'), cd('oldtimer')]);
+  // Oldtimer: grösster Querschnitt unter dem Flügel, moderner Segler weit davor
+  const at = type => { m.fuselage = { type, nose: 400 }; const s = F.shape(m), mx = Math.max(...s.pts.map(p => p.r)); return s.pts.find(p => p.r >= mx - 1e-9).x; };
+  assert.ok(at('modern') < -100 && at('oldtimer') > -60, [at('modern'), at('oldtimer')]);
 });
