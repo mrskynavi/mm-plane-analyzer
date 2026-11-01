@@ -33,8 +33,9 @@
   }
   function viewText() {
     if (ui.tab !== 'modell') return 'Profil-Labor' + (document.querySelector('#lViews [aria-selected="true"]') ? ' › ' + txt(document.querySelector('#lViews [aria-selected="true"]')) : '');
-    const tp = document.querySelector('#mTopics [aria-current="true"] span'), vw = document.querySelector('#mViews [aria-selected="true"]');
-    return ['Modell', tp && 'Eingaben ' + txt(tp), vw && 'Ergebnis ' + txt(vw)].filter(Boolean).join(' › ');
+    const th = document.querySelector('#mThemes [aria-selected="true"]'), pt = ui.theme === 'plan' && document.querySelector('#planPart [aria-pressed="true"]');
+    const name = el => el && [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
+    return ['Modell', th && 'Reiter ' + name(th), pt && name(pt)].filter(Boolean).join(' › ');
   }
   function explain(el) {
     const box = el.closest('.pol-box, .pol-logs, .rview, .topic');

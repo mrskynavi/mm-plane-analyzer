@@ -43,9 +43,35 @@ body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);margin:0}
 .wrap{max-width:1880px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
 header.appbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
 .brand{display:flex;align-items:center;gap:8px}
-header.appbar .proj{flex:1 1 260px;min-width:0;display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
+header.appbar .proj{flex:0 1 auto;max-width:180px;min-width:0;display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
 header.appbar .proj b{color:var(--fg);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 header.appbar .actions{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}
+/* Modellleiste in der Kopfzeile: Chips nebeneinander, seitlich scrollbar */
+.mbar{flex:1 1 320px;min-width:0;display:flex;gap:6px;align-items:center}
+.mchips{display:flex;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:thin;padding:2px 1px}
+.mchip{flex:none;display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--fg);font:500 .88rem var(--body);height:30px;padding:0 4px 0 2px;white-space:nowrap}
+.mchip:hover{border-color:var(--accent)}
+.mchip .nm{border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:4px 6px 4px 10px;max-width:18ch;overflow:hidden;text-overflow:ellipsis}
+.mchip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.mchip.cmp{border-style:dashed;border-color:var(--accent)}
+.mchip .ck{display:grid;place-items:center;padding:0 6px 0 2px;cursor:pointer}
+.mchip .ck input{margin:0;accent-color:var(--accent)}
+.mchip .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:2px 6px}
+.mchip .x:hover{color:var(--bad)}
+.mchip .nm:focus-visible,.mchip .x:focus-visible,.mchip.add:focus-visible,.mmenu button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:999px}
+.mchip.add{border-style:dashed;color:var(--muted);cursor:pointer;padding:0 12px}
+.mnew{position:relative;flex:none}
+.mmenu{position:absolute;top:calc(100% + 4px);left:0;z-index:40;display:grid;min-width:190px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;box-shadow:0 6px 20px rgb(0 0 0 / .15)}
+.mmenu button{border:0;background:none;color:var(--fg);font:500 .9rem var(--body);text-align:left;padding:7px 10px;border-radius:6px;cursor:pointer}
+.mmenu button:hover{background:var(--accent-soft);color:var(--accent)}
+#labBtn[aria-pressed="true"]{background:var(--accent);color:#fff}
+.labbar{display:flex;align-items:center;gap:12px;padding:6px 0 7px}
+.tab small{font:.72rem var(--mono);color:var(--muted);letter-spacing:0;margin-left:4px}
+.partseg{display:flex}
+.partseg .seg button small{font:.72rem var(--mono);color:inherit;opacity:.75;margin-left:4px}
+.st-table td.pf{white-space:nowrap}
+.st-table .tolab{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.95rem;padding:0 2px 0 4px;vertical-align:middle}
+.st-table .tolab:hover,.st-table .tolab:focus-visible{color:var(--accent)}
 h1{font:700 1.6rem/1 var(--display);white-space:nowrap;letter-spacing:.01em;margin:0;display:flex;align-items:center;gap:.4em}
 h1 .logo{height:1.05em;width:auto;flex:none}
 h2{font:600 1.15rem/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;margin:0;color:var(--muted)}
@@ -278,6 +304,11 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
 .rview[hidden],.lview[hidden],.topic[hidden]{display:none}
 .topic{display:grid;gap:12px;min-width:0}
 .bench[style*="--out"]{grid-template-columns:250px minmax(0,1fr) var(--out)!important}
+#mBench{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}
+#mBench.wide-in{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
+#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}
+#mBench.solo{grid-template-columns:minmax(0,1fr)!important}
+#mBench.solo .bench-out{display:none}
 .splitter{position:absolute;left:0;top:0;bottom:0;width:7px;cursor:col-resize;z-index:3;border-radius:4px}
 .bench-out{padding-left:9px}
 .splitter:hover,.splitter:focus-visible,.splitter.drag{background:var(--accent-soft);outline:none}
@@ -292,7 +323,8 @@ body.splitting{cursor:col-resize;user-select:none}
 .cbox .ct .legend{flex-wrap:nowrap;overflow:hidden;min-width:0}
 h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:1200px){.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:230px minmax(0,1fr)!important}.bench-out{grid-column:2;position:static;max-height:none;overflow:visible;padding-left:0}.splitter{display:none}}
-@media (max-width:860px){.kpibar{position:static}.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}.bench-out{grid-column:auto}.bench-out .charts.c2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:1200px) and (min-width:861px){#mBench{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)!important}#mBench.wide-in{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)!important}#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}#mBench .bench-out{grid-column:auto;position:sticky;max-height:calc(100vh - var(--stick,8px) - 56px);overflow:auto;padding-left:9px}#mBench .splitter{display:block}}
+@media (max-width:860px){.mbar{order:5;flex-basis:100%}#mBench,#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}#mBench .splitter{display:none}.kpibar{position:static}.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}.bench-out{grid-column:auto}.bench-out .charts.c2{grid-template-columns:minmax(0,1fr)}}
 .topics{display:grid;gap:2px}
 .topics button{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border:0;background:none;color:var(--fg);font:500 .95rem var(--body);padding:6px 9px;border-radius:6px;cursor:pointer;text-align:left}
 .topics button small{font:.74rem var(--mono);color:var(--muted);white-space:nowrap}
@@ -386,8 +418,14 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
       <h1><svg class="logo" viewBox="-20 -20 378 385" aria-hidden="true"><path d="M0 0V345M338 0V345M55 0L169 165L283 0M65 345V130L169 280L273 130V345" fill="none" stroke="currentColor" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/></svg>MM Plane Analyzer</h1>
       <button type="button" class="iconbtn" data-info="info-app" aria-expanded="false" aria-controls="info-app" aria-label="Info zur App">i</button>
     </div>
-    <div class="proj">Projekt <b id="projName"></b></div>
+    <div class="proj" title="Projekt"><b id="projName"></b></div>
+    <div class="mbar" id="mBar" role="group" aria-label="Modelle">
+      <div class="mchips" id="modelList"></div>
+      <div class="mnew"><button type="button" class="mchip add" id="mNewMenu" aria-expanded="false" aria-haspopup="true">+ Neu ▾</button>
+        <div class="mmenu" id="mMenu" hidden><button type="button" id="mNew">Neues Modell</button><button type="button" id="mDup">Aktives duplizieren</button><button type="button" id="mXls">Aus Excel …</button></div></div>
+    </div>
     <div class="actions">
+      <button class="btn ghost" type="button" id="labBtn" aria-pressed="false" title="Profil-Labor öffnen: Profile vergleichen und ändern">Profile</button>
       <button class="btn ghost askbtn" type="button" id="askToggle" aria-pressed="false" title="Fragemodus: auf ein Feld, eine Tabellenzeile oder eine Grafik klicken und Claude fragen">? Fragen</button>
       <button class="btn ghost" type="button" id="openBtn">Projekt öffnen …</button>
       <button class="btn ghost" type="button" id="saveBtn">Speichern</button>
@@ -398,16 +436,21 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
     <input type="file" id="xlsFile" accept=".xls,.xlsx,.xlsm" hidden>
   </header>
   <div class="infopop" id="info-app" hidden>
-    <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Im Tab Modell gibst Du Flügel und Leitwerk ein und bekommst Neutralpunkt, Schwerpunkt, EWD und Auftriebsverteilung nach dem Wirbelgitterverfahren wie in XFLR5. Im Profil-Labor arbeitest Du an den Profilen: Im Profil-Labor änderst Du Dicke, Wölbung und Klappe und siehst die Polaren sofort; Zustände lassen sich merken, vergleichen und als Profil speichern. Dazu .dat-Import und Polarenreihen für mehrere Re und Klappenstellungen.</p>
+    <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Jeder Reiter ist ein Thema: links gibst Du Flügel, Leitwerk und die übrigen Daten ein, rechts stehen die Grafiken und Tabellen dazu. Die App rechnet Neutralpunkt, Schwerpunkt, EWD und Auftriebsverteilung nach dem Wirbelgitterverfahren wie in XFLR5. Mit „Profile“ oben öffnest Du das Profil-Labor: Dort änderst Du Dicke, Wölbung und Klappe und siehst die Polaren sofort; Zustände lassen sich merken, vergleichen und als Profil speichern. Dazu .dat-Import und Polarenreihen für mehrere Re und Klappenstellungen.</p>
     <p>Die Polaren rechnet NeuralFoil (Peter Sharpe, MIT): ein neuronales Netz, das auf Zehntausenden XFOIL-Rechnungen trainiert ist und dieselben Werte wie das Python-Original liefert. Es konvergiert immer und ist schnell genug für Live-Änderungen. Die Konfidenz zeigt, ob ein Profil weit weg von den Trainingsdaten liegt. XFOIL selbst kommt später über die Desktop-App dazu.</p>
     <p>Das Projekt wird im Browser zwischengespeichert. Mit „Speichern“ legst Du es als Datei ab. In den Einstellungen kannst Du einen Projektordner wählen, auch auf einem Netzlaufwerk; dann speichert die App direkt dort.</p>
   </div>
 
   <div class="tabbar">
-    <nav class="tabs" role="tablist" aria-label="Ansichten">
-      <button type="button" role="tab" class="tab" data-tab="labor" id="tab-labor" aria-controls="pane-labor">Profil-Labor</button>
-      <button type="button" role="tab" class="tab" data-tab="modell" id="tab-modell" aria-controls="pane-modell">Modell</button>
+    <nav class="tabs" id="mThemes" role="tablist" aria-label="Themen">
+      <button type="button" role="tab" class="tab" data-theme="plan" title="Taste 1">Grundriss <small id="mTpWing"></small></button>
+      <button type="button" role="tab" class="tab" data-theme="trim" title="Taste 2">Trimm &amp; Auftrieb <small id="mTpGrund"></small></button>
+      <button type="button" role="tab" class="tab" data-theme="polar" title="Taste 3">Polaren</button>
+      <button type="button" role="tab" class="tab" data-theme="flaps" title="Taste 4">Klappen <small id="mTpFlaps"></small></button>
+      <button type="button" role="tab" class="tab" data-theme="opt" title="Taste 5">Optimierer</button>
+      <button type="button" role="tab" class="tab" data-theme="check" title="Taste 6">Excel <small id="mTpCheck"></small></button>
     </nav>
+    <div class="labbar" id="labBar" hidden><h2>Profil-Labor</h2><button type="button" class="btn ghost sm" id="labBack">← zurück zum Modell</button></div>
   </div>
 
   <!-- Profil-Labor: Hauptscreen für Profile -->
@@ -486,19 +529,8 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
   <div class="pane" id="pane-modell" data-tab="modell" hidden>
     <div class="kpibar"><div class="kpis" id="mKpis"></div><button type="button" class="kmore" id="mKpiMore" aria-expanded="false">mehr</button></div>
     <div class="bench" id="mBench">
-      <div class="side">
-        <section class="pol-logs">
-          <div class="pol-lh"><h2>Modelle</h2><span class="pol-mini"><button type="button" id="mNew">Neu</button><button type="button" id="mDup">Duplizieren</button><button type="button" id="mXls">Excel …</button></span></div>
-          <ul class="pol-list" id="modelList"></ul>
-          <p class="hint">Name anklicken zum Öffnen. „Excel …“ übernimmt ein Modell aus Deinem Blatt „Masse, SP“ (.xls oder .xlsx). Alle Modelle liegen in der Projektdatei.</p>
-        </section>
-        <section class="pol-logs">
-          <div class="pol-lh"><h2>Eingaben</h2><span class="hint">Tasten 1–6</span></div>
-          <nav class="topics" id="mTopics" aria-label="Eingaben"><button type="button" data-topic="grund"><span>Grunddaten</span><small id="mTpGrund"></small></button><button type="button" data-topic="wing"><span>Flügel</span><small id="mTpWing"></small></button><button type="button" data-topic="tail"><span>Höhenleitwerk</span><small id="mTpTail"></small></button><button type="button" data-topic="flaps"><span>Wölbklappen</span><small id="mTpFlaps"></small></button><button type="button" data-topic="opt"><span>Strak-Optimierer</span><small id="mTpOpt"></small></button><button type="button" data-topic="check"><span>Excel-Gegenprobe</span><small id="mTpCheck"></small></button></nav>
-        </section>
-      </div>
       <div class="bench-in" id="mIn">
-<div class="topic" data-topic="grund">
+<div class="topic" data-topic="trim">
 <section class="pol-box">
           <div class="pol-head"><h2 class="hi">Auslegung <button type="button" class="iconbtn sm" data-info="info-mod" aria-expanded="false" aria-controls="info-mod" aria-label="So wird gerechnet">i</button></h2><span id="mStatus" class="status"></span></div>
           <div class="infopop" id="info-mod" hidden>
@@ -520,7 +552,10 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
             <label class="field"><span>Leitwerk Höhe</span><span class="row"><input class="num" id="mTz" type="number" step="5"><span class="u">mm</span></span></label>
           </div>
           <p class="hint" id="mTrimInfo"></p>
-        </section><section class="pol-box">
+        </section>
+</div>
+<div class="topic" data-topic="body">
+<section class="pol-box">
           <div class="pol-head"><h2 class="hi">Rumpf <button type="button" class="iconbtn sm" data-info="info-fus" aria-expanded="false" aria-controls="info-fus" aria-label="So wird der Rumpf gerechnet">i</button></h2><span id="fusInfo" class="status"></span></div>
           <div class="infopop" id="info-fus" hidden>
             <p>Der Rumpf ist eine feste Form, die Du nur über wenige Werte anpasst. Stabrumpf: schlanke Gondel und dünnes Leitwerksrohr. Moderner Segler: spitze Nase, grösster Querschnitt an den Schultern des Piloten weit vor dem Flügel, lange weiche Einschnürung bis hinter die Endleiste, schlanker Leitwerksträger. Oldtimer (etwa Moswey 3): kurze stumpfe Nase, Pilot unter der Nasenleiste, grösster Querschnitt unter dem Flügel, gerade auslaufender Holzrumpf, Seitenruder hinter dem Höhenleitwerk. Der Oldtimer rechnet mit turbulenter Grenzschicht und 20 % Zuschlag für Haube mit Stufe, Kufe und Flügelanschluss ohne Ausrundung; mit seiner dickeren Form hat er etwa den doppelten bis dreifachen Rumpfwiderstand eines modernen Seglers. Die Draufsicht zeigt die Breite des hochovalen Querschnitts; gerechnet wird mit einem Kreis gleicher Fläche und dem Durchmesser unten.</p>
@@ -563,6 +598,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <p class="hint" id="teInfo"></p>
         </section>
 </div>
+<div class="partseg" id="planPart" role="group" aria-label="Stationen"><span class="seg"><button type="button" data-v="wing">Flügel <small id="mTpWingA"></small></button><button type="button" data-v="tail">Höhenleitwerk <small id="mTpTail"></small></button></span></div>
 <div class="topic" data-topic="wing">
 <section class="pol-box">
           <div class="pol-head"><h2>Flügel</h2><span class="status" id="wingInfo"></span></div>
@@ -636,7 +672,6 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
       </div>
       <div class="bench-out" id="mOut">
 <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Breite der Ergebnisse" title="Ziehen ändert die Breite, Doppelklick stellt zurück" tabindex="0"></div>
-<div class="rtabs" id="mViews" role="tablist" aria-label="Ergebnisse"><button type="button" data-view="plan">Grundriss</button><button type="button" data-view="dist">Auftrieb</button><button type="button" data-view="polar">Polaren</button><button type="button" data-view="ops">Arbeitstabelle</button><button type="button" data-view="flaps">Klappen</button><button type="button" data-view="opt">Optimierer</button><button type="button" class="pinb" id="mPin" aria-pressed="false" aria-label="Ansicht festhalten" title="Ansicht festhalten: springt nicht mehr mit dem Thema mit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 1.5l4 4-2 1-2.5 2.5.5 3-1.5 1.5L6 10.5 2.5 14l-.5-.5L5.5 10 2.5 7 4 5.5l3 .5L9.5 3.5z" fill="currentColor"/></svg></button></div>
 <div class="rview" data-view="plan" hidden>
 <section class="pol-box rv-sec"><div class="cbox"><div class="ct">Grundriss <span><span class="legend" id="planLegend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="plan"><canvas id="planCv" aria-label="Grundriss mit Neutralpunkt und Schwerpunkt"></canvas></div></div></section>
 </div>
@@ -649,7 +684,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <div class="rview" data-view="polar" hidden>
 <section class="pol-box rv-sec">
           <div class="pol-head"><h2>Gesamtpolare</h2><span class="legend" id="gpLegend"></span></div>
-          <p class="hint" style="margin:0 0 8px">Ganzes Modell mit Rumpf, getrimmt mit Deinem Schwerpunkt. Weitere Modelle zum Vergleich hakst Du links in der Modellliste an.</p>
+          <p class="hint" style="margin:0 0 8px">Ganzes Modell mit Rumpf, getrimmt mit Deinem Schwerpunkt. Weitere Modelle zum Vergleich hakst Du oben in der Modellleiste an.</p>
           <div class="charts">
             <div class="cbox"><div class="ct">Geschwindigkeitspolare <span>Sinken über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpSink"></canvas></div></div>
             <div class="cbox"><div class="ct">Gleitzahl <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="gpE"></canvas></div></div>
@@ -674,7 +709,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
         </section>
 </div>
 <div class="rview" data-view="flaps" hidden>
-<section class="pol-box rv-sec"><div class="pol-head"><h2>Klappenschar</h2><span class="status">nach „Schar rechnen“ im Thema Wölbklappen</span></div>
+<section class="pol-box rv-sec"><div class="pol-head"><h2>Klappenschar</h2><span class="status">nach „Schar rechnen“ links</span></div>
 <div class="charts" id="flCharts" hidden>
             <div class="cbox"><div class="ct">Gleitzahl je Klappe <span>über Fluggeschwindigkeit <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flE"></canvas></div></div>
             <div class="cbox"><div class="ct">Sinken je Klappe <span>mit Hüllkurve <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="flSink"></canvas></div></div>
@@ -684,7 +719,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <h3 class="sub">Kreisflug in der Thermik</h3><p class="hint">Je Kreisradius die Klappe, das Ca und die Querneigung mit dem geringsten Sinken. Im Kreis trägt der Flügel das Lastvielfache n = 1/cos Querneigung, das Sinken steigt mit n hoch 1,5. Der Innenflügel fliegt langsamer und braucht an der Spitze mehr Ca, damit er gleich viel trägt wie der äussere (Querruder hält dagegen); er muss den eingestellten Abstand zum Abriss behalten. Das Höhenruder enthält die Nickdrehung im Kreis. Gerechnet aus der Klappenschar, Querruder und Seitenruder sind nicht eingerechnet.</p>
           <div class="flcircle-in"><label class="field"><span>Radien</span><span class="row"><input class="txt" id="flRadii" placeholder="10 15 20 25 30 40"><span class="u">m</span></span></label><label class="field"><span>Innenflügel Abstand zum Abriss</span><span class="row"><input class="num" id="flMargin" type="number" step="1" min="0" max="40"><span class="u">%</span></span></label></div>
           <div class="tablewrap"><table id="flCircle"></table></div></div>
-        <p class="hint" id="flResHint">Noch keine Schar gerechnet. Unter Wölbklappen die Ausschläge eintragen und „Schar rechnen“ drücken.</p></section>
+        <p class="hint" id="flResHint">Noch keine Schar gerechnet. Links die Ausschläge eintragen und „Schar rechnen“ drücken.</p></section>
 </div>
 <div class="rview" data-view="opt" hidden>
 <section class="pol-box rv-sec"><div class="pol-head"><h2>Optimierer</h2><span class="status">vorher und nachher</span></div>
@@ -700,7 +735,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
             </div>
             <div class="btnrow"><button type="button" class="btn" id="oApply">Ins Modell übernehmen</button><button type="button" class="btn ghost" id="oApplyNew">Als neues Modell übernehmen</button><button type="button" class="btn ghost" id="oDiscard">Verwerfen</button><span class="hint">Übernimmt Profile und Kennwerte aller Stationen und die Klappenwinkel der Flugzustände.</span></div>
           </div>
-        <p class="hint" id="oResHint">Noch kein Ergebnis. Unter Strak-Optimierer einstellen und „Optimieren“ drücken.</p></section>
+        <p class="hint" id="oResHint">Noch kein Ergebnis. Links einstellen und „Optimieren“ drücken.</p></section>
 </div>
       </div>
     </div>
@@ -803,7 +838,7 @@ try { const s = store.get('mmpa.projekt'); project = s ? PR.parse(s) : defaultPr
 let saveTimer = null;
 function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); autoSave(); }
 
-const ui = { varOff: new Set(), ptsKey: 'A', tab: store.get('mmpa.tab') === 'modell' ? 'modell' : 'labor' };
+const ui = { varOff: new Set(), ptsKey: 'A', tab: store.get('mmpa.tab') === 'labor' ? 'labor' : 'modell' };
 const profById = id => project.profiles.find(p => p.id === id);
 
 // ---------- Info ----------
@@ -1600,12 +1635,15 @@ function curModel() {
   return m;
 }
 function renderModelList() {
-  const cur = curModel();
-  $('modelList').innerHTML = project.models.map(m => `<li class="pol-log ${m === cur ? 'sel' : ''}" data-id="${m.id}">
-    <span class="sw" style="background:${m === cur ? 'var(--accent)' : 'var(--line)'};margin-top:6px"></span>
-    <button type="button" class="nm" data-act="open">${esc(m.name)}</button>
-    <button type="button" class="x" data-act="del" aria-label="${esc(m.name)} löschen" title="Löschen">×</button>
-    <span class="meta">${fmt(MD_span(m) / 1000, 2)} m · ${fmt(m.mass, 0)} g${m === cur ? '' : ` · <label class="cmp"><input type="checkbox" data-act="cmp" ${cmpIds().includes(m.id) ? 'checked' : ''}> vergleichen</label>`}</span></li>`).join('');
+  const cur = curModel(), cmp = cmpIds();
+  $('modelList').innerHTML = project.models.map(m => {
+    const on = m === cur, c = cmp.includes(m.id);
+    return `<div class="mchip ${on ? 'on' : ''} ${c ? 'cmp' : ''}" data-id="${m.id}" title="${esc(m.name)} · ${fmt(MD_span(m) / 1000, 2)} m · ${fmt(m.mass, 0)} g">
+    <button type="button" class="nm" data-act="open" ${on ? 'aria-current="true"' : ''}>${esc(m.name)}</button>${on
+      ? `<button type="button" class="x" data-act="del" aria-label="${esc(m.name)} löschen" title="Löschen">×</button>`
+      : `<label class="ck" title="In den Grafiken zum Vergleich zeigen"><input type="checkbox" data-act="cmp" ${c ? 'checked' : ''} aria-label="${esc(m.name)} vergleichen"></label>`}</div>`;
+  }).join('');
+  $('modelList').querySelector('.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 const cmpIds = () => (store.get('mmpa.cmp') || '').split(',').filter(Boolean);
 const MD_span = m => 2 * (m.wing.stations[m.wing.stations.length - 1].y - m.wing.stations[0].y);
@@ -1615,15 +1653,23 @@ $('modelList').onclick = e => {
   if (e.target.closest('[data-act="cmp"]')) {
     const ids = cmpIds().filter(i => i !== m.id && project.models.some(x => x.id === i));
     if (e.target.checked) ids.push(m.id);
-    store.set('mmpa.cmp', ids.join(',')); renderModelResults(); return;
+    store.set('mmpa.cmp', ids.join(',')); li.classList.toggle('cmp', e.target.checked); renderModelResults(); return;
   }
-  if (e.target.closest('.cmp')) return;
+  if (e.target.closest('.ck')) return;
   if (e.target.closest('[data-act="del"]')) {
     if (project.models.length === 1) { toast('Das letzte Modell bleibt stehen'); return; }
+    if (!confirm(`${m.name} löschen?`)) return;
     project.models = project.models.filter(x => x !== m); persist(); renderModel(); toast(`${m.name} gelöscht`); return;
   }
-  store.set('mmpa.model', m.id); renderModel();
+  store.set('mmpa.model', m.id);
+  if (ui.tab !== 'modell') showTab('modell'); else renderModel();
 };
+// „+ Neu ▾“: Neu, Duplizieren, Excel
+function setMenu(on) { $('mMenu').hidden = !on; $('mNewMenu').setAttribute('aria-expanded', on); }
+$('mNewMenu').onclick = e => { e.stopPropagation(); setMenu($('mMenu').hidden); };
+$('mMenu').addEventListener('click', e => { setMenu(false); if (ui.tab !== 'modell' && e.target.id !== 'mXls') showTab('modell'); });
+document.addEventListener('click', e => { if (!$('mMenu').hidden && !e.target.closest('.mnew')) setMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('mMenu').hidden) setMenu(false); });
 $('mNew').onclick = () => {
   const m = PR.createModel('Neues Modell', lab.A.profileId || project.profiles[0]?.id || null, curModel().tail.stations[0].profileId);
   project.models.push(m); store.set('mmpa.model', m.id); persist(); renderModel();
@@ -1775,7 +1821,7 @@ function stationTable(which) {
     const raw = s.profileId && profById(s.profileId) ? profStat(profById(s.profileId)) : null;
     const last = i === st.length - 1;
     const cells = cols.map(([k, , , step]) => {
-      if (k === 'profileId') return `<td><select class="sel" data-k="${k}" aria-label="Profil Station ${i + 1}">${profOpts(s.profileId)}</select></td>`;
+      if (k === 'profileId') return `<td class="pf"><select class="sel" data-k="${k}" aria-label="Profil Station ${i + 1}">${profOpts(s.profileId)}</select>${s.profileId && profById(s.profileId) ? `<button type="button" class="tolab" data-lab="${s.profileId}" title="Im Profil-Labor öffnen" aria-label="Profil Station ${i + 1} im Profil-Labor öffnen">↗</button>` : ''}</td>`;
       if (PCT_KEYS.includes(k)) {
         // Rücklagen wie profil.modify sie misst (Bezug für die Verschiebung)
         const ref = raw && k[0] === 'x' ? window.MMPA.strak.prepareBase(profById(s.profileId)).stats : raw;
@@ -1797,6 +1843,12 @@ function stationTable(which) {
 }
 for (const which of ['wing', 'tail']) {
   const tb = $(which + 'Table');
+  // ↗ neben dem Profil: Profil in Karte A laden und ins Labor wechseln
+  tb.addEventListener('click', e => {
+    const b = e.target.closest('[data-lab]'); if (!b) return;
+    const p = profById(b.dataset.lab); if (!p) return;
+    labLoad('A', p); showTab('labor');
+  });
   tb.addEventListener('change', e => {
     const tr = e.target.closest('tr[data-i]'), k = e.target.dataset.k; if (!tr || !k) return;
     const m = curModel(), st = m[which].stations, i = +tr.dataset.i, s = st[i];
@@ -2176,7 +2228,7 @@ function renderModelResults() {
     k('Streckung', fmt(r.wing.aspect, 1), '', `l<sub>μ</sub> ${fmt(r.wing.mac, 1)} mm`, true),
     k('Leitwerksvolumen', fmt(r.tailVolume, 2), '', `HLW ${fmt(r.tail.area / 1e4, 1)} dm²`, true),
   ].join('');
-  $('mTpGrund').textContent = `${fmt(m.mass, 0)} g`; $('mTpWing').textContent = `${fmt(r.wing.area / 1e4, 1)} dm²`; $('mTpTail').textContent = `${fmt(r.tail.area / 1e4, 1)} dm²`;
+  $('mTpGrund').textContent = `${fmt(m.mass, 0)} g`; $('mTpWing').textContent = $('mTpWingA').textContent = `${fmt(r.wing.area / 1e4, 1)} dm²`; $('mTpTail').textContent = `${fmt(r.tail.area / 1e4, 1)} dm²`;
   $('mTpFlaps').textContent = `${flapsOf(m).modes.length} Zustände`; $('mTpCheck').textContent = `ΔEWD ${signed(r.hand.ewd - t.ewd, 2)}°`;
   $('wingInfo').textContent = `Fläche ${fmt(r.wing.area / 1e4, 2)} dm² · Streckung ${fmt(r.wing.aspect, 1)} · l_μ ${fmt(r.wing.mac, 1)} mm bei y ${fmt(r.wing.yMac, 0)}`;
   $('tailInfo').textContent = `Fläche ${fmt(r.tail.area / 1e4, 2)} dm² · Streckung ${fmt(r.tail.aspect, 1)} · l_μ ${fmt(r.tail.mac, 1)} mm`;
@@ -2226,7 +2278,7 @@ function renderModelResults() {
     ], { x: { min: -half, max: half }, y: { min: 0 } });
   }
 }
-addEventListener('resize', () => { if (ui.tab === 'modell') drawPlan(curModel(), lastModel); });
+addEventListener('resize', () => { if (viewOn('plan')) drawPlan(curModel(), lastModel); });
 
 // ---------- Wölbklappen und Strak-Optimierer (P3) ----------
 // Flugzustände je Modell (m.flaps.modes): Ca, Klappenwinkel, Gewicht für den Optimierer. Schnelle Bewertung
@@ -2577,13 +2629,16 @@ $('oApplyNew').onclick = () => applyOpt(true);
 $('oDiscard').onclick = () => { optRes = null; renderOptResult(); $('oHint').textContent = ''; };
 
 // ---------- Tabs ----------
+// Zwei Ansichten: Modell (Reiter nach Themen) und Profil-Labor (Knopf „Profile“, zurück mit „← zurück“)
 function showTab(id) {
   ui.tab = id; store.set('mmpa.tab', id);
-  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === id));
   document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== id);
-  if (id === 'modell') renderModel(); else renderLab();
+  $('mThemes').hidden = id !== 'modell'; $('labBar').hidden = id !== 'labor';
+  $('labBtn').setAttribute('aria-pressed', id === 'labor');
+  if (id === 'modell') { showTheme(ui.theme); renderModel(); } else renderLab();
 }
-document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+$('labBtn').onclick = () => showTab(ui.tab === 'labor' ? 'modell' : 'labor');
+$('labBack').onclick = () => showTab('modell');
 
 // ---------- Diagramme ----------
 function chart(id, xLabel, yLabel, datasets, lim = {}) {
@@ -2604,7 +2659,7 @@ function chart(id, xLabel, yLabel, datasets, lim = {}) {
 }
 // Grafik gross: liegt über allem, Esc oder Klick daneben schliesst. Chart.js passt sich selbst an, Grundriss und Konturen werden neu gezeichnet.
 function redrawCanvases() {
-  if (ui.tab === 'modell') { drawPlan(curModel(), lastModel); if (ui.view === 'opt') renderOptResult(); } else scheduleLab();
+  if (ui.tab === 'modell') { if (viewOn('plan')) drawPlan(curModel(), lastModel); if (viewOn('opt')) renderOptResult(); } else scheduleLab();
 }
 // Das vergrösserte Feld wird direkt an den body gehängt: In Safari (iPad) schneidet ein scrollender oder
 // klebender Vorfahre (.bench-out) ein position:fixed-Kind sonst ab. Ein Platzhalter hält die Lücke.
@@ -2671,41 +2726,45 @@ document.querySelectorAll('.cbox .zoom, .tbox .tzoom').forEach(b => b.addEventLi
 document.addEventListener('click', e => { const z = document.querySelector('.zoomed'); if (z && !z.contains(e.target) && !e.target.closest?.('dialog, .askpop, #askToggle')) { e.stopPropagation(); e.preventDefault(); setZoom(null); } }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.zoomed') && !document.querySelector('dialog[open]')) setZoom(null); });
 
-// ---------- Werkbank: Themen links, Ergebnisse rechts ----------
-const TOPIC_VIEW = { grund: 'polar', wing: 'plan', tail: 'plan', flaps: 'flaps', opt: 'opt', check: 'ops' };
-const TOPICS = Object.keys(TOPIC_VIEW);
+// ---------- Reiter nach Themen: links die Eingaben, rechts die Grafiken und Tabellen dazu ----------
+const THEMES = {
+  plan: { topics: ['wing', 'tail'], views: ['plan'] },
+  trim: { topics: ['trim'], views: ['dist', 'ops'] },
+  polar: { topics: ['body'], views: ['polar'] },
+  flaps: { topics: ['flaps'], views: ['flaps'] },
+  opt: { topics: ['opt'], views: ['opt'] },
+  check: { topics: ['check'], views: [] },
+};
+const THEME_KEYS = Object.keys(THEMES);
+const OLD_TOPIC = { grund: 'trim', wing: 'plan', tail: 'plan' };
 Object.assign(ui, {
-  topic: TOPICS.includes(store.get('mmpa.topic')) ? store.get('mmpa.topic') : 'grund',
-  view: store.get('mmpa.view') || 'polar', pin: store.get('mmpa.pin') === '1',
+  theme: (t => THEMES[t] ? t : OLD_TOPIC[store.get('mmpa.topic')] || 'plan')(store.get('mmpa.theme')),
+  part: store.get('mmpa.part') === 'tail' ? 'tail' : 'wing',
   lview: store.get('mmpa.lview') || 'cmp',
 });
-function showView(v) {
-  if (!document.querySelector(`.rview[data-view="${v}"]`)) v = 'polar';
-  ui.view = v; store.set('mmpa.view', v);
-  document.querySelectorAll('#mViews [data-view]').forEach(b => b.setAttribute('aria-selected', b.dataset.view === v));
-  document.querySelectorAll('.rview').forEach(x => x.hidden = x.dataset.view !== v);
+const viewOn = v => ui.tab === 'modell' && THEMES[ui.theme].views.includes(v);
+function showTheme(k) {
+  if (!THEMES[k]) k = 'plan';
+  const T = THEMES[k];
+  ui.theme = k; ui.view = T.views[0] || ''; store.set('mmpa.theme', k);
+  document.querySelectorAll('#mThemes [data-theme]').forEach(b => b.setAttribute('aria-selected', b.dataset.theme === k));
+  document.querySelectorAll('#mIn .topic').forEach(x => x.hidden = !T.topics.includes(x.dataset.topic) || (k === 'plan' && x.dataset.topic !== ui.part));
+  $('planPart').hidden = k !== 'plan';
+  document.querySelectorAll('#planPart [data-v]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === ui.part));
+  document.querySelectorAll('.rview').forEach(x => x.hidden = !T.views.includes(x.dataset.view));
+  $('mBench').classList.toggle('solo', !T.views.length); $('mBench').classList.toggle('wide-in', k === 'plan');
   $('mOut').scrollTop = 0;
-  if (ui.tab === 'modell' && lastModel) { if (v === 'plan') drawPlan(curModel(), lastModel); if (v === 'opt') renderOptResult(); }
+  if (ui.tab === 'modell' && lastModel) { if (viewOn('plan')) drawPlan(curModel(), lastModel); if (viewOn('opt')) renderOptResult(); }
 }
-function showTopic(k) {
-  ui.topic = k; store.set('mmpa.topic', k);
-  document.querySelectorAll('#mTopics [data-topic]').forEach(b => b.setAttribute('aria-current', b.dataset.topic === k));
-  document.querySelectorAll('.topic').forEach(x => x.hidden = x.dataset.topic !== k);
-  if (!ui.pin) showView(TOPIC_VIEW[k]);
-}
-function setPin(on) { ui.pin = on; store.set('mmpa.pin', on ? '1' : '0'); $('mPin').setAttribute('aria-pressed', on); }
-$('mTopics').addEventListener('click', e => { const b = e.target.closest('[data-topic]'); if (b) showTopic(b.dataset.topic); });
-// Eine andere Ansicht als die zum Thema passende wird festgehalten, bis „Festhalten“ wieder gelöst wird
-$('mViews').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  if (b === $('mPin')) { setPin(!ui.pin); if (!ui.pin) showView(TOPIC_VIEW[ui.topic]); return; }
-  showView(b.dataset.view);
-  if (b.dataset.view !== TOPIC_VIEW[ui.topic]) setPin(true);
+$('mThemes').addEventListener('click', e => { const b = e.target.closest('[data-theme]'); if (b) showTheme(b.dataset.theme); });
+$('planPart').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]'); if (!b) return;
+  ui.part = b.dataset.v; store.set('mmpa.part', ui.part); showTheme('plan');
 });
 document.addEventListener('keydown', e => {
   if (ui.tab !== 'modell' || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.zoomed') || document.querySelector('dialog[open]')) return;
   if (e.target.closest && e.target.closest('input,select,textarea,[contenteditable]')) return;
-  const n = +e.key; if (n >= 1 && n <= TOPICS.length) { showTopic(TOPICS[n - 1]); e.preventDefault(); }
+  const n = +e.key; if (n >= 1 && n <= THEME_KEYS.length) { showTheme(THEME_KEYS[n - 1]); e.preventDefault(); }
 });
 const kpiBar = document.querySelector('.kpibar');
 function setKpiAll(on) { kpiBar.classList.toggle('all', on); $('mKpiMore').setAttribute('aria-expanded', on); $('mKpiMore').textContent = on ? 'weniger' : 'mehr'; store.set('mmpa.kpiAll', on ? '1' : '0'); }
@@ -2726,7 +2785,7 @@ document.querySelectorAll('.splitter').forEach(sp => {
   const bench = sp.closest('.bench'), key = 'mmpa.split.' + sp.closest('.pane').dataset.tab;
   const apply = w => {
     if (!w) { bench.style.removeProperty('--out'); store.set(key, ''); }
-    else { const tot = bench.clientWidth - 250 - 28; w = Math.round(Math.max(300, Math.min(tot - 360, w))); bench.style.setProperty('--out', w + 'px'); store.set(key, w); }
+    else { const side = bench.querySelector('.side')?.offsetWidth || 0, tot = bench.clientWidth - side - (side ? 28 : 14); w = Math.round(Math.max(300, Math.min(tot - 360, w))); bench.style.setProperty('--out', w + 'px'); store.set(key, w); }
     requestAnimationFrame(redrawCanvases);
   };
   const saved = +store.get(key); if (saved) bench.style.setProperty('--out', saved + 'px');
@@ -2743,7 +2802,7 @@ document.querySelectorAll('.splitter').forEach(sp => {
     e.preventDefault(); apply(sp.parentElement.offsetWidth + (e.key === 'ArrowLeft' ? 40 : -40));
   });
 });
-setPin(ui.pin); showTopic(ui.topic); if (ui.pin) showView(ui.view); showLView(ui.lview);
+showTheme(ui.theme); showLView(ui.lview);
 
 
 // ---------- Start ----------
