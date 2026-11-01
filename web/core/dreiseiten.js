@@ -77,6 +77,22 @@
     return a.map((_, i) => { const w = a.slice(Math.max(0, i - k), i + k + 1).sort((p, q) => p - q); return w[w.length >> 1]; });
   }
 
+  // Grösste eingipflige Kurve unter den Messwerten: vor dem Gipfel steigt sie, danach fällt sie. Ein Rumpf hat
+  // so eine Kontur; was darüber hinaussteht (Motormast, Seitenleitwerk, Rad, Kufe), wird abgeschnitten. Der Gipfel
+  // ist der, bei dem am meisten Fläche erhalten bleibt (die Haube gewinnt gegen einen schmalen Mast).
+  function unimodal(a) {
+    const n = a.length; let best = null, bestA = -Infinity;
+    for (let p = 0; p < n; p++) {
+      const g = new Array(n); let m = a[p], A = 0;
+      g[p] = m; for (let i = p - 1; i >= 0; i--) { m = Math.min(m, a[i]); g[i] = m; }
+      m = a[p]; for (let i = p + 1; i < n; i++) { m = Math.min(m, a[i]); g[i] = m; }
+      for (const v of g) A += v;
+      if (A > bestA) { bestA = A; best = g; }
+    }
+    return best || a.slice();
+  }
+  const mean = (a, k) => a.map((_, i) => { const w = a.slice(Math.max(0, i - k), i + k + 1); return w.reduce((p, q) => p + q, 0) / w.length; });
+
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], dot = (a, b) => a[0] * b[0] + a[1] * b[1];
   const unit = a => { const l = Math.hypot(a[0], a[1]) || 1; return [a[0] / l, a[1] / l]; };
 
@@ -98,7 +114,7 @@
     const hi = Math.round(Math.max(P.maxHalf || 0.08 * L, 4) * 1.4), jump = Math.max(3, 1.5 * step);
     const R = fill(track(M, { o: P.nose, u: F.u, v: F.right, n, step, hi, jump }));
     const Lf = fill(track(M, { o: P.nose, u: F.u, v: F.left, n, step, hi, jump }));
-    const half = median(R.map((r, i) => (r + Lf[i]) / 2), 3);
+    const half = mean(unimodal(median(R.map((r, i) => (r + Lf[i]) / 2), 3)), 2);
     const x0 = F.along(P.rootLE);
     let height = null;
     if (P.side && P.side.nose && P.side.tail) {
@@ -112,8 +128,7 @@
       const k55 = Math.round(0.55 * n2), cap = T[k55] * 1.3;
       const Tc = T.map((t, i) => i > k55 ? Math.min(t, cap) : t);
       // gleitendes Mittel nach dem Median: die Rumpflinie hat keine Knicke (verdeckte Stellen hinter dem Mast)
-      const mean = (a, k) => a.map((_, i) => { const w = a.slice(Math.max(0, i - k), i + k + 1); return w.reduce((p, q) => p + q, 0) / w.length; });
-      const Tm = mean(median(Tc, 3), 4), Bm = mean(median(B, 3), 4);
+      const Tm = mean(unimodal(median(Tc, 3)), 4), Bm = mean(unimodal(median(B, 3)), 4);
       height = a => { const i = Math.min(Tm.length - 1, Math.max(0, Math.round(a / step))); return [Tm[i], Bm[i]]; };
     }
     const rows = [];
@@ -214,7 +229,7 @@
     return { top, side, s };
   }
 
-  const api = { grayOf, maskOf, track, fill, median, frame, scaleOf, fuselage, wing, applyWing, VISION_PROMPT, visionBody, parsePoints, toImage };
+  const api = { grayOf, maskOf, track, fill, median, unimodal, frame, scaleOf, fuselage, wing, applyWing, VISION_PROMPT, visionBody, parsePoints, toImage };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).dreiseiten = api;
 })(typeof self !== 'undefined' ? self : this);

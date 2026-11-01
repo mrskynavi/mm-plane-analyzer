@@ -64,3 +64,12 @@ test('Rumpf als Kontur: Ellipsenquerschnitt, benetzte Fläche und Widerstand wie
   assert.ok(cd('oldtimer') > 1.3 * cd('modern'));
   m.fuselage = { type: 'kontur' }; assert.strictEqual(F.of(m).type, 'modern');
 });
+
+test('3-Seitenansicht: Mast, Rad und Leitwerk über der Rumpflinie werden abgeschnitten, die Haube bleibt', () => {
+  const body = Array.from({ length: 100 }, (_, i) => 20 * Math.sin(Math.PI * i / 99) ** 0.6);
+  const raw = body.map((v, i) => v + (i >= 45 && i <= 50 ? 15 : 0) + (i >= 92 ? 30 : 0)); // Mast und Seitenleitwerk
+  const g = TS.unimodal(raw);
+  for (let i = 0; i < 100; i++) assert.ok(g[i] <= raw[i] + 1e-9);
+  assert.ok(Math.max(...g.slice(44, 52)) < 21 && Math.max(...g.slice(90)) < 8, g.slice(40, 55).join(' '));
+  const top = g.indexOf(Math.max(...g)); assert.ok(top > 30 && top < 70, top);
+});
