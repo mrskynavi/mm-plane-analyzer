@@ -66,10 +66,11 @@ test('Rumpf als Kontur: Ellipsenquerschnitt, benetzte Fläche und Widerstand wie
 });
 
 test('3-Seitenansicht: Mast, Rad und Leitwerk über der Rumpflinie werden abgeschnitten, die Haube bleibt', () => {
-  const body = Array.from({ length: 100 }, (_, i) => 20 * Math.sin(Math.PI * i / 99) ** 0.6);
-  const raw = body.map((v, i) => v + (i >= 45 && i <= 50 ? 15 : 0) + (i >= 92 ? 30 : 0)); // Mast und Seitenleitwerk
+  const body = Array.from({ length: 100 }, (_, i) => 20 * Math.max(0, Math.sin(Math.PI * Math.min(1, i / 99) ** 0.7)) ** 0.6); // Gipfel vorne (Haube)
+  const raw = body.map((v, i) => v + (i >= 55 && i <= 60 ? 15 : 0) + (i >= 92 ? 30 : 0)); // Mast und Seitenleitwerk
   const g = TS.unimodal(raw);
   for (let i = 0; i < 100; i++) assert.ok(g[i] <= raw[i] + 1e-9);
-  assert.ok(Math.max(...g.slice(44, 52)) < 21 && Math.max(...g.slice(90)) < 8, g.slice(40, 55).join(' '));
-  const top = g.indexOf(Math.max(...g)); assert.ok(top > 30 && top < 70, top);
+  for (let i = 54; i <= 61; i++) assert.ok(g[i] <= body[54] + 1e-9, i); // über den Mast hinweg höchstens flach
+  for (let i = 91; i < 100; i++) assert.ok(g[i] <= body[91] + 1e-9, i);
+  const top = g.indexOf(Math.max(...g)); assert.ok(top > 20 && top < 50, top);
 });

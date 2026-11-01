@@ -77,19 +77,20 @@
     return a.map((_, i) => { const w = a.slice(Math.max(0, i - k), i + k + 1).sort((p, q) => p - q); return w[w.length >> 1]; });
   }
 
-  // Grösste eingipflige Kurve unter den Messwerten: vor dem Gipfel steigt sie, danach fällt sie. Ein Rumpf hat
-  // so eine Kontur; was darüber hinaussteht (Motormast, Seitenleitwerk, Rad, Kufe), wird abgeschnitten. Der Gipfel
-  // ist der, bei dem am meisten Fläche erhalten bleibt (die Haube gewinnt gegen einen schmalen Mast).
+  // Eingipflige Kurve unter den Messwerten: vor dem Gipfel steigt sie, danach fällt sie. Ein Rumpf hat so eine
+  // Kontur; was darüber hinaussteht (Motormast, Seitenleitwerk, Rad, Kufe), wird abgeschnitten. Den Gipfel sucht ein
+  // breiter Median (16 % der Länge), in dem schmale Anbauten verschwinden und nur die Haube bzw. Rumpfmitte bleibt.
   function unimodal(a) {
-    const n = a.length; let best = null, bestA = -Infinity;
-    for (let p = 0; p < n; p++) {
-      const g = new Array(n); let m = a[p], A = 0;
-      g[p] = m; for (let i = p - 1; i >= 0; i--) { m = Math.min(m, a[i]); g[i] = m; }
-      m = a[p]; for (let i = p + 1; i < n; i++) { m = Math.min(m, a[i]); g[i] = m; }
-      for (const v of g) A += v;
-      if (A > bestA) { bestA = A; best = g; }
-    }
-    return best || a.slice();
+    const n = a.length; if (!n) return [];
+    // Median mit voller Fensterbreite, ausserhalb der Kontur 0: so zählt ein Seitenleitwerk am Ende nicht als Gipfel
+    const k = Math.max(2, Math.round(0.08 * n)), at = i => i < 0 || i >= n ? 0 : a[i];
+    const wide = a.map((_, i) => { const w = []; for (let j = i - k; j <= i + k; j++) w.push(at(j)); return w.sort((x, y) => x - y)[k]; });
+    let p = 0; for (let i = 1; i < n; i++) if (wide[i] > wide[p]) p = i;
+    // Gipfelwert: nicht höher als der breite Median dort (ein Anbau genau am Gipfel zählt nicht)
+    const g = new Array(n); let m = Math.min(a[p], wide[p]);
+    g[p] = m; for (let i = p - 1; i >= 0; i--) { m = Math.min(m, a[i]); g[i] = m; }
+    m = g[p]; for (let i = p + 1; i < n; i++) { m = Math.min(m, a[i]); g[i] = m; }
+    return g;
   }
   const mean = (a, k) => a.map((_, i) => { const w = a.slice(Math.max(0, i - k), i + k + 1); return w.reduce((p, q) => p + q, 0) / w.length; });
 
