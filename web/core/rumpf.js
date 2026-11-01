@@ -18,7 +18,10 @@
     stab: { name: 'Stabrumpf', d: 0.2, nose: 1.8, boom: 0.4, laminar: true, extra: 1.0, width: 1 },
     modern: { name: 'Moderner Segler', d: 0.55, nose: 1.8, cone: 0.4, boom: 0.2, laminar: true, extra: 1.0, width: 0.87 },
     oldtimer: { name: 'Oldtimer', d: 0.62, nose: 1.4, boom: 0.28, laminar: false, extra: 1.2, width: 0.78 },
+    // Kontur aus der 3-Seitenansicht: Tabelle { x, w, h } (Breite, Höhe in mm), Oberfläche wie modern oder Oldtimer
+    kontur: { name: 'Kontur aus 3-Seitenansicht', d: 0.55, nose: 1.8, boom: 0.2, laminar: true, extra: 1.0, width: 1 },
   };
+  const hasTable = f => Array.isArray(f.table) && f.table.length >= 3;
   // frühere Formen: Keule klein war der moderne Segler, Keule gross der ältere Segler
   const LEGACY = { 'keule-klein': 'modern', 'keule-gross': 'oldtimer' };
   const typeOf = t => TYPES[t] ? t : LEGACY[t] || 'modern';
@@ -29,12 +32,33 @@
   };
   const of = model => {
     const f = { ...defaults(model), ...(model.fuselage || {}) };
-    return { ...f, type: typeOf(f.type) };
+    const type = typeOf(f.type) === 'kontur' && !hasTable(f) ? 'modern' : typeOf(f.type);
+    return type === 'kontur' ? { ...f, type, nose: -f.table[0].x } : { ...f, type };
   };
 
   // Kontur: Punkte { x, r } von der Nase bis zum Ende am Seitenleitwerk
+  // Umfang einer Ellipse mit den Halbachsen a, b (Ramanujan)
+  const perimeter = (a, b) => Math.PI * (3 * (a + b) - Math.sqrt(Math.max(0, (3 * a + b) * (a + 3 * b))));
+
+  // Kontur aus der Tabelle: Querschnitt elliptisch mit Breite w und Höhe h; gerechnet wird mit dem Kreis gleicher
+  // Fläche (r), die benetzte Fläche mit dem Umfang der Ellipse
+  function tableShape(f) {
+    const fin = TYPES[f.finish === 'oldtimer' ? 'oldtimer' : 'modern'];
+    const T = f.table.map(q => ({ x: +q.x, w: Math.max(0, +q.w || 0), h: Math.max(0, +q.h || 0) })).filter(q => Number.isFinite(q.x)).sort((a, b) => a.x - b.x);
+    const pts = T.map(q => ({ x: q.x, r: Math.sqrt(q.w * q.h) / 2, w: q.w / 2, h: q.h / 2 }));
+    let swet = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], ds = Math.hypot(b.x - a.x, b.r - a.r);
+      swet += (perimeter(a.w, a.h) + perimeter(b.w, b.h)) / 2 * ds;
+    }
+    const D = Math.max(...pts.map(p => 2 * p.r)), x0 = pts[0].x, x3 = pts[pts.length - 1].x;
+    return { ...f, typeName: TYPES.kontur.name + (f.finish === 'oldtimer' ? ', Oldtimer' : ''), D, Rb: pts[pts.length - 1].r, x0, x3, length: x3 - x0, pts, swet, sPod: swet, sBoom: 0, podLength: x3 - x0, laminar: fin.laminar, extra: fin.extra, width: 1 };
+  }
+
   function shape(model) {
-    const f = of(model), t = TYPES[f.type];
+    const f = of(model);
+    if (f.type === 'kontur') return tableShape(f);
+    const t = TYPES[f.type];
     const c = model.wing.stations[0].chord;
     const D = f.diameter || Math.round(t.d * c), R = D / 2, Rb = R * t.boom;
     const x0 = -f.nose, tc = model.tail.stations[0] ? model.tail.stations[0].chord : 0.6 * c;
@@ -170,7 +194,7 @@
     return { cdi: i, cdf: fu, cdw: w, cdt: t, cdv: v, cdx, cd: i + w + t + fu + v + cdx, base: cdi + cdw + cdt + cdf + cdv };
   }
 
-  const api = { TYPES, LEGACY, typeOf, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras, lowReDrag };
+  const api = { TYPES, LEGACY, typeOf, perimeter, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras, lowReDrag };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).rumpf = api;
 })(typeof self !== 'undefined' ? self : this);

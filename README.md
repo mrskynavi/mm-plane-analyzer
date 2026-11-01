@@ -17,7 +17,7 @@ Modell (P1):
 
 Rumpf und Gesamtpolare (P2):
 
-- Rumpf als feste Form (Stabrumpf, moderner Segler oder Oldtimer wie Moswey 3) mit Länge vor dem Flügel, Durchmesser und Seitenleitwerksfläche (`web/core/rumpf.js`)
+- Rumpf als feste Form (Stabrumpf, moderner Segler oder Oldtimer wie Moswey 3) oder als Kontur aus einer 3-Seitenansicht (`web/core/dreiseiten.js`) mit Länge vor dem Flügel, Durchmesser und Seitenleitwerksfläche (`web/core/rumpf.js`)
 - Rumpfwiderstand aus benetzter Fläche, Plattenreibung und Formfaktor nach Hoerner; Seitenleitwerk mit dem Leitwerksprofil
 - Rumpfmoment nach Multhopp mit dem Auf- und Abwind aus dem Wirbelgitter: verschiebt Neutralpunkt, Trimm und EWD
 - Gesamtpolare mit induziertem Widerstand aus der Trefftz-Ebene: Geschwindigkeitspolare, Gleitzahl über V, Widerstandsanteile, Ca über Cw; weitere Modelle zum Vergleich
