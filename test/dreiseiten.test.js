@@ -74,3 +74,16 @@ test('3-Seitenansicht: Mast, Rad und Leitwerk über der Rumpflinie werden abgesc
   for (let i = 91; i < 100; i++) assert.ok(g[i] <= body[91] + 1e-9, i);
   const top = g.indexOf(Math.max(...g)); assert.ok(top > 20 && top < 50, top);
 });
+
+test('3-Seitenansicht: Flügelwurzel in der Seitenansicht gibt keinen Buckel auf dem Rumpf', () => {
+  const base = drawing(), M0 = TS.maskOf(base);
+  // Flügel von der Seite: Strich schräg nach oben über der Wurzel (Nasenleiste bei x 550, Endleiste 590)
+  const W = base.width, g = base.gray.slice();
+  const dot = (x, y) => { for (let a = -1; a <= 0; a++) for (let b = -1; b <= 0; b++) g[(Math.round(y) + b) * W + Math.round(x) + a] = 30; };
+  const hz = x => Math.sin(Math.PI * Math.min(1, (x - 450) / 300)) ** 0.7;
+  for (let x = 545; x <= 600; x += 0.5) { const t = (x - 545) / 55; dot(x, 300 - 24 * hz(x) - 18 * Math.sin(Math.PI * t)); }
+  const M1 = TS.maskOf({ width: W, height: base.height, gray: g });
+  const span = 3600, a = TS.fuselage(M0, P, span, 30), b = TS.fuselage(M1, P, span, 30);
+  const at = (rows, x) => rows.reduce((p, r) => Math.abs(r.x - x) < Math.abs(p.x - x) ? r : p);
+  for (const x of [0, 200, 400]) assert.ok(Math.abs(at(b, x).zt - at(a, x).zt) < 25, [x, at(a, x).zt, at(b, x).zt]);
+});

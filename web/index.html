@@ -413,7 +413,10 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 #mBench.stack,#mBench.stack[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}
 #mBench.stack .bench-out{order:-1;grid-column:auto;position:static;max-height:none;overflow:visible;padding-left:0}
 #mBench.stack .splitter{display:none!important}
-#planPart{order:-1}
+#planPart{order:-1;align-items:center;gap:12px;flex-wrap:wrap}
+#tsvSpan{width:10ch}
+.field:has(> #fType){grid-column:span 2}
+#fType button{white-space:nowrap}
 </style>
 
 <div class="wrap">
@@ -564,13 +567,12 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <div class="infopop" id="info-fus" hidden>
             <p>Der Rumpf ist eine feste Form, die Du nur über wenige Werte anpasst. Stabrumpf: schlanke Gondel und dünnes Leitwerksrohr. Moderner Segler: spitze Nase, grösster Querschnitt an den Schultern des Piloten weit vor dem Flügel, lange weiche Einschnürung bis hinter die Endleiste, schlanker Leitwerksträger. Oldtimer (etwa Moswey 3): kurze stumpfe Nase, Pilot unter der Nasenleiste, grösster Querschnitt unter dem Flügel, gerade auslaufender Holzrumpf, Seitenruder hinter dem Höhenleitwerk. Der Oldtimer rechnet mit turbulenter Grenzschicht und 20 % Zuschlag für Haube mit Stufe, Kufe und Flügelanschluss ohne Ausrundung; mit seiner dickeren Form hat er etwa den doppelten bis dreifachen Rumpfwiderstand eines modernen Seglers. Die Draufsicht zeigt die Breite des hochovalen Querschnitts; gerechnet wird mit einem Kreis gleicher Fläche und dem Durchmesser unten.</p>
             <p>Widerstand: Plattenreibung über die benetzte Fläche mal Formfaktor nach Hoerner, bei der Re der Rumpflänge. Seitenleitwerk mit dem Leitwerksprofil bei Ca 0. Moment: nach Multhopp mit dem Auf- und Abwind aus dem Wirbelgitter; der Rumpf vor dem Flügel verschiebt den Neutralpunkt nach vorn.</p>
-            <p>Kontur: mit „Bild laden …“ liest die App Breite (Draufsicht) und Höhe (Seitenansicht) aus einer 3-Seitenansicht. Der Querschnitt ist dann eine Ellipse; die benetzte Fläche kommt aus ihrem Umfang, Widerstand und Moment aus dem Kreis gleicher Fläche. Unter Oberfläche wählst Du glatt (modern) oder Oldtimer.</p>
+            <p>Kontur: mit „3-Seitenansicht laden …“ oben neben Flügel | Höhenleitwerk | Rumpf liest die App Breite (Draufsicht) und Höhe (Seitenansicht) aus einer 3-Seitenansicht. Der Querschnitt ist dann eine Ellipse; die benetzte Fläche kommt aus ihrem Umfang, Widerstand und Moment aus dem Kreis gleicher Fläche. Unter Oberfläche wählst Du glatt (modern) oder Oldtimer. Hinter dem Flügel wird die Kontur so gestreckt, dass sie an der Endleiste des Höhenleitwerks endet, weil der Massstab der Zeichnung den Leitwerkshebel selten genau trifft.</p>
             <p>Grau eingetragene Werte sind automatisch. Durchmesser und Seitenleitwerk leer lassen heisst: aus der Form und der Wurzeltiefe bzw. 60 % der HLW-Fläche (bei V-Leitwerk keins).</p>
           </div>
           <div class="form">
             <div class="field"><span>Form</span><span class="seg" id="fType"><button type="button" data-v="stab">Stab</button><button type="button" data-v="modern" title="Moderner Segler: spitze Nase, laminar, schlanker Leitwerksträger">Moderner Segler</button><button type="button" data-v="oldtimer" title="Oldtimer wie Moswey 3: stumpfe Nase, Pilot unter dem Flügel, turbulent, mehr Widerstand">Oldtimer</button><button type="button" data-v="kontur" id="fTypeK" title="Kontur aus der 3-Seitenansicht" hidden>Kontur</button></span></div>
             <div class="field" id="fFinishF" hidden><span>Oberfläche</span><span class="seg" id="fFinish"><button type="button" data-v="modern" title="laminar, glatt">modern</button><button type="button" data-v="oldtimer" title="turbulent, Haube mit Stufe, Kufe: 20 % Zuschlag">Oldtimer</button></span></div>
-            <div class="field"><span>3-Seitenansicht</span><span class="row"><button type="button" class="btn ghost sm" id="tsvOpen" title="Rumpf und Flügel aus einer 3-Seitenansicht lesen">Bild laden …</button></span></div>
             <label class="field"><span>Länge vor dem Flügel</span><span class="row"><input class="num" id="fNose" type="number" step="10" min="0"><span class="u">mm</span></span></label>
             <label class="field"><span>Grösster Durchmesser</span><span class="row"><input class="num" id="fD" type="number" step="2" min="5"><span class="u">mm</span></span></label>
             <label class="field"><span>Seitenleitwerk</span><span class="row"><input class="num" id="fFin" type="number" step="0.1" min="0"><span class="u">dm²</span></span></label>
@@ -605,7 +607,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <p class="hint" id="teInfo"></p>
         </section>
 </div>
-<div class="partseg" id="planPart" role="group" aria-label="Stationen"><span class="seg"><button type="button" data-v="wing">Flügel <small id="mTpWingA"></small></button><button type="button" data-v="tail">Höhenleitwerk <small id="mTpTail"></small></button><button type="button" data-v="fuse">Rumpf</button></span></div>
+<div class="partseg" id="planPart" role="group" aria-label="Stationen"><span class="seg"><button type="button" data-v="wing">Flügel <small id="mTpWingA"></small></button><button type="button" data-v="tail">Höhenleitwerk <small id="mTpTail"></small></button><button type="button" data-v="fuse">Rumpf</button></span><button type="button" class="btn ghost sm" id="tsvOpen" title="Rumpf und Flügel aus einer 3-Seitenansicht lesen">3-Seitenansicht laden …</button></div>
 <div class="topic" data-topic="wing">
 <section class="pol-box">
           <div class="pol-head"><h2>Flügel</h2><span class="status" id="wingInfo"></span></div>
@@ -2241,7 +2243,7 @@ function renderModelResults() {
   $('tailInfo').textContent = `Fläche ${fmt(r.tail.area / 1e4, 2)} dm² · Streckung ${fmt(r.tail.aspect, 1)} · l_μ ${fmt(r.tail.mac, 1)} mm`;
   renderOps(m, r);
   $('mTrimInfo').innerHTML = trimText(r);
-  $('fusInfo').textContent = `${r.fuselage.typeName} · Länge ${fmt(r.fuselage.length, 0)} mm · Ø ${fmt(r.fuselage.D, 0)} mm · benetzt ${fmt(r.fuselage.swet / 1e4, 1)} dm² · SLW ${fmt(r.fuselage.fin, 1)} dm² · Neutralpunkt ${signed(r.fuselage.dNP, 1)} mm`;
+  $('fusInfo').textContent = `${r.fuselage.typeName} · Länge ${fmt(r.fuselage.length, 0)} mm · Ø ${fmt(r.fuselage.D, 0)} mm · benetzt ${fmt(r.fuselage.swet / 1e4, 1)} dm² · SLW ${fmt(r.fuselage.fin, 1)} dm² · Neutralpunkt ${signed(r.fuselage.dNP, 1)} mm` + (Math.abs((r.fuselage.stretch || 1) - 1) > 0.005 ? ` · hinten ${signed(((r.fuselage.stretch) - 1) * 100, 0)} % bis zum Leitwerk gestreckt` : '');
   const xb = r.best;
   $('xdInfo').textContent = xb && xb.cdBase ? `bei bester Gleitzahl ${signed((xb.cd / xb.cdBase - 1) * 100, 0)} % Widerstand · Gleitzahl ohne Zuschläge ${fmt(xb.cl / xb.cdBase, 1)}` : '';
   renderPolars(m, r);

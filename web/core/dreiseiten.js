@@ -123,7 +123,14 @@
       const up = up0[1] <= 0 ? up0 : [-up0[0], -up0[1]], dn = [-up[0], -up[1]];
       const L2 = Math.hypot(...sub(P.side.tail, P.side.nose)), n2 = Math.floor(L2 / step);
       const hi2 = Math.round(Math.max(P.side.maxHeight || 0.12 * L2, 4) * 1.2);
-      const T = fill(track(M, { o: P.side.nose, u: u2, v: up, n: n2, step, hi: hi2, jump, smooth: true }));
+      // Über dem Flügel zeichnet die Seitenansicht die Flügelwurzel mit (Buckel): dort die Oberkante weglassen und
+      // von vorn nach hinten gerade überbrücken. Bereich von der Wurzel-Nasenleiste bis zur hintersten Endleiste.
+      let teMax = F.along(P.rootTE) - x0;
+      try { for (const r of wing(M, P, spanMm)) teMax = Math.max(teMax, (r.offset + r.chord) / s); } catch (e) { /* nur Wurzel */ }
+      const i0 = Math.max(1, Math.floor((x0 / L - 0.015) * L2 / step)), i1 = Math.min(n2 - 1, Math.ceil(((x0 + teMax) / L + 0.02) * L2 / step));
+      const Traw = track(M, { o: P.side.nose, u: u2, v: up, n: n2, step, hi: hi2, jump, smooth: true });
+      for (let i = i0; i <= i1 && i < Traw.length; i++) Traw[i] = null;
+      const T = fill(Traw);
       const B = fill(track(M, { o: P.side.nose, u: u2, v: dn, n: n2, step, hi: hi2, jump, smooth: true }));
       // hinten weder Seitenleitwerk noch Motormast mitnehmen: oben höchstens 1,3-mal der Wert bei 55 % der Länge
       const k55 = Math.round(0.55 * n2), cap = T[k55] * 1.3;
