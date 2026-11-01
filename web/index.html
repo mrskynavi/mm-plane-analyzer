@@ -305,7 +305,6 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
 .topic{display:grid;gap:12px;min-width:0}
 .bench[style*="--out"]{grid-template-columns:250px minmax(0,1fr) var(--out)!important}
 #mBench{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}
-#mBench.wide-in{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
 #mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}
 #mBench.solo{grid-template-columns:minmax(0,1fr)!important}
 #mBench.solo .bench-out{display:none}
@@ -323,7 +322,7 @@ body.splitting{cursor:col-resize;user-select:none}
 .cbox .ct .legend{flex-wrap:nowrap;overflow:hidden;min-width:0}
 h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:1200px){.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:230px minmax(0,1fr)!important}.bench-out{grid-column:2;position:static;max-height:none;overflow:visible;padding-left:0}.splitter{display:none}}
-@media (max-width:1200px) and (min-width:861px){#mBench{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)!important}#mBench.wide-in{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)!important}#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}#mBench .bench-out{grid-column:auto;position:sticky;max-height:calc(100vh - var(--stick,8px) - 56px);overflow:auto;padding-left:9px}#mBench .splitter{display:block}}
+@media (max-width:1200px) and (min-width:861px){#mBench{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)!important}#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}#mBench .bench-out{grid-column:auto;position:sticky;max-height:calc(100vh - var(--stick,8px) - 56px);overflow:auto;padding-left:9px}#mBench .splitter{display:block}}
 @media (max-width:860px){.mbar{order:5;flex-basis:100%}#mBench,#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}#mBench .splitter{display:none}.kpibar{position:static}.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}.bench-out{grid-column:auto}.bench-out .charts.c2{grid-template-columns:minmax(0,1fr)}}
 .topics{display:grid;gap:2px}
 .topics button{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border:0;background:none;color:var(--fg);font:500 .95rem var(--body);padding:6px 9px;border-radius:6px;cursor:pointer;text-align:left}
@@ -410,6 +409,11 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 .askpop .amodel{height:28px;font-size:.8rem}
 .askpop .acost{font:.75rem var(--mono);color:var(--muted);margin-left:auto}
 .askpop .anokey{margin:0}
+/* Grundriss: Draufsicht oben über die ganze Breite, Eingaben darunter */
+#mBench.stack,#mBench.stack[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}
+#mBench.stack .bench-out{order:-1;grid-column:auto;position:static;max-height:none;overflow:visible;padding-left:0}
+#mBench.stack .splitter{display:none!important}
+#planPart{order:-1}
 </style>
 
 <div class="wrap">
@@ -436,7 +440,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
     <input type="file" id="xlsFile" accept=".xls,.xlsx,.xlsm" hidden>
   </header>
   <div class="infopop" id="info-app" hidden>
-    <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Jeder Reiter ist ein Thema: links gibst Du Flügel, Leitwerk und die übrigen Daten ein, rechts stehen die Grafiken und Tabellen dazu. Die App rechnet Neutralpunkt, Schwerpunkt, EWD und Auftriebsverteilung nach dem Wirbelgitterverfahren wie in XFLR5. Mit „Profile“ oben öffnest Du das Profil-Labor: Dort änderst Du Dicke, Wölbung und Klappe und siehst die Polaren sofort; Zustände lassen sich merken, vergleichen und als Profil speichern. Dazu .dat-Import und Polarenreihen für mehrere Re und Klappenstellungen.</p>
+    <p>MM Plane Analyzer hilft beim Auslegen von Modellflugzeugen. Jeder Reiter ist ein Thema mit seinen Eingaben und den Grafiken und Tabellen dazu; im Grundriss steht die Draufsicht oben, Flügel, Höhenleitwerk und Rumpf darunter. Die App rechnet Neutralpunkt, Schwerpunkt, EWD und Auftriebsverteilung nach dem Wirbelgitterverfahren wie in XFLR5. Mit „Profile“ oben öffnest Du das Profil-Labor: Dort änderst Du Dicke, Wölbung und Klappe und siehst die Polaren sofort; Zustände lassen sich merken, vergleichen und als Profil speichern. Dazu .dat-Import und Polarenreihen für mehrere Re und Klappenstellungen.</p>
     <p>Die Polaren rechnet NeuralFoil (Peter Sharpe, MIT): ein neuronales Netz, das auf Zehntausenden XFOIL-Rechnungen trainiert ist und dieselben Werte wie das Python-Original liefert. Es konvergiert immer und ist schnell genug für Live-Änderungen. Die Konfidenz zeigt, ob ein Profil weit weg von den Trainingsdaten liegt. XFOIL selbst kommt später über die Desktop-App dazu.</p>
     <p>Das Projekt wird im Browser zwischengespeichert. Mit „Speichern“ legst Du es als Datei ab. In den Einstellungen kannst Du einen Projektordner wählen, auch auf einem Netzlaufwerk; dann speichert die App direkt dort.</p>
   </div>
@@ -554,7 +558,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <p class="hint" id="mTrimInfo"></p>
         </section>
 </div>
-<div class="topic" data-topic="body">
+<div class="topic" data-topic="fuse">
 <section class="pol-box">
           <div class="pol-head"><h2 class="hi">Rumpf <button type="button" class="iconbtn sm" data-info="info-fus" aria-expanded="false" aria-controls="info-fus" aria-label="So wird der Rumpf gerechnet">i</button></h2><span id="fusInfo" class="status"></span></div>
           <div class="infopop" id="info-fus" hidden>
@@ -571,7 +575,10 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
             <label class="field"><span>Grösster Durchmesser</span><span class="row"><input class="num" id="fD" type="number" step="2" min="5"><span class="u">mm</span></span></label>
             <label class="field"><span>Seitenleitwerk</span><span class="row"><input class="num" id="fFin" type="number" step="0.1" min="0"><span class="u">dm²</span></span></label>
           </div>
-        </section><section class="pol-box">
+        </section>
+</div>
+<div class="topic" data-topic="body">
+<section class="pol-box">
           <div class="pol-head"><h2 class="hi">Zusatzwiderstände <button type="button" class="iconbtn sm" data-info="info-xd" aria-expanded="false" aria-controls="info-xd" aria-label="Was hier dazugerechnet wird">i</button></h2><span id="xdInfo" class="status"></span></div>
           <div class="infopop" id="info-xd" hidden>
             <p>Die Rechnung geht von sauberen Profilen und einem glatten Rumpf aus. Hier kommt dazu, was ein gebautes Modell zusätzlich bremst. Alles gilt für die Gleitzahl in der Arbeitstabelle, die Polaren, die Klappenschar und den Optimierer.</p>
@@ -598,7 +605,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <p class="hint" id="teInfo"></p>
         </section>
 </div>
-<div class="partseg" id="planPart" role="group" aria-label="Stationen"><span class="seg"><button type="button" data-v="wing">Flügel <small id="mTpWingA"></small></button><button type="button" data-v="tail">Höhenleitwerk <small id="mTpTail"></small></button></span></div>
+<div class="partseg" id="planPart" role="group" aria-label="Stationen"><span class="seg"><button type="button" data-v="wing">Flügel <small id="mTpWingA"></small></button><button type="button" data-v="tail">Höhenleitwerk <small id="mTpTail"></small></button><button type="button" data-v="fuse">Rumpf</button></span></div>
 <div class="topic" data-topic="wing">
 <section class="pol-box">
           <div class="pol-head"><h2>Flügel</h2><span class="status" id="wingInfo"></span></div>
@@ -1620,7 +1627,7 @@ const MD = window.MMPA.modell, FU = window.MMPA.rumpf;
 const COLS = [
   ['y', 'y', 'mm', 5], ['chord', 'Tiefe', 'mm', 1], ['offset', 'Versatz', 'mm', 1], ['dihedral', 'V-Form', '°', 0.5], ['twist', 'Schränk.', '°', 0.25, 'Schränkung'],
   ['profileId', 'Profil'], ['thickness', 'Max. Dicke', '%', 0.1, 'Grösste Dicke in % der Tiefe'], ['xThickness', 'Dicken­rücklage', '%', 0.5, 'Lage der grössten Dicke in % der Tiefe ab Nase'], ['camber', 'Max. Wölbung', '%', 0.05, 'Grösste Wölbung in % der Tiefe'], ['xCamber', 'Wölbungs­rücklage', '%', 0.5, 'Lage der grössten Wölbung in % der Tiefe ab Nase'],
-  ['te', 'Endl.', 'mm', 0.1, 'Endleistendicke in mm, leer = Wert unter Grunddaten › Zusatzwiderstände'],
+  ['te', 'Endl.', 'mm', 0.1, 'Endleistendicke in mm, leer = Wert unter Polaren › Zusatzwiderstände'],
   ['flapDepth', 'Kl.-tiefe', '%', 1, 'Klappentiefe'], ['flap', 'Klappe', '°', 0.5], ['flapMix', 'Wölb.-anteil', '%', 5, 'Anteil der Wölbklappenstellung an dieser Klappe (Querruder z. B. 60 %)'],
 ];
 const PCT_KEYS = ['thickness', 'camber', 'xThickness', 'xCamber'];
@@ -1885,7 +1892,7 @@ function drawPlan(m, r) {
   const all = Pw.concat(Pt), w0 = cv.parentElement.clientWidth;
   const fs0 = window.MMPA.rumpf.shape(m);
   const xr = Math.max(fs0.x3, ...all.map(p => p.le[0] + p.chord)) - Math.min(fs0.x0, ...all.map(p => p.le[0])), yr = 2 * Math.max(...all.map(p => p.le[1]));
-  if (!cv.closest('.zoomed')) cv.parentElement.style.height = Math.round(Math.min(520, Math.max(160, (w0 - 36) * xr / yr + 36))) + 'px';
+  if (!cv.closest('.zoomed')) cv.parentElement.style.height = Math.round(Math.min(cv.closest('.stack') ? Math.max(240, innerHeight * 0.4) : 520, Math.max(160, (w0 - 36) * xr / yr + 36))) + 'px';
   const rc = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   cv.width = Math.round(rc.width * dpr); cv.height = Math.round(rc.height * dpr);
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, rc.width, rc.height);
@@ -2728,7 +2735,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.q
 
 // ---------- Reiter nach Themen: links die Eingaben, rechts die Grafiken und Tabellen dazu ----------
 const THEMES = {
-  plan: { topics: ['wing', 'tail'], views: ['plan'] },
+  plan: { topics: ['wing', 'tail', 'fuse'], views: ['plan'], stack: true },
   trim: { topics: ['trim'], views: ['dist', 'ops'] },
   polar: { topics: ['body'], views: ['polar'] },
   flaps: { topics: ['flaps'], views: ['flaps'] },
@@ -2739,7 +2746,7 @@ const THEME_KEYS = Object.keys(THEMES);
 const OLD_TOPIC = { grund: 'trim', wing: 'plan', tail: 'plan' };
 Object.assign(ui, {
   theme: (t => THEMES[t] ? t : OLD_TOPIC[store.get('mmpa.topic')] || 'plan')(store.get('mmpa.theme')),
-  part: store.get('mmpa.part') === 'tail' ? 'tail' : 'wing',
+  part: ['tail', 'fuse'].includes(store.get('mmpa.part')) ? store.get('mmpa.part') : 'wing',
   lview: store.get('mmpa.lview') || 'cmp',
 });
 const viewOn = v => ui.tab === 'modell' && THEMES[ui.theme].views.includes(v);
@@ -2752,7 +2759,7 @@ function showTheme(k) {
   $('planPart').hidden = k !== 'plan';
   document.querySelectorAll('#planPart [data-v]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === ui.part));
   document.querySelectorAll('.rview').forEach(x => x.hidden = !T.views.includes(x.dataset.view));
-  $('mBench').classList.toggle('solo', !T.views.length); $('mBench').classList.toggle('wide-in', k === 'plan');
+  $('mBench').classList.toggle('solo', !T.views.length); $('mBench').classList.toggle('stack', !!T.stack);
   $('mOut').scrollTop = 0;
   if (ui.tab === 'modell' && lastModel) { if (viewOn('plan')) drawPlan(curModel(), lastModel); if (viewOn('opt')) renderOptResult(); }
 }
