@@ -1,31 +1,45 @@
-// Rumpf als feste Form mit wenigen Parametern: Stabrumpf, Keulenrumpf mit kleinem oder grossem Stirnwiderstand.
-// Die Keulen sind wie ein manntragender Segler geformt: Cockpit mit dem grössten Querschnitt vor dem Flügel,
-// Einschnürung unter dem Flügel, dann ein konischer Leitwerksträger bis zum Höhenleitwerk.
+// Rumpf als feste Form mit wenigen Parametern: Stabrumpf, moderner Segler oder Oldtimer.
+// Moderner Segler: spitze Nase, grösster Querschnitt an den Schultern des Piloten weit vor dem Flügel, lange weiche
+// Einschnürung bis hinter die Endleiste, dann ein schlanker Leitwerksträger bis zum Seitenleitwerk.
+// Oldtimer (etwa Moswey 3, Grunau Baby, Spalinger): kurze stumpfe Nase, Pilot unter der Nasenleiste, grösster
+// Querschnitt unter dem Flügel, dann ein gerade auslaufender Holzrumpf bis zum Ruder, das hinter das Höhenleitwerk reicht.
 // Liefert die Kontur (Radius über x), den Widerstand nach Hoerner und das Rumpfmoment nach Multhopp
 // mit dem Auf- und Abwind aus dem Wirbelgitter. x in mm ab der Nasenleiste der Flügelwurzel, nach hinten positiv.
 (function (root) {
   'use strict';
 
   const NU = 1.5e-5;
-  // Standardwerte je Form, bezogen auf die Wurzeltiefe c: grösster Durchmesser d, Leitwerksträger am Ende (boom)
-  // und hinter dem Flügel (cone) als Anteil von d, Nasenkappe als Anteil der Nasenlänge, laminarer Anlauf,
-  // Zuschlag für Haube und Kanten
+  // Standardwerte je Form, bezogen auf die Wurzeltiefe c: grösster Durchmesser d, Länge vor dem Flügel nose,
+  // Leitwerksträger am Ende (boom) und hinter dem Flügel (cone) als Anteil von d, laminarer Anlauf, Zuschlag
+  // für Haube, Kanten und Übergänge (extra), Breite zu Durchmesser in der Draufsicht (width; der Querschnitt ist
+  // hochoval, gerechnet wird mit einem Kreis gleicher Fläche).
+  // Oldtimer: turbulente Grenzschicht (Holz, Stoff, Spalte), 20 % für Haube mit Stufe, Kufe, Flügelanschluss ohne Ausrundung.
   const TYPES = {
-    stab: { name: 'Stabrumpf', d: 0.2, boom: 0.4, laminar: true, extra: 1.0 },
-    'keule-klein': { name: 'Keulenrumpf, kleiner Stirnwiderstand', d: 0.55, cone: 0.4, boom: 0.2, cap: 0.5, laminar: true, extra: 1.0 },
-    'keule-gross': { name: 'Keulenrumpf, grosser Stirnwiderstand', d: 0.7, cone: 0.5, boom: 0.28, cap: 0.35, laminar: false, extra: 1.1 },
+    stab: { name: 'Stabrumpf', d: 0.2, nose: 1.8, boom: 0.4, laminar: true, extra: 1.0, width: 1 },
+    modern: { name: 'Moderner Segler', d: 0.55, nose: 1.8, cone: 0.4, boom: 0.2, laminar: true, extra: 1.0, width: 0.87 },
+    oldtimer: { name: 'Oldtimer', d: 0.62, nose: 1.4, boom: 0.28, laminar: false, extra: 1.2, width: 0.78 },
+  };
+  // frühere Formen: Keule klein war der moderne Segler, Keule gross der ältere Segler
+  const LEGACY = { 'keule-klein': 'modern', 'keule-gross': 'oldtimer' };
+  const typeOf = t => TYPES[t] ? t : LEGACY[t] || 'modern';
+
+  const defaults = model => {
+    const t = TYPES[typeOf(model.fuselage?.type)];
+    return { type: 'modern', nose: Math.round(t.nose * model.wing.stations[0].chord / 10) * 10, diameter: null, fin: null };
+  };
+  const of = model => {
+    const f = { ...defaults(model), ...(model.fuselage || {}) };
+    return { ...f, type: typeOf(f.type) };
   };
 
-  const defaults = model => ({ type: 'keule-klein', nose: Math.round(1.8 * model.wing.stations[0].chord / 10) * 10, diameter: null, fin: null });
-  const of = model => ({ ...defaults(model), ...(model.fuselage || {}) });
-
-  // Kontur: Punkte { x, r } von der Nase bis zum Ende am Höhenleitwerk
+  // Kontur: Punkte { x, r } von der Nase bis zum Ende am Seitenleitwerk
   function shape(model) {
-    const f = of(model), t = TYPES[f.type] || TYPES['keule-klein'];
+    const f = of(model), t = TYPES[f.type];
     const c = model.wing.stations[0].chord;
     const D = f.diameter || Math.round(t.d * c), R = D / 2, Rb = R * t.boom;
     const x0 = -f.nose, tc = model.tail.stations[0] ? model.tail.stations[0].chord : 0.6 * c;
-    const x3 = Math.max(model.tail.x + (model.tail.stations[0]?.offset || 0) + tc, c * 1.5);
+    // Oldtimer: das Seitenruder reicht hinter das Höhenleitwerk
+    const x3 = Math.max(model.tail.x + (model.tail.stations[0]?.offset || 0) + tc * (f.type === 'oldtimer' ? 1.3 : 1), c * 1.5);
     const n = 120, pts = [];
     const ease = u => (1 - Math.cos(Math.PI * Math.min(1, Math.max(0, u)))) / 2; // weicher Übergang 0 → 1
     for (let i = 0; i <= n; i++) {
@@ -38,13 +52,19 @@
         else if (x < xe) r = R;
         else if (x < xt) r = R + (Rb - R) * ease((x - xe) / (xt - xe));
         else r = Rb * (1 - 0.2 * (x - xt) / Math.max(1, x3 - xt));
+      } else if (f.type === 'oldtimer') {
+        // stumpfe Nase bis kurz vor die Nasenleiste, gleich breit bis zum Holm, dann gerade auslaufend
+        const xm = x0 + Math.max(0.9 * f.nose, 0.6 * D), xp = Math.max(xm, 0.3 * c), cap = xm - x0;
+        const g = v => (v < 0.2 ? v * v / 0.4 : v - 0.1) / 0.9; // Gerade mit weichem Anfang
+        if (x < xm) r = R * Math.sqrt(Math.max(0, 1 - ((xm - x) / cap) ** 2)) ** 0.8;
+        else if (x < xp) r = R;
+        else r = R + (Rb - R) * g(Math.min(1, (x - xp) / Math.max(1, x3 - xp)));
       } else {
-        // Segler: Nasenkappe bis zum Cockpit, grösster Querschnitt bis zur Schulter, Einschnürung bis kurz hinter
-        // die Endleiste, dann gerader Kegel bis zum Leitwerk
-        const cap = Math.max(D / 2, t.cap * f.nose), xs = x0 + Math.max(cap, 0.6 * f.nose);
-        const xc = Math.max(xs + 0.5 * c, 1.3 * c), Rc = R * t.cone;
-        if (x < x0 + cap) r = R * Math.sqrt(Math.max(0, 1 - ((x0 + cap - x) / cap) ** 2));
-        else if (x < xs) r = R;
+        // moderner Segler: spitz zulaufende Nase bis zu den Schultern, dann ohne zylindrisches Stück weich
+        // eingeschnürt bis hinter die Endleiste und als schlanker Kegel bis zum Leitwerk
+        const cap = Math.max(0.55 * f.nose, 0.6 * D), xs = x0 + cap;
+        const xc = Math.max(xs + 0.6 * c, 1.25 * c), Rc = R * t.cone;
+        if (x < xs) r = R * Math.max(0, 1 - ((xs - x) / cap) ** 2) ** 0.6;
         else if (x < xc) r = R + (Rc - R) * ease((x - xs) / (xc - xs));
         else r = Rc + (Rb - Rc) * (x - xc) / Math.max(1, x3 - xc);
       }
@@ -57,7 +77,7 @@
       swet += dA;
       if (Math.max(a.r, b.r) > 1.5 * Rb) { sPod += dA; podEnd = b.x; }
     }
-    return { ...f, typeName: t.name, D, Rb, x0, x3, length: x3 - x0, pts, swet, sPod, sBoom: swet - sPod, podLength: podEnd - x0, laminar: t.laminar, extra: t.extra };
+    return { ...f, typeName: t.name, D, Rb, x0, x3, length: x3 - x0, pts, swet, sPod, sBoom: swet - sPod, podLength: podEnd - x0, laminar: t.laminar, extra: t.extra, width: t.width };
   }
 
   // Reibungsbeiwert einer Platte: turbulent nach Schlichting, mit laminarem Anlauf bis Re 500 000; darunter laminar
@@ -150,7 +170,7 @@
     return { cdi: i, cdf: fu, cdw: w, cdt: t, cdv: v, cdx, cd: i + w + t + fu + v + cdx, base: cdi + cdw + cdt + cdf + cdv };
   }
 
-  const api = { TYPES, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras, lowReDrag };
+  const api = { TYPES, LEGACY, typeOf, defaults, of, shape, drag, finDrag, finChord, finArea, moment, cf, DRIVES, EXTRAS, extrasOf, extraFixed, withExtras, lowReDrag };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).rumpf = api;
 })(typeof self !== 'undefined' ? self : this);
