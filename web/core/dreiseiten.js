@@ -36,9 +36,11 @@
   // Eine Linie nachfahren: entlang u (Einheitsvektor) ab o in n Schritten der Länge step, quer dazu in Richtung v
   // die Linie suchen, die am weitesten aussen liegt und nahe an der vorherigen Lage ist. lo..hi ist der Suchbereich
   // quer (px). Liefert je Schritt den Querabstand oder null (Schritt liegt auf einer Querlinie oder nichts gefunden).
-  function track(M, { o, u, v, n, step, lo = 1, hi, start = 0, jump = 4, stopAfter = Infinity }) {
+  // smooth: statt der äussersten Linie die, die am besten zur bisherigen Richtung passt (Seitenansicht: Motormast,
+  // Haubenrahmen, Rad und Kufe zweigen von der Rumpflinie ab, die Rumpflinie selbst hat keine Knicke)
+  function track(M, { o, u, v, n, step, lo = 1, hi, start = 0, jump = 4, stopAfter = Infinity, smooth = false }) {
     const out = [];
-    let prev = start, miss = 0;
+    let prev = start, slope = 0, miss = 0;
     for (let i = 0; i <= n; i++) {
       const px = o[0] + u[0] * i * step, py = o[1] + u[1] * i * step, cand = [];
       for (let t = lo; t <= hi; t++) if (isDark(M, px + v[0] * t, py + v[1] * t)) cand.push(t);
@@ -46,16 +48,17 @@
       const w0 = Math.max(lo, prev - 2 * jump), w1 = Math.min(hi, prev + 4 * jump);
       const dense = cand.filter(t => t >= w0 && t <= w1).length / Math.max(1, w1 - w0 + 1);
       if (dense > 0.75) { out.push(null); continue; }
-      const win = cand.filter(t => t >= prev - jump && t <= prev + jump);
+      // Striche: zusammenhängende Läufe, je Lauf die Mitte (höchstens 5 px breit gezählt)
+      const runs = [];
+      for (const t of cand) { const r = runs[runs.length - 1]; if (r && t === r[1] + 1) r[1] = t; else runs.push([t, t]); }
+      const mids = runs.map(([a, b]) => (Math.max(a, b - 4) + b) / 2);
+      const pred = prev + (smooth ? slope : 0);
+      const win = mids.filter(t => t >= pred - jump && t <= pred + jump);
       let t = null;
-      if (win.length) {
-        // Mitte des Strichs statt seiner Aussenkante, sonst wird alles um eine Strichbreite zu gross
-        t = Math.max(...win);
-        let a = t; while (cand.includes(a - 1) && t - a < 4) a--;
-        t = (a + t) / 2;
-      }
-      else if (cand.length && miss >= 2) t = cand.reduce((a, b) => Math.abs(b - prev) < Math.abs(a - prev) ? b : a); // wieder einfangen
-      if (t == null) { out.push(null); if (++miss > stopAfter) break; continue; }
+      if (win.length) t = smooth ? win.reduce((a, b) => Math.abs(b - pred) < Math.abs(a - pred) ? b : a) : Math.max(...win);
+      else if (mids.length && miss >= 2) t = mids.reduce((a, b) => Math.abs(b - pred) < Math.abs(a - pred) ? b : a); // wieder einfangen
+      if (t == null) { out.push(null); prev += smooth ? slope : 0; if (++miss > stopAfter) break; continue; }
+      if (i > 0 && miss === 0) slope = 0.7 * slope + 0.3 * (t - prev);
       miss = 0; prev = t; out.push(t);
     }
     return out;
@@ -103,12 +106,14 @@
       const up = up0[1] <= 0 ? up0 : [-up0[0], -up0[1]], dn = [-up[0], -up[1]];
       const L2 = Math.hypot(...sub(P.side.tail, P.side.nose)), n2 = Math.floor(L2 / step);
       const hi2 = Math.round(Math.max(P.side.maxHeight || 0.12 * L2, 4) * 1.2);
-      const T = fill(track(M, { o: P.side.nose, u: u2, v: up, n: n2, step, hi: hi2, jump }));
-      const B = fill(track(M, { o: P.side.nose, u: u2, v: dn, n: n2, step, hi: hi2, jump }));
+      const T = fill(track(M, { o: P.side.nose, u: u2, v: up, n: n2, step, hi: hi2, jump, smooth: true }));
+      const B = fill(track(M, { o: P.side.nose, u: u2, v: dn, n: n2, step, hi: hi2, jump, smooth: true }));
       // hinten weder Seitenleitwerk noch Motormast mitnehmen: oben höchstens 1,3-mal der Wert bei 55 % der Länge
       const k55 = Math.round(0.55 * n2), cap = T[k55] * 1.3;
       const Tc = T.map((t, i) => i > k55 ? Math.min(t, cap) : t);
-      const Tm = median(Tc, 3), Bm = median(B, 3);
+      // gleitendes Mittel nach dem Median: die Rumpflinie hat keine Knicke (verdeckte Stellen hinter dem Mast)
+      const mean = (a, k) => a.map((_, i) => { const w = a.slice(Math.max(0, i - k), i + k + 1); return w.reduce((p, q) => p + q, 0) / w.length; });
+      const Tm = mean(median(Tc, 3), 4), Bm = mean(median(B, 3), 4);
       height = a => { const i = Math.min(Tm.length - 1, Math.max(0, Math.round(a / step))); return [Tm[i], Bm[i]]; };
     }
     const rows = [];
