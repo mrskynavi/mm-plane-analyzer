@@ -170,6 +170,7 @@ input.num:focus-visible,input.txt:focus-visible,select.sel:focus-visible{outline
 .cbox.zoomed .cv canvas{touch-action:none}
 .tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
 table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+tr.dim td{color:var(--muted)}
 th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
 th{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
@@ -649,6 +650,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <div class="infopop" id="info-opt" hidden>
             <p>Du gibst das Wurzelprofil vor. Der Optimierer sucht an jeder weiteren Station Dicke, Dickenrücklage, Wölbung und Wölbungsrücklage und dazu den Klappenwinkel für jeden Flugzustand oben, alles gemeinsam. Ziel ist der kleinste Gesamtwiderstand, gewichtet über die Flugzustände, jeder Zustand getrimmt mit Deinem Schwerpunkt. Das Wirbelgitter liefert das örtliche Ca jeder Station, NeuralFoil den Profilwiderstand bei der örtlichen Re. So arbeitet der Aussenflügel bei seiner kleinen Re und seinem eigenen Ca.</p>
             <p>Start aussen: „wie im Modell“ sucht ab den Profilen, die jetzt an den Stationen stehen. „von der Wurzel“ übernimmt zuerst Wölbung, Wölbungsrücklage und Dickenrücklage der Wurzel an alle Stationen (die Dicke bleibt) und sucht von dort aus. „Kein Zustand schlechter“: Mit „ja“ übernimmt der Optimierer nur eine Lösung, bei der kein Flugzustand mehr Widerstand hat als vorher, ausser das Abrissverhalten wird damit besser (zum Beispiel erst gutmütig); eine bessere Lösung, bei der zum Beispiel die Thermik etwas verliert, zeigt er nur als Hinweis an. Mit „nein“ zählt nur der gewichtete Gesamtwiderstand.</p>
+            <p>Bestes Gleiten bei: Gibst Du eine Geschwindigkeit ein, soll dort das beste Gleiten liegen. Der Optimierer nimmt dafür einen Flugzustand „Bestes Gleiten“ bei dieser Geschwindigkeit dazu (zählt so viel wie alle anderen Zustände zusammen) und prüft je einen Punkt 10 % langsamer und schneller mit derselben Klappe: dort darf das Modell nicht besser gleiten. Mit „Kein Zustand schlechter: ja“ darf dabei kein anderer Zustand verlieren. Liegt das Ziel zu weit weg, schiebt er den Bestwert so weit wie möglich und zeigt, wie viel Ballast (schneller) oder weniger Gewicht (langsamer) den Rest bringt. „Wölbung Wurzel: mit optimieren“ gibt Wölbung und Wölbungsrücklage der Wurzel frei (Dicke bleibt); die Cm0-Grenze gilt für die Wurzel nur, wenn Du sie einträgst.</p>
             <p>Randbedingungen: Mindestdicke in % und als Höhe in mm (Holm, Verbinder), Abstand zum Abriss beim langsamsten Zustand, Cm0 der Profile nicht stärker negativ als die Grenze (leer = Wert der Wurzel), glatter Strak über die Spannweite. Gesucht wird mit CMA-ES, einer ableitungsfreien Suche. Das dauert je nach Modell und Rechentiefe 30 Sekunden bis drei Minuten. Abrissverhalten: Beim langsamsten Flugzustand soll der Abriss innen beginnen (gutmütig, das Modell sackt gerade durch) oder wenigstens nicht aussen (nicht kritisch, sonst kippt es über den Flügel). Dafür darf der Optimierer auch die Schränkung jeder Station ändern, negativ heisst Endleiste aussen nach oben. Gutmütig kostet meist etwas Leistung; vorher und nachher stehen im Ergebnis.</p>
             <p>Der Optimierer rechnet schneller als die normale Modellrechnung: Klappe als Knick der Skelettlinie, pro Station nur wenige Punkte um das örtliche Ca. Darum rechnet die App das Ergebnis danach noch einmal mit der normalen Modellrechnung nach. Übernommen wird nur, was Du bestätigst. NeuralFoil ist bei sehr kleinen Unterschieden zwischen zwei Profilen ungenau; das Ergebnis später mit XFOIL gegenprüfen.</p>
           </div>
@@ -656,6 +658,8 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
             <label class="field"><span>Wurzelprofil</span><select class="sel" id="oRoot"></select></label>
             <div class="field"><span>Start aussen</span><span class="seg" id="oStart"><button type="button" data-v="modell" title="Wölbung und Rücklagen der Stationen wie im Modell">wie im Modell</button><button type="button" data-v="wurzel" title="Wölbung und Rücklagen der Wurzel an alle Stationen übernehmen, Dicke bleibt">von der Wurzel</button></span></div>
             <div class="field"><span>Kein Zustand schlechter</span><span class="seg" id="oNoWorse"><button type="button" data-v="1" title="nur Lösungen, bei denen kein Flugzustand mehr Widerstand hat">ja</button><button type="button" data-v="0" title="auch Lösungen, bei denen ein Zustand etwas verliert, wenn das Ganze besser wird">nein</button></span></div>
+            <label class="field"><span>Bestes Gleiten bei</span><span class="row"><input class="num" id="oVBest" type="number" step="1" min="10" max="300" placeholder="aus"><span class="u">km/h</span></span></label>
+            <div class="field"><span>Wölbung Wurzel</span><span class="seg" id="oRootCamber"><button type="button" data-v="0" title="Wurzelprofil bleibt, wie es ist">fest</button><button type="button" data-v="1" title="Wölbung und Wölbungsrücklage der Wurzel mit optimieren, Dicke bleibt">mit optimieren</button></span></div>
             <label class="field"><span>Mindestdicke</span><span class="row"><input class="num" id="oMinT" type="number" step="0.5" min="3" max="20"><span class="u">%</span></span></label>
             <label class="field"><span>Mindesthöhe Holm</span><span class="row"><input class="num" id="oMinH" type="number" step="0.5" min="0" placeholder="aus"><span class="u">mm</span></span></label>
             <label class="field"><span>Abstand zum Abriss</span><span class="row"><input class="num" id="oStall" type="number" step="1" min="0" max="40"><span class="u">%</span></span></label>
@@ -2431,7 +2435,7 @@ $('flMargin').addEventListener('change', () => { const v = parseFloat($('flMargi
 
 // Strak-Optimierer: Einstellungen je Modell (m.opt)
 function optOf(m) {
-  const d = { rootId: null, start: 'wurzel', noWorse: true, minThick: 7, minHeight: null, stall: 10, stallMode: 'gutmuetig', twLo: -5, twHi: 2, cm0Min: null, flapLo: -5, flapHi: 10, smooth: 0.002, maxEvals: 1500, vars: { ...SK.DEFAULTS.vars } };
+  const d = { rootId: null, vBest: null, rootCamber: false, start: 'wurzel', noWorse: true, minThick: 7, minHeight: null, stall: 10, stallMode: 'gutmuetig', twLo: -5, twHi: 2, cm0Min: null, flapLo: -5, flapHi: 10, smooth: 0.002, maxEvals: 1500, vars: { ...SK.DEFAULTS.vars } };
   m.opt = { ...d, ...(m.opt || {}), vars: { ...d.vars, ...((m.opt && m.opt.vars) || {}) } };
   if (!m.opt.rootId || !profById(m.opt.rootId)) m.opt.rootId = m.wing.stations[0].profileId;
   return m.opt;
@@ -2439,6 +2443,8 @@ function optOf(m) {
 function syncOpt() {
   const m = curModel(), o = optOf(m);
   $('oRoot').innerHTML = project.profiles.map(p => `<option value="${p.id}" ${p.id === o.rootId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  $('oVBest').value = o.vBest ?? '';
+  $('oRootCamber').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === '1') === !!o.rootCamber));
   $('oMinT').value = o.minThick; $('oMinH').value = o.minHeight ?? ''; $('oStall').value = o.stall; $('oCm0').value = o.cm0Min ?? '';
   $('oFlapLo').value = o.flapLo; $('oFlapHi').value = o.flapHi;
   $('oSmooth').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === o.smooth));
@@ -2451,7 +2457,7 @@ function syncOpt() {
 }
 const setOpt = (k, v) => { optOf(curModel())[k] = v; persist(); syncOpt(); };
 $('oRoot').onchange = () => setOpt('rootId', $('oRoot').value);
-for (const [id, k, lo, hi, nul] of [['oMinT', 'minThick', 2, 25], ['oMinH', 'minHeight', 0, 100, true], ['oStall', 'stall', 0, 50], ['oCm0', 'cm0Min', -0.3, 0.1, true], ['oFlapLo', 'flapLo', -15, 5], ['oFlapHi', 'flapHi', -5, 20], ['oTwLo', 'twLo', -10, 0], ['oTwHi', 'twHi', 0, 6]]) {
+for (const [id, k, lo, hi, nul] of [['oVBest', 'vBest', 10, 300, true], ['oMinT', 'minThick', 2, 25], ['oMinH', 'minHeight', 0, 100, true], ['oStall', 'stall', 0, 50], ['oCm0', 'cm0Min', -0.3, 0.1, true], ['oFlapLo', 'flapLo', -15, 5], ['oFlapHi', 'flapHi', -5, 20], ['oTwLo', 'twLo', -10, 0], ['oTwHi', 'twHi', 0, 6]]) {
   $(id).addEventListener('change', () => {
     const v = parseFloat($(id).value);
     if (!Number.isFinite(v)) { if (nul) setOpt(k, null); else syncOpt(); return; }
@@ -2462,6 +2468,7 @@ $('oSmooth').onclick = e => { const b = e.target.closest('button'); if (b) setOp
 $('oDepth').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('maxEvals', +b.dataset.v); };
 $('oStart').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('start', b.dataset.v); };
 $('oNoWorse').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('noWorse', b.dataset.v === '1'); };
+$('oRootCamber').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('rootCamber', b.dataset.v === '1'); };
 $('oStallMode').onclick = e => { const b = e.target.closest('button'); if (b) setOpt('stallMode', b.dataset.v); };
 $('oVars').onclick = e => { const b = e.target.closest('button'); if (!b) return; const o = optOf(curModel()); o.vars[b.dataset.v] = !o.vars[b.dataset.v]; persist(); syncOpt(); };
 
@@ -2469,7 +2476,9 @@ let optJob = null, optRes = null;
 function optSettings(m) {
   const o = optOf(m), F = flapsOf(m);
   return {
-    rootId: o.rootId, points: F.modes.map(q => ({ name: q.name, cl: +q.cl, weight: +(q.weight ?? 1) || 0, flap: q.fixed ? +q.flap || 0 : null })),
+    // mit Zielgeschwindigkeit ersetzt der neue Zielpunkt einen früher übernommenen „Bestes Gleiten“
+    rootId: o.rootId, points: F.modes.map((q, mi) => ({ name: q.name, cl: +q.cl, weight: +(q.weight ?? 1) || 0, flap: q.fixed ? +q.flap || 0 : null, mi, target: !!q.target })).filter(q => !(o.vBest && q.target)),
+    vBest: o.vBest ? o.vBest / 3.6 : null, rootCamber: !!o.rootCamber,
     vars: o.vars, flapMin: Math.min(o.flapLo, o.flapHi), flapMax: Math.max(o.flapLo, o.flapHi), minThick: o.minThick / 100, minHeight: o.minHeight || 0,
     stallMargin: o.stall / 100, stallMode: o.stallMode, twistMin: Math.min(o.twLo, o.twHi), twistMax: Math.max(o.twLo, o.twHi), cm0Min: o.cm0Min, smooth: o.smooth, maxEvals: o.maxEvals, nCrit: lab.nCrit, start: o.start, noWorse: o.noWorse,
   };
@@ -2491,7 +2500,7 @@ function optDone(m, snap, res) {
 }
 $('oRun').onclick = () => {
   const m = curModel(), settings = optSettings(m), snap = JSON.parse(JSON.stringify(m));
-  if (!settings.points.length) { toast('Zuerst Flugzustände eintragen'); return; }
+  if (!settings.points.length && !settings.vBest) { toast('Zuerst Flugzustände oder „Bestes Gleiten bei“ eintragen'); return; }
   const profiles = JSON.parse(JSON.stringify(project.profiles));
   optRunning(true); $('oHint').textContent = 'starte …'; $('oBar').firstElementChild.style.width = '0';
   const fail = msg => { optRunning(false); $('oHint').textContent = msg; };
@@ -2567,6 +2576,20 @@ function stallKpi(B, A) {
   const at = q => `${q.stallAt.rating}, bei ${fmt(q.stallAt.eta * 100, 0)} %`;
   return `<div class="kpi"><span class="l">Abriss beginnt (${esc(a.name)})</span><span class="v"><span class="d ${col(a.stallAt.rating)}" style="font-size:inherit">${esc(a.stallAt.rating)}</span></span><span class="d">bei ${fmt(a.stallAt.eta * 100, 0)} % Halbspannweite · vorher <span class="${col(b && b.stallAt ? b.stallAt.rating : '')}">${b && b.stallAt ? at(b) : '–'}</span></span></div>`;
 }
+// Bestes Gleiten: Ziel, vorher und nachher; was fehlt, als Ballast oder weniger Gewicht
+function bestKpi(res, m) {
+  const T = res.target;
+  if (!T) return '';
+  const a = res.after.vBest, b = res.before.vBest, kmh = v => fmt(v * 3.6, 0);
+  const vs = q => (q ? `${q.edge ? '≈ ' : ''}${kmh(q.v)} km/h` : '–');
+  let d = `Ziel ${kmh(T.v)} km/h · vorher ${vs(b)}`;
+  if (a && Math.abs(a.v / T.v - 1) > 0.05) {
+    // bestes Gleiten verschiebt sich mit der Wurzel aus der Masse: v ~ √m
+    const need = res.mass ? res.mass * (T.v / a.v) ** 2 - res.mass : null;
+    d += need ? ` · Rest mit ${need > 0 ? 'Ballast +' : 'weniger Gewicht −'}${fmt(Math.abs(need), 0)} g` : '';
+  }
+  return `<div class="kpi"><span class="l">Bestes Gleiten bei</span><span class="v">${vs(a)}<small>${a ? ' E ' + fmt(a.E, 1) : ''}</small></span><span class="d">${d}</span></div>`;
+}
 function renderOptResult() {
   const m = curModel(), ok = optRes && optRes.id === m.id;
   $('oResult').hidden = !ok; $('oResHint').hidden = ok;
@@ -2578,8 +2601,9 @@ function renderOptResult() {
   const tr = res.traded, trTxt = tr ? `besser wäre −${fmt(tr.gain * 100, 1)} %, aber ${tr.points.filter(q => q.change > 0.002).map(q => `${esc(q.name)} +${fmt(q.change * 100, 1)} %`).join(', ')} · „Kein Zustand schlechter: nein“ übernimmt das` : '';
   $('oKpis').innerHTML = (res.kept ? k('Widerstand gewichtet', 'unverändert', '', tr ? trTxt : `keine bessere Lösung gefunden, Modell bleibt · ${res.evals} Bewertungen`)
     : k('Widerstand gewichtet', (res.gain > 0 ? '−' : '+') + fmt(Math.abs(res.gain) * 100, 1), '%', `${res.evals} Bewertungen · ${fmt(res.seconds, 0)} s${tr ? ' · ' + trTxt : ''}`)) +
-    A.points.map((p, i) => k(`Gleitzahl ${esc(p.name)}`, fmt(p.E, 1), '', `vorher ${fmt(B.points[i].E, 1)} ${dp(B.points[i].E, p.E)}`)).join('') +
-    k('Wurzelprofil', esc(res.rootName), '', `Cm0 ≥ ${fmt(res.limits.cm0Min, 3)} · Ca/Ca max ≤ ${fmt(res.limits.stallLimit * 100, 0)} %`) + stallKpi(B, A);
+    A.points.filter(p => p.role !== 'nb').map(p => { const i = A.points.indexOf(p); return k(`Gleitzahl ${esc(p.name)}`, fmt(p.E, 1), '', `vorher ${fmt(B.points[i].E, 1)} ${dp(B.points[i].E, p.E)}`); }).join('') +
+    bestKpi(res, m) +
+    k('Wurzelprofil', esc(res.rootName) + (res.rootFree ? ' <small>Wölbung frei</small>' : ''), '', `Cm0 ≥ ${fmt(res.limits.cm0Min, 3)} · Ca/Ca max ≤ ${fmt(res.limits.stallLimit * 100, 0)} %`) + stallKpi(B, A);
   const fullE = (kk, i) => {
     const c = check && check[kk][i];
     if (c === undefined || !check) return '…';
@@ -2589,7 +2613,7 @@ function renderOptResult() {
   };
   $('oPoints').innerHTML = `<thead><tr><th rowspan="2">Zustand</th><th rowspan="2">Ca</th><th rowspan="2">V km/h</th><th class="grp" colspan="2">Klappe °</th><th class="grp" colspan="2">EWD °</th><th class="grp" colspan="3">Gleitzahl</th><th class="grp" colspan="2">Sinken m/s</th><th class="grp" colspan="2" title="normale Modellrechnung mit vollen Polaren">Gegenprobe Gleitzahl</th><th class="grp" rowspan="2" title="beim langsamsten Zustand">Ca/Ca max</th></tr>` +
     `<tr><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th><th></th><th class="grp">vorher</th><th>nachher</th><th class="grp">vorher</th><th>nachher</th></tr></thead><tbody>` +
-    A.points.map((p, i) => { const b = B.points[i]; return `<tr><td>${esc(p.name)}</td><td>${fmt(p.cl, 2)}</td><td>${fmt(p.v * 3.6, 0)}</td>` +
+    A.points.map((p, i) => { const b = B.points[i]; return `<tr${p.role === 'nb' ? ' class="dim" title="Hilfspunkt: hier darf das Modell nicht besser gleiten als beim Ziel"' : ''}><td>${p.role === 'nb' ? '<small>' + esc(p.name) + '</small>' : p.role === 'target' ? '<b>' + esc(p.name) + '</b>' : esc(p.name)}</td><td>${fmt(p.cl, 2)}</td><td>${fmt(p.v * 3.6, 0)}</td>` +
       `<td class="grp">${fmt(b.flap, 2)}</td><td>${fmt(p.flap, 2)}</td><td class="grp">${fmt(b.ewd, 2)}</td><td>${fmt(p.ewd, 2)}</td>` +
       `<td class="grp">${fmt(b.E, 1)}</td><td>${fmt(p.E, 1)}</td><td>${dp(b.E, p.E)}</td><td class="grp">${fmt(b.sink, 3)}</td><td>${fmt(p.sink, 3)}</td>` +
       `<td class="grp">${fullE('before', i)}</td><td>${fullE('after', i)}</td><td class="grp">${p.stall != null ? `${fmt(b.stall * 100, 0)} → ${fmt(p.stall * 100, 0)} %` : ''}</td></tr>`; }).join('') + '</tbody>';

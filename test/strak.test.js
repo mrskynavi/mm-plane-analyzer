@@ -207,3 +207,32 @@ test('Strak-Optimierer: eng liegende Stationen (Randbogen) blähen die Glättung
   assert.ok(o.progress().start > 0);
   assert.strictEqual(o.result().start, 'wurzel');
 });
+
+test('Strak-Optimierer: bestes Gleiten bei Zielgeschwindigkeit, Wölbung der Wurzel frei', () => {
+  const { pj, m } = setup();
+  const points = [{ name: 'Speed', cl: 0.15, weight: 1 }, { name: 'Thermik', cl: 0.8, weight: 1 }];
+  const opt = S.optimizer(m, pj.profiles, { maxEvals: 120, seed: 2, vBest: 34 / 3.6, rootCamber: true, points });
+  // Zielpunkt und zwei Nachbarn kommen dazu; Nachbarn ohne eigene Klappe, Wurzel mit Wölbung und Rücklage
+  const r0 = opt.result();
+  assert.deepStrictEqual(r0.before.points.map(p => p.role), ['user', 'user', 'target', 'nb', 'nb']);
+  assert.ok(r0.vars.filter(v => v === 'flap').length === 3, r0.vars.join());
+  assert.ok(r0.rootFree);
+  const [t, lo, hi] = r0.before.points.slice(2);
+  near(t.v * 3.6, 34, 0.01, 'Zielgeschwindigkeit');
+  near(lo.v / t.v, 0.9, 1e-9, 'Nachbar langsam'); near(hi.v / t.v, 1.1, 1e-9, 'Nachbar schnell');
+  assert.strictEqual(lo.flap, t.flap); assert.strictEqual(hi.flap, t.flap);
+  while (!opt.done) opt.step();
+  const r = opt.result();
+  // kein Zustand schlechter, Nachbarn gleiten nicht besser als das Ziel (kleine Reserve fürs Rauschen)
+  if (!r.kept) {
+    r.after.points.forEach((p, i) => { if (p.role !== 'nb') assert.ok(p.cd <= r.before.points[i].cd * 1.0001, p.name); });
+    assert.ok(r.after.vBest && Math.abs(r.after.vBest.v * 3.6 - 34) < 3, JSON.stringify(r.after.vBest));
+  }
+  const a = S.apply(m, r);
+  assert.deepStrictEqual(a.flaps.modes.map(q => q.name), r.kept ? (m.flaps?.modes || []).map(q => q.name) : ['Speed', 'Thermik', 'Bestes Gleiten']);
+  if (!r.kept) near(a.wing.stations[0].camber, r.after.stations[0].camber, 1e-4, 'Wurzelwölbung übernommen');
+  // Scheitel der Parabel E(V)
+  const ps = S.peakSpeed({ v: 9, E: 20, ok: true }, { v: 10, E: 21, ok: true }, { v: 11, E: 20, ok: true });
+  near(ps.v, 10, 1e-9, 'Scheitel'); near(ps.E, 21, 1e-9, 'E Scheitel');
+  assert.throws(() => S.optimizer(m, pj.profiles, { vBest: 15 / 3.6, points }), /passt nicht/);
+});
