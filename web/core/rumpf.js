@@ -42,9 +42,19 @@
 
   // Kontur aus der Tabelle: Querschnitt elliptisch mit Breite w und Höhe h; gerechnet wird mit dem Kreis gleicher
   // Fläche (r), die benetzte Fläche mit dem Umfang der Ellipse
-  function tableShape(f) {
+  // Hinten wird die Kontur so gestreckt, dass sie an der Endleiste des Höhenleitwerks endet: der Massstab der
+  // Zeichnung (aus der Spannweite) trifft den Leitwerkshebel des Modells selten genau. Vorne bis zur
+  // Flügelendleiste an der Wurzel bleibt alles, wie gezeichnet.
+  function tableShape(f, model) {
     const fin = TYPES[f.finish === 'oldtimer' ? 'oldtimer' : 'modern'];
-    const T = f.table.map(q => ({ x: +q.x, w: Math.max(0, +q.w || 0), h: Math.max(0, +q.h || 0) })).filter(q => Number.isFinite(q.x)).sort((a, b) => a.x - b.x);
+    let T = f.table.map(q => ({ x: +q.x, w: Math.max(0, +q.w || 0), h: Math.max(0, +q.h || 0) })).filter(q => Number.isFinite(q.x)).sort((a, b) => a.x - b.x);
+    let stretch = 1;
+    if (model && model.tail && model.tail.stations && model.tail.stations[0] && T.length > 2) {
+      const c = model.wing.stations[0].chord, ts = model.tail.stations[0];
+      const end = model.tail.x + (ts.offset || 0) + ts.chord, x3 = T[T.length - 1].x;
+      const k = (end - c) / (x3 - c);
+      if (x3 > c && end > c && k > 0.5 && k < 2) { stretch = k; T = T.map(q => q.x > c ? { ...q, x: c + (q.x - c) * k } : q); }
+    }
     const pts = T.map(q => ({ x: q.x, r: Math.sqrt(q.w * q.h) / 2, w: q.w / 2, h: q.h / 2 }));
     let swet = 0;
     for (let i = 1; i < pts.length; i++) {
@@ -52,12 +62,12 @@
       swet += (perimeter(a.w, a.h) + perimeter(b.w, b.h)) / 2 * ds;
     }
     const D = Math.max(...pts.map(p => 2 * p.r)), x0 = pts[0].x, x3 = pts[pts.length - 1].x;
-    return { ...f, typeName: TYPES.kontur.name + (f.finish === 'oldtimer' ? ', Oldtimer' : ''), D, Rb: pts[pts.length - 1].r, x0, x3, length: x3 - x0, pts, swet, sPod: swet, sBoom: 0, podLength: x3 - x0, laminar: fin.laminar, extra: fin.extra, width: 1 };
+    return { ...f, stretch, typeName: TYPES.kontur.name + (f.finish === 'oldtimer' ? ', Oldtimer' : ''), D, Rb: pts[pts.length - 1].r, x0, x3, length: x3 - x0, pts, swet, sPod: swet, sBoom: 0, podLength: x3 - x0, laminar: fin.laminar, extra: fin.extra, width: 1 };
   }
 
   function shape(model) {
     const f = of(model);
-    if (f.type === 'kontur') return tableShape(f);
+    if (f.type === 'kontur') return tableShape(f, model);
     const t = TYPES[f.type];
     const c = model.wing.stations[0].chord;
     const D = f.diameter || Math.round(t.d * c), R = D / 2, Rb = R * t.boom;
