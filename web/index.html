@@ -299,16 +299,19 @@ td.gain{color:var(--good)} td.loss{color:var(--warn)}
 .bench-in{display:grid;gap:12px;min-width:0;align-content:start}
 .bench-out{display:grid;gap:10px;min-width:0;align-content:start;position:sticky;top:var(--stick,8px);max-height:calc(100vh - var(--stick,8px) - 56px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .bench-out .charts{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
-.bench-out .cbox .cv{height:240px}
+.bench-out .cbox .cv{height:clamp(240px,36vh,400px)}
 .bench-out .rview[data-view="dist"] .charts{grid-template-columns:minmax(0,1fr)}
-.bench-out .rview[data-view="dist"] .cbox .cv{height:260px}
+.bench-out .rview[data-view="dist"] .cbox .cv{height:clamp(260px,38vh,420px)}
 .bench-out .charts.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .bench-out .charts.c2 .cbox .cv{height:min(260px,30vh)}
 .rview,.lview{display:grid;gap:10px;min-width:0}
 .rview[hidden],.lview[hidden],.topic[hidden]{display:none}
 .topic{display:grid;gap:12px;min-width:0}
 .bench[style*="--out"]{grid-template-columns:250px minmax(0,1fr) var(--out)!important}
-#mBench{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}
+#mBench{grid-template-columns:minmax(280px,0.55fr) minmax(0,1fr)}
+#mBench .bench-in .form{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px 14px}
+#mBench .bench-in .form .field:has(> .seg){grid-column:1/-1}
+#mBench .bench-in .seg button{white-space:nowrap}
 #mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}
 #mBench.solo{grid-template-columns:minmax(0,1fr)!important}
 #mBench.solo .bench-out{display:none}
@@ -326,7 +329,7 @@ body.splitting{cursor:col-resize;user-select:none}
 .cbox .ct .legend{flex-wrap:nowrap;overflow:hidden;min-width:0}
 h2.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:1200px){.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:230px minmax(0,1fr)!important}.bench-out{grid-column:2;position:static;max-height:none;overflow:visible;padding-left:0}.splitter{display:none}}
-@media (max-width:1200px) and (min-width:861px){#mBench{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)!important}#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}#mBench .bench-out{grid-column:auto;position:sticky;max-height:calc(100vh - var(--stick,8px) - 56px);overflow:auto;padding-left:9px}#mBench .splitter{display:block}}
+@media (max-width:1200px) and (min-width:861px){#mBench{grid-template-columns:minmax(260px,0.55fr) minmax(0,1fr)!important}#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr) var(--out)!important}#mBench .bench-out{grid-column:auto;position:sticky;max-height:calc(100vh - var(--stick,8px) - 56px);overflow:auto;padding-left:9px}#mBench .splitter{display:block}}
 @media (max-width:860px){.mbar{order:5;flex-basis:100%}#mBench,#mBench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}#mBench .splitter{display:none}.kpibar{position:static}.bench,#pane-labor .bench,.bench[style*="--out"]{grid-template-columns:minmax(0,1fr)!important}.bench-out{grid-column:auto}.bench-out .charts.c2{grid-template-columns:minmax(0,1fr)}}
 .topics{display:grid;gap:2px}
 .topics button{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border:0;background:none;color:var(--fg);font:500 .95rem var(--body);padding:6px 9px;border-radius:6px;cursor:pointer;text-align:left}
@@ -2831,10 +2834,10 @@ function showLView(v) {
 $('lViews').addEventListener('click', e => { const b = e.target.closest('[data-lview]'); if (b) showLView(b.dataset.lview); });
 // Trenner zwischen Eingaben und Ergebnissen: ziehen ändert die Breite der Ergebnisspalte, gemerkt pro Reiter
 document.querySelectorAll('.splitter').forEach(sp => {
-  const bench = sp.closest('.bench'), key = 'mmpa.split.' + sp.closest('.pane').dataset.tab;
+  const bench = sp.closest('.bench'), key = 'mmpa.split2.' + sp.closest('.pane').dataset.tab;
   const apply = w => {
     if (!w) { bench.style.removeProperty('--out'); store.set(key, ''); }
-    else { const side = bench.querySelector('.side')?.offsetWidth || 0, tot = bench.clientWidth - side - (side ? 28 : 14); w = Math.round(Math.max(300, Math.min(tot - 360, w))); bench.style.setProperty('--out', w + 'px'); store.set(key, w); }
+    else { const side = bench.querySelector('.side')?.offsetWidth || 0, tot = bench.clientWidth - side - (side ? 28 : 14); w = Math.round(Math.max(300, Math.min(tot - 260, w))); bench.style.setProperty('--out', w + 'px'); store.set(key, w); }
     requestAnimationFrame(redrawCanvases);
   };
   const saved = +store.get(key); if (saved) bench.style.setProperty('--out', saved + 'px');
