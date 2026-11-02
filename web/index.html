@@ -18,6 +18,7 @@
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
 <script src="core/ordner.js"></script>
+<script src="core/cloud.js"></script>
 <script src="core/frage.js"></script>
 <script src="core/dreiseiten.js"></script>
 <style>
@@ -204,6 +205,8 @@ dialog h2{margin-bottom:12px}
 .setform .chk{display:flex;gap:8px;align-items:center;font-size:.88rem}
 .setform .chk input{accent-color:var(--accent)}
 .dirname{font:500 .9rem var(--mono);overflow-wrap:anywhere}
+.cloudstate{border:0;background:none;color:var(--muted, inherit);font:500 1rem system-ui,sans-serif;padding:4px 2px;cursor:pointer;white-space:nowrap}
+.cloudstate[data-state="error"],.cloudstate[data-state="conflict"]{color:#d0552b}
 .filelist{display:grid;gap:6px;max-height:50vh;overflow:auto;margin-bottom:14px}
 .filelist .libitem{grid-template-columns:1fr auto;align-items:baseline;gap:10px}
 .filelist .libitem b{overflow-wrap:anywhere}
@@ -437,6 +440,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
       <button class="btn ghost askbtn" type="button" id="askToggle" aria-pressed="false" title="Fragemodus: auf ein Feld, eine Tabellenzeile oder eine Grafik klicken und Claude fragen">? Fragen</button>
       <button class="btn ghost" type="button" id="openBtn">Projekt öffnen …</button>
       <button class="btn ghost" type="button" id="saveBtn">Speichern</button>
+      <button type="button" class="cloudstate" id="cloudState" hidden aria-label="GitHub-Sync"></button>
       <button type="button" class="iconbtn gear" id="openSettings" aria-label="Einstellungen" title="Einstellungen">⚙</button>
     </div>
     <input type="file" id="datFile" accept=".dat,.txt,.cor" multiple hidden>
@@ -772,6 +776,12 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
   <div class="setform"><div class="row end"><button type="button" class="btn ghost" id="openOther">Andere Datei …</button><button type="button" class="btn ghost" id="openClose">Schliessen</button></div></div>
 </dialog>
 
+<dialog id="cloudDlg">
+  <h2>Zwei Stände</h2>
+  <p id="cloudDlgText" style="max-width:34em"></p>
+  <div class="setform"><div class="row end"><button type="button" class="btn ghost" id="cloudLater">Später</button><button type="button" class="btn ghost" id="cloudKeep">Meinen behalten</button><button type="button" class="btn" id="cloudTake">Den von GitHub laden</button></div></div>
+</dialog>
+
 <dialog id="settingsDlg">
   <h2>Einstellungen</h2>
   <div class="setform">
@@ -782,6 +792,12 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
       <div class="row" id="dirBtns"><button type="button" class="btn ghost sm" id="dirPick">Ordner wählen …</button><button type="button" class="btn ghost sm" id="dirGrant" hidden>Zugriff erlauben</button><button type="button" class="btn ghost sm" id="dirClear" hidden>Ordner entfernen</button></div>
       <label class="chk" id="dirAutoRow" hidden><input type="checkbox" id="dirAuto"> Änderungen automatisch in den Ordner speichern</label>
       <p class="hint" id="dirHint"></p>
+    </div>
+    <div class="field"><span>GitHub-Sync (alle Geräte)</span>
+      <div class="row"><input class="txt" id="ghRepo" placeholder="besitzer/repo, z. B. mrskynavi/mm-plane-daten" autocomplete="off" spellcheck="false" autocapitalize="off" style="flex:1 1 16em;width:auto"></div>
+      <div class="row"><input class="txt" id="ghToken" type="password" placeholder="github_pat_…" autocomplete="off" spellcheck="false" autocapitalize="off" style="flex:1 1 16em;width:auto"><button type="button" class="btn ghost sm" id="ghConnect">Verbinden</button><button type="button" class="btn ghost sm" id="ghOff" hidden>Ausschalten</button></div>
+      <p class="hint" id="ghState"></p>
+      <p class="hint">Projekte liegen dann im Ordner „projekte“ deines Repos und werden nach jeder Änderung automatisch gespeichert. Beim Öffnen der App und beim Zurückwechseln lädt sie den neuesten Stand. Der Schlüssel (fine-grained Token, nur dieses Repo, Contents: Read and write) bleibt in diesem Browser und geht nur an api.github.com.</p>
     </div>
     <div class="field"><span>Claude API für den Fragemodus</span>
       <div class="row"><input class="txt" id="setKey" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 16em;width:auto"><button type="button" class="btn ghost sm" id="setKeyClear">Schlüssel löschen</button></div>
@@ -849,7 +865,7 @@ function defaultProject() {
 }
 try { const s = store.get('mmpa.projekt'); project = s ? PR.parse(s) : defaultProject(); } catch { project = defaultProject(); }
 let saveTimer = null;
-function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); autoSave(); }
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('mmpa.projekt', PR.serialize(project)), 300); autoSave(); if (window.cloudChanged) window.cloudChanged(); }
 
 const ui = { varOff: new Set(), ptsKey: 'A', tab: store.get('mmpa.tab') === 'labor' ? 'labor' : 'modell' };
 const profById = id => project.profiles.find(p => p.id === id);
@@ -2849,4 +2865,5 @@ renderAll();
 </script>
 <script src="frage-ui.js"></script>
 <script src="dreiseiten-ui.js"></script>
+<script src="cloud-ui.js"></script>
 
