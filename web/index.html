@@ -594,7 +594,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
             <p>Die Rechnung geht von sauberen Profilen und einem glatten Rumpf aus. Hier kommt dazu, was ein gebautes Modell zusätzlich bremst. Alles gilt für die Gleitzahl in der Arbeitstabelle, die Polaren, die Klappenschar und den Optimierer.</p>
             <p><b>Antrieb vorn:</b> Klappluftschraube angeklappt mit Cw·A = 0,25 × Spinnerfläche (Blattwurzeln, Mitnehmer, Stufe am Spinner); starre Luftschraube stehend mit 0,06 × Kreisfläche, das ist sehr viel. <b>Anlenkungen:</b> nur die aussen liegenden zählen, je Stück etwa 0,4 cm² (Horn, Gabelkopf, Gestänge). <b>Ruderspalte:</b> offen heisst Cw +0,0008 auf die Fläche mit Rudern, das sind alle Segmente mit Klappentiefe über 0 an Flügel und Leitwerk.</p>
             <p><b>Endleiste:</b> gebaut ist sie nie messerscharf, typisch 0,5–1 mm. Jedes Profil bekommt eine offene Endleiste mit genau dieser Dicke: über die hinteren 20 % der Tiefe wird es sanft aufgedickt (wie TGAP in XFOIL), grösste Dicke und Wölbung bleiben gleich. Weil die Dicke in mm gilt, ist sie bei kleiner Tiefe relativ grösser, aussen also mehr. Mit diesen Profilen rechnen alle Polaren, die Klappenschar und der Optimierer; dazu kommt der Totwasserwiderstand der stumpfen Kante nach Hoerner. In der Flügel- und Leitwerkstabelle lässt sich die Dicke je Station überschreiben (Spalte Endl.). 0 heisst scharf wie im Profil.</p>
-            <p><b>Faktor Profile:</b> multipliziert den Profilwiderstand von Flügel und Leitwerken. 1,0 ist die ideale Polare; Richtwerte 1,05–1,1 für eine gute Schale, 1,15–1,3 für Welligkeit, Folie, Rippen oder Turbulatoren. <b>Sonstiges:</b> Zuschlag in Prozent auf allen schädlichen Widerstand (alles ausser dem induzierten), für Haube, Übergänge Flügel–Rumpf und Leitwerk–Rumpf, Schleppkupplung, Rad, Antennen; Richtwerte 5 % schlank, 10–20 % Scale.</p>
+            <p><b>Faktor Profile:</b> multipliziert den Profilwiderstand von Flügel und Leitwerken. 1,0 ist die ideale Polare; Richtwerte 1,05–1,1 für eine gute Schale, 1,15–1,3 für Welligkeit oder Turbulatoren. Für Rippenflügel mit Nasenbeplankung besser die Bauweise unter Flügel bzw. Höhenleitwerk einstellen, Faktor Profile nur noch zum Feinabgleich. <b>Sonstiges:</b> Zuschlag in Prozent auf allen schädlichen Widerstand (alles ausser dem induzierten), für Haube, Übergänge Flügel–Rumpf und Leitwerk–Rumpf, Schleppkupplung, Rad, Antennen; Richtwerte 5 % schlank, 10–20 % Scale.</p>
             <p><b>Spannweiten-Wirkungsgrad:</b> die Rechnung (Trefftz-Ebene) gibt den induzierten Widerstand des sauberen Flügels, meist nahe am Ideal. Am gebauten Modell stören Rumpfübergang, Ruderspalte, Randwirbel und Querruderausschläge. 1,0 rechnet wie bisher, 0,9 heisst 11 % mehr induzierter Widerstand. Wirkt fast nur im Langsamflug; Richtwerte 0,85–0,95. <b>Rumpf bei Anstellwinkel:</b> der Rumpf wird gerade angeströmt gerechnet. Steht er im Langsamflug angestellt, steigt sein Widerstand (Querströmung, Ablösung am Heck). Der Zuschlag gilt bei 5° Anstellwinkel und wächst mit dem Quadrat des Winkels, bei 2,5° ist es ein Viertel davon. Richtwerte 20–50 % für dicke Rümpfe. Mit beiden Werten lässt sich die Rechnung an eine gemessene Polare anpassen.</p>
             <p><b>Kleine Re (Ablöseblasen):</b> unter etwa Re 100'000 löst die laminare Grenzschicht auf der Oberseite ab und legt sich erst als Blase später wieder an; bei hohem Ca wird die Blase lang und teuer. Die Profilpolaren (NeuralFoil, wie XFOIL) unterschätzen das. Der Zuschlag gilt auf den Profilwiderstand jedes Flügelstreifens mit seiner eigenen Re: der Wert in % bei Re 100'000 und Ca 1,0, doppelt so viel bei Re 50'000 (höchstens das Vierfache), null bis Ca 0,4 und dann quadratisch steigend. Er trifft also vor allem die Randbögen im Langsamflug und lässt den Schnellflug fast unverändert. Shark nach Messung: etwa 60 % zusammen mit e 0,9 und Rumpf 40 %.</p>
           </div>
@@ -621,6 +621,20 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <div class="pol-head"><h2>Flügel</h2><span class="status" id="wingInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="wingTable"></table></div>
           <div class="btnrow"><button type="button" class="btn ghost sm" data-add="wing">Station anfügen</button></div>
+          <div class="form" id="bWing">
+            <div class="field"><span>Bauweise Flügel <button type="button" class="iconbtn sm" data-info="info-build" aria-expanded="false" aria-controls="info-build" aria-label="So wird die Bauweise gerechnet">i</button></span><span class="seg" data-bk="type"><button type="button" data-v="voll">Vollbeplankt</button><button type="button" data-v="rippen">Rippen</button></span></div>
+            <label class="field" data-rib><span>Beplankung oben bis</span><span class="row"><input class="num" data-bk="top" type="number" step="1" min="0" max="100"><span class="u">%</span></span></label>
+            <label class="field" data-rib><span>Beplankung unten bis</span><span class="row"><input class="num" data-bk="bot" type="number" step="1" min="0" max="100"><span class="u">%</span></span></label>
+            <label class="field" data-rib><span>Rippenabstand</span><span class="row"><input class="num" data-bk="ribs" type="number" step="5" min="10" max="300"><span class="u">mm</span></span></label>
+            <div class="field" data-rib><span>Bespannung</span><span class="seg" data-bk="cover"><button type="button" data-v="folie">Folie</button><button type="button" data-v="papier">Papier</button><button type="button" data-v="gewebe">Gewebe</button></span></div>
+          </div>
+          <p class="hint" id="bWingInfo"></p>
+          <div class="infopop" id="info-build" hidden>
+            <p><b>Vollbeplankt:</b> geschlossene, glatte Oberfläche (Schale, Styro-Balsa, ganz beplankter Rippenflügel). So rechnet die App wie bisher.</p>
+            <p><b>Rippen, Nase beplankt:</b> vorne eine Beplankung (Torsionsnase) oben und unten bis zur angegebenen Tiefe, dahinter Bespannung zwischen den Rippen. Am Stoss Beplankung–Bespannung, an den Rippen und an der welligen Bespannung schlägt die Grenzschicht spätestens um: die Polaren rechnen mit erzwungenem Umschlag an dieser Stelle (wie XTRIP in XFOIL). Liegt der freie Umschlag weiter vorne, bleibt es bei diesem. Bei kleiner Re wirkt der Stoss wie ein Turbulator: eine weit hinten endende Beplankung kann dann sogar weniger Widerstand geben als ganz glatt, weil die Ablöseblase wegfällt. Unten unbeplankt: 0 eintragen, dann gilt der Umschlag knapp hinter der Nasenleiste (3 %).</p>
+            <p>Dazu hängt die Bespannung zwischen den Rippen durch und bildet über jeder Rippe einen Grat. Zuschlag ΔCw = k × Rippenabstand/Tiefe (höchstens 0,6) × bespannter Anteil, mit k = 0,003 für Folie, 0,0035 für Papier, 0,0045 für Gewebe. Weil der Abstand in mm gilt, wirkt er bei kleiner Tiefe (aussen, Leitwerk) stärker. Das ist ein Schätzwert, die Grössenordnung liegt bei 3–8 % des Profilwiderstands; mit einer gemessenen Polare lässt er sich über Faktor Profile nachjustieren.</p>
+            <p>Nicht gerechnet: eine hohle Profilunterseite, die von der Bespannung überspannt wird. Das Profil in der Tabelle sollte dann schon die überspannte Unterseite haben.</p>
+          </div>
         </section>
 </div>
 <div class="topic" data-topic="tail">
@@ -628,6 +642,20 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <div class="pol-head"><h2>Höhenleitwerk</h2><span class="status" id="tailInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="tailTable"></table></div>
           <div class="btnrow"><button type="button" class="btn ghost sm" data-add="tail">Station anfügen</button><span class="hint">V-Leitwerk: V-Form eintragen, z. B. 40°. Profil leer lassen für eine ebene Platte.</span></div>
+          <div class="form" id="bTail">
+            <div class="field"><span>Bauweise Leitwerk <button type="button" class="iconbtn sm" data-info="info-buildT" aria-expanded="false" aria-controls="info-buildT" aria-label="So wird die Bauweise gerechnet">i</button></span><span class="seg" data-bk="type"><button type="button" data-v="voll">Vollbeplankt</button><button type="button" data-v="rippen">Rippen</button></span></div>
+            <label class="field" data-rib><span>Beplankung oben bis</span><span class="row"><input class="num" data-bk="top" type="number" step="1" min="0" max="100"><span class="u">%</span></span></label>
+            <label class="field" data-rib><span>Beplankung unten bis</span><span class="row"><input class="num" data-bk="bot" type="number" step="1" min="0" max="100"><span class="u">%</span></span></label>
+            <label class="field" data-rib><span>Rippenabstand</span><span class="row"><input class="num" data-bk="ribs" type="number" step="5" min="10" max="300"><span class="u">mm</span></span></label>
+            <div class="field" data-rib><span>Bespannung</span><span class="seg" data-bk="cover"><button type="button" data-v="folie">Folie</button><button type="button" data-v="papier">Papier</button><button type="button" data-v="gewebe">Gewebe</button></span></div>
+          </div>
+          <p class="hint" id="bTailInfo"></p>
+          <div class="infopop" id="info-buildT" hidden>
+            <p><b>Vollbeplankt:</b> geschlossene, glatte Oberfläche (Schale, Styro-Balsa, ganz beplankter Rippenflügel). So rechnet die App wie bisher.</p>
+            <p><b>Rippen, Nase beplankt:</b> vorne eine Beplankung (Torsionsnase) oben und unten bis zur angegebenen Tiefe, dahinter Bespannung zwischen den Rippen. Am Stoss Beplankung–Bespannung, an den Rippen und an der welligen Bespannung schlägt die Grenzschicht spätestens um: die Polaren rechnen mit erzwungenem Umschlag an dieser Stelle (wie XTRIP in XFOIL). Liegt der freie Umschlag weiter vorne, bleibt es bei diesem. Bei kleiner Re wirkt der Stoss wie ein Turbulator: eine weit hinten endende Beplankung kann dann sogar weniger Widerstand geben als ganz glatt, weil die Ablöseblase wegfällt. Unten unbeplankt: 0 eintragen, dann gilt der Umschlag knapp hinter der Nasenleiste (3 %).</p>
+            <p>Dazu hängt die Bespannung zwischen den Rippen durch und bildet über jeder Rippe einen Grat. Zuschlag ΔCw = k × Rippenabstand/Tiefe (höchstens 0,6) × bespannter Anteil, mit k = 0,003 für Folie, 0,0035 für Papier, 0,0045 für Gewebe. Weil der Abstand in mm gilt, wirkt er bei kleiner Tiefe (aussen, Leitwerk) stärker. Das ist ein Schätzwert, die Grössenordnung liegt bei 3–8 % des Profilwiderstands; mit einer gemessenen Polare lässt er sich über Faktor Profile nachjustieren.</p>
+            <p>Nicht gerechnet: eine hohle Profilunterseite, die von der Bespannung überspannt wird. Das Profil in der Tabelle sollte dann schon die überspannte Unterseite haben.</p>
+          </div>
           <div class="form">
             <div class="field"><span>Bauart</span><span class="seg" id="eType"><button type="button" data-v="gedaempft">gedämpft (Flosse + Ruder)</button><button type="button" data-v="pendel">Pendel</button></span></div>
             <label class="field"><span>Ruder neutral bei EWD</span><span class="row"><input class="num" id="eEwd" type="number" step="0.1" placeholder="auto"><span class="u">°</span></span></label>
@@ -1766,6 +1794,7 @@ function syncModelForm() {
   elevatorInfo(m);
   $('fFin').value = f.fin ?? ''; $('fFin').placeholder = FU.finArea(m, window.MMPA.vlm.planform(m.tail.stations).area);
   syncExtras(m);
+  syncBuild(m);
 }
 // Rumpf: Form und Parameter; leere Felder = automatisch
 const setFus = (k, v) => { const m = curModel(); m.fuselage = { ...FU.of(m), [k]: v }; persist(); syncModelForm(); scheduleModel(); };
@@ -1792,6 +1821,29 @@ extraNum('xTe', 'te', 0, 3); extraNum('xProf', 'profile', 1, 3); extraNum('xOthe
 extraNum('xSpan', 'span', 0.5, 1.2); extraNum('xFusAoa', 'fusAoa', 0, 300); extraNum('xLowRe', 'lowRe', 0, 300); extraNum('xProp', 'prop', 50, 1000); extraNum('xHorns', 'horns', 0, 40); extraNum('xHorn', 'horn', 0, 20);
 $('xDrive').onclick = e => { const b = e.target.closest('button'); if (b) setExtra('drive', b.dataset.v); };
 $('xGaps').onclick = e => { const b = e.target.closest('button'); if (b) setExtra('gaps', b.dataset.v); };
+// Bauweise von Flügel und Höhenleitwerk: vollbeplankt oder Rippen mit Nasenbeplankung (MD.buildOf)
+function syncBuild(m) {
+  for (const [part, sfx] of [['wing', 'Wing'], ['tail', 'Tail']]) {
+    const box = $('b' + sfx), b = MD.buildOf(m[part]), d = m[part].build || {}, rib = b.type === 'rippen';
+    box.querySelectorAll('.seg[data-bk]').forEach(g => g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === b[g.dataset.bk])));
+    box.querySelectorAll('input[data-bk]').forEach(x => { x.value = d[x.dataset.bk] ?? ''; x.placeholder = MD.BUILD[x.dataset.bk]; });
+    box.querySelectorAll('[data-rib]').forEach(x => { x.hidden = !rib; });
+    const info = $('b' + sfx + 'Info');
+    if (!rib) { info.textContent = ''; continue; }
+    const st = m[part].stations, e = st.map(q => MD.buildEffect(b, q.chord));
+    const cv = e.map(q => q.cdCover * 1e4), lo = Math.min(...cv), hi = Math.max(...cv);
+    info.textContent = `Umschlag spätestens bei ${fmt(e[0].xtrTop * 100, 0)} % oben und ${fmt(e[0].xtrBot * 100, 0)} % unten. Zuschlag Bespannung Cw +${fmt(lo, 1)}${hi - lo > 0.05 ? '…' + fmt(hi, 1) : ''} ×10⁻⁴ (${hi - lo > 0.05 ? 'Wurzel bis Rand' : 'alle Stationen'}).`;
+  }
+}
+for (const [part, sfx] of [['wing', 'Wing'], ['tail', 'Tail']]) {
+  const box = $('b' + sfx);
+  const set = (k, v) => { const m = curModel(); const b = { ...(m[part].build || {}), [k]: v }; if (v == null) delete b[k]; m[part].build = b; persist(); syncModelForm(); scheduleModel(); };
+  box.querySelectorAll('.seg[data-bk]').forEach(g => { g.onclick = e => { const x = e.target.closest('button'); if (x) set(g.dataset.bk, x.dataset.v); }; });
+  box.querySelectorAll('input[data-bk]').forEach(x => x.addEventListener('change', () => {
+    const v = parseFloat(x.value), k = x.dataset.bk, [lo, hi] = k === 'ribs' ? [10, 300] : [0, 100];
+    set(k, Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null);
+  }));
+}
 // Höhenruder: Bauart und Bezugs-EWD; die Rudertiefe ist die Klappentiefe in der Leitwerkstabelle
 function elevatorInfo(m) {
   const el = MD.elevatorOf(m), tau = MD.elevatorTau(m.tail.stations), d = m.tail.stations.slice(0, -1).map(s => s.flapDepth || 0);

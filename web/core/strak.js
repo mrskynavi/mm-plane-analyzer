@@ -101,9 +101,9 @@
     return { k: kulfan(y), da: -Math.atan(zte) * 180 / Math.PI, reK: Math.sqrt(1 + zte * zte), yq: 0.25 * zte, teGap: sh.teGap || 0 };
   }
   const nfAt = (a, alpha, re, nCrit) => {
-    const r = NF.fromKulfan(a.k, alpha + a.da, re * a.reK, nCrit);
+    const r = NF.fromKulfan(a.k, alpha + a.da, re * a.reK, nCrit, a.xtrTop ?? 1, a.xtrBot ?? 1);
     r.cm += r.cd * a.yq;
-    r.cd += POL.baseDrag(r.cd, a.teGap);
+    r.cd += POL.baseDrag(r.cd, a.teGap) + (a.cdCover || 0);
     return r;
   };
 
@@ -230,7 +230,7 @@
         let lp = ends.get(key);
         if (!lp) {
           const sk = si + '|' + f.toFixed(3);
-          if (!shapes.aero.has(sk)) shapes.aero.set(sk, aeroShape(shapes[si], f, 1 - (st[i].flapDepth || 25) / 100));
+          if (!shapes.aero.has(sk)) shapes.aero.set(sk, { ...aeroShape(shapes[si], f, 1 - (st[i].flapDepth || 25) / 100), xtrTop: st[si].xtrTop, xtrBot: st[si].xtrBot, cdCover: st[si].cdCover });
           const re = pt.v * st[si].chord / 1000 / NU, hk = k + '|' + si + '|' + e;
           lp = localPolar(shapes.aero.get(sk), re, clT, spread, ctx.nCrit, ctx.hints.get(hk), want);
           ctx.hints.set(hk, lp.alpha); evals += lp.evals; ok = ok && lp.ok;
