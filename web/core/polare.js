@@ -21,7 +21,8 @@
     return 0.135 * Math.pow(gap, 4 / 3) / Math.cbrt(Math.max(cd, 0.002));
   }
 
-  // opts: { type: 1|2, re, alphaFrom, alphaTo, alphaStep, nCrit, xtrTop, xtrBot, teGap (Endleistendicke / Tiefe, für den Basiswiderstand) }
+  // opts: { type: 1|2, re, alphaFrom, alphaTo, alphaStep, nCrit, xtrTop, xtrBot, teGap (Endleistendicke / Tiefe, für den Basiswiderstand),
+  //         cdAdd (fester Zuschlag auf Cw, z. B. Bespannung zwischen Rippen) }
   // Typ 2: re ist Re·√Ca (wie in XFOIL), die örtliche Re = re / √Ca
   function compute(coords, opts = {}) {
     const o = { type: 1, re: 200000, alphaFrom: -5, alphaTo: 12, alphaStep: 0.5, nCrit: 9, xtrTop: 1, xtrBot: 1, ...opts };
@@ -41,8 +42,8 @@
           r = at(alpha, Re, o.nCrit, o.xtrTop, o.xtrBot);
         }
       }
-      const cdB = baseDrag(r.cd, o.teGap);
-      pts.push({ alpha, cl: r.cl, cd: r.cd + cdB, cdBase: cdB, cm: r.cm, xtrTop: r.xtrTop, xtrBot: r.xtrBot, conf: r.conf, re: Re });
+      const cdB = baseDrag(r.cd, o.teGap), cdA = o.cdAdd > 0 ? o.cdAdd : 0;
+      pts.push({ alpha, cl: r.cl, cd: r.cd + cdB + cdA, cdCover: cdA, cdBase: cdB, cm: r.cm, xtrTop: r.xtrTop, xtrBot: r.xtrBot, conf: r.conf, re: Re });
     }
     return { opts: o, points: pts, summary: summary(pts) };
   }

@@ -22,11 +22,45 @@
     const v = st.te ?? (model.drag && model.drag.te) ?? TE_MM;
     return Number.isFinite(+v) ? Math.max(0, +v) : TE_MM;
   };
-  // Kopie des Modells, in der jede Station ihre Endleistendicke als Bruchteil der Tiefe trägt (teGap)
-  function resolveTe(model) {
-    const res = list => list.map(s => ({ ...s, teGap: s.chord > 0 ? teMm(model, s) / s.chord : 0 }));
-    return { ...model, wing: { ...model.wing, stations: res(model.wing.stations) }, tail: { ...model.tail, stations: res(model.tail.stations) } };
+  // Bauweise einer Fläche (model.wing.build, model.tail.build): 'voll' = geschlossene, glatte Oberfläche (Schale,
+  // vollbeplankt), 'rippen' = Rippenbauweise, nur die Nase beplankt (oben bis top %, unten bis bot % der Tiefe),
+  // dahinter Bespannung zwischen den Rippen (Abstand ribs in mm). Zwei Wirkungen:
+  // 1. Am Ende der Beplankung (Stoss Beplankung–Bespannung, Rippen, Bespannung wellig) schlägt die Grenzschicht spätestens um:
+  //    erzwungener Umschlag oben/unten an dieser Stelle (wie XTRIP in XFOIL), früher frei wie sonst auch.
+  // 2. Die Bespannung hängt zwischen den Rippen durch und bildet über jeder Rippe einen Grat: Zuschlag
+  //    ΔCw = k · min(Rippenabstand/Tiefe, 0,6) · bespannter Anteil der Oberfläche, k nach Bespannung.
+  //    Schätzwert aus Messungen an Rippenflügeln (Grössenordnung 3–8 % des Profilwiderstands), mit Faktor Profile nachjustierbar.
+  const BUILD = { type: 'voll', top: 30, bot: 30, ribs: 50, cover: 'folie' };
+  const BUILD_TYPES = { voll: 'vollbeplankt / Schale', rippen: 'Rippen, Nase beplankt' };
+  const COVERS = { folie: 'Folie', papier: 'Papier', gewebe: 'Gewebe' };
+  const COVER_K = { folie: 0.003, papier: 0.0035, gewebe: 0.0045 };
+  const buildOf = surf => {
+    const b = { ...BUILD, ...((surf && surf.build) || {}) };
+    if (!BUILD_TYPES[b.type]) b.type = 'voll';
+    if (!COVER_K[b.cover]) b.cover = 'folie';
+    return b;
+  };
+  // Umschlag (Bruchteil der Tiefe, 1 = frei) und Bespannungszuschlag einer Station mit Tiefe chord (mm)
+  function buildEffect(b, chord) {
+    if (!b || b.type !== 'rippen') return { xtrTop: 1, xtrBot: 1, cdCover: 0 };
+    const f = v => Math.min(1, Math.max(0.03, (Number.isFinite(+v) ? +v : 30) / 100));
+    const xtrTop = f(b.top), xtrBot = f(b.bot);
+    const sc = chord > 0 && b.ribs > 0 ? Math.min(0.6, b.ribs / chord) : 0;
+    const cdCover = COVER_K[b.cover] * sc * ((1 - xtrTop) + (1 - xtrBot)) / 2;
+    return { xtrTop, xtrBot, cdCover };
   }
+  // Kopie des Modells, in der jede Station ihre Endleistendicke als Bruchteil der Tiefe trägt (teGap),
+  // dazu aus der Bauweise der Fläche den erzwungenen Umschlag (xtrTop, xtrBot) und den Bespannungszuschlag (cdCover)
+  function resolveTe(model) {
+    const res = (list, surf) => {
+      const b = buildOf(surf);
+      return list.map(s => ({ ...s, teGap: s.chord > 0 ? teMm(model, s) / s.chord : 0, ...buildEffect(b, s.chord) }));
+    };
+    return { ...model, wing: { ...model.wing, stations: res(model.wing.stations, model.wing) }, tail: { ...model.tail, stations: res(model.tail.stations, model.tail) } };
+  }
+  // Umschlag und Zuschlag einer (aufgelösten) Station für die Polarenrechnung
+  const buildOpts = st => ({ xtrTop: st.xtrTop ?? 1, xtrBot: st.xtrBot ?? 1, cdAdd: st.cdCover || 0 });
+  const buildKey = st => [st.xtrTop ?? 1, st.xtrBot ?? 1, Math.round((st.cdCover || 0) * 1e6)];
   // Dasselbe Modell mit einer Endleistendicke für alle Stationen (0 = scharf, zum Vergleich)
   function withTe(model, mm) {
     const m = JSON.parse(JSON.stringify(model));
@@ -70,9 +104,9 @@
     if (!g) return null;
     const re = Math.round(POL.reSqrtCl(wingLoading, st.chord) / 100) * 100;
     flap = Math.round((flap || 0) * 100) / 100;
-    return cached('p' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, g.teGap, re, nCrit, flap, flap ? flapDepth : 0])), () => {
+    return cached('p' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, g.teGap, re, nCrit, flap, flap ? flapDepth : 0, buildKey(st)])), () => {
       const geo = flap ? P.flap(g.geo, flap, 1 - flapDepth / 100) : g.geo;
-      const r = POL.compute(geo, { type: 2, re, alphaFrom: -6, alphaTo: 16, alphaStep: 1, nCrit, teGap: g.teGap });
+      const r = POL.compute(geo, { type: 2, re, alphaFrom: -6, alphaTo: 16, alphaStep: 1, nCrit, teGap: g.teGap, ...buildOpts(st) });
       return { re, flap, ...r.summary, pts: r.points };
     });
   }
@@ -97,8 +131,8 @@
     const g = stationGeometry(st, profiles);
     if (!g) return null;
     re = Math.max(20000, Math.round(re / 5000) * 5000);
-    return cached('t' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, g.teGap, re, nCrit])), () => {
-      const r = POL.compute(g.geo, { type: 1, re, alphaFrom: -8, alphaTo: 8, alphaStep: 1, nCrit, teGap: g.teGap });
+    return cached('t' + PR.hash(JSON.stringify([g.camber.zs.slice(0, 8), g.stats, g.teGap, re, nCrit, buildKey(st)])), () => {
+      const r = POL.compute(g.geo, { type: 1, re, alphaFrom: -8, alphaTo: 8, alphaStep: 1, nCrit, teGap: g.teGap, ...buildOpts(st) });
       return { re, ...r.summary, pts: r.points };
     });
   }
@@ -388,7 +422,7 @@
     return tau > 0.05 ? (ref - ewd) / tau : null;
   }
 
-  const api = { analyze, resolveTe, withTe, teMm, TE_MM, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
+  const api = { analyze, resolveTe, withTe, BUILD, BUILD_TYPES, COVERS, COVER_K, buildOf, buildEffect, teMm, TE_MM, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);
