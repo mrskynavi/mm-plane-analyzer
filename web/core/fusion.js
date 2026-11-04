@@ -11,6 +11,7 @@
   const P = isNode ? require('./profil.js') : root.MMPA.profil;
 
   const RAD = Math.PI / 180;
+  const TIP_F = [0.85, 0.65, 0.45, 0.3]; // Tiefe der Ellipsenschnitte am Randbogen, Anteil der letzten Station
   const STEP = 100; // mm: grösster Abstand der Schnitte, dazwischen lineare Zwischenschnitte
   // Profile aus Messungen (3MF, Rhino) haben feine Wellen; 100 Punkte je Seite mit Wellen bringen den
   // Fitted Spline in Fusion zum Schwingen und den Loft zum Selbstschnitt. Darum je Seite N_SIDE Punkte
@@ -102,6 +103,14 @@
       };
       const ma = mid(a), mb = mid(b), t = d / dy;
       tip = { dist: d, pt: [0, 1, 2].map(k => mb[k] + (mb[k] - ma[k]) * t) };
+      // Ellipsenschnitte zwischen letzter Station und Spitze: Tiefe c = c_letzt·f mit c² linear im Abstand,
+      // Profil der letzten Station um seine Mitte verkleinert, Mitte auf der Linie zur Spitze.
+      // So läuft der Loft auch ganz aussen auf der Ellipse statt gerade in den Punkt.
+      TIP_F.forEach((fr, ri) => {
+        const e = 1 - fr * fr, m = [0, 1, 2].map(k => mb[k] + (tip.pt[k] - mb[k]) * e);
+        all.push({ name: nameOf(part, b.y) + '_Rand' + (ri + 1), y: b.y + d * e, chord: b.chord * fr, te: b.te * fr, kink: false, between: true, tipSection: true,
+          pts: b.pts.map(p => [m[0] + (p[0] - mb[0]) * fr, m[1], m[2] + (p[2] - mb[2]) * fr]) });
+      });
     }
     const maxDihedral = Math.max(...st.slice(k0).map(s => Math.abs(s.dihedral || 0)));
     return { part, start: y0, skipped: k0, stations: out, sections: all, tip, missing, maxDihedral };
@@ -140,7 +149,7 @@ NAME = ${pyStr(label.trim())}
 LOFT = True     # False: nur die Skizzen, z. B. um sie im bestehenden Loft zu tauschen
 HOCH = 'Y'      # 'Y': Y nach oben, Z nach hinten (Fusion-Standard); 'Z': Z nach oben, Y nach hinten
 SPIEGELN = False  # True: Spannweite nach -X (linke Hälfte)
-RANDSPITZE = ${r.tip ? 'True ' : 'False'}  # True: Loft endet im Punkt, wo die Randbogen-Ellipse auf Tiefe null kommt
+RANDSPITZE = ${r.tip ? 'True ' : 'False'}  # True: Loft läuft über die Ellipsenschnitte (_Rand1…4) bis in den Punkt, wo die Tiefe null wird
 SPITZE = ${r.tip ? `(${r.tip.pt.map(f).join(', ')})  # ${f(r.tip.dist)} mm ausserhalb der letzten Station` : 'None'}
 
 # Station, Knick der V-Form (dort beginnt ein neuer Loft), Punkte (x nach hinten, y Spannweite, z oben) in mm, von der Endleiste oben über die Nase zur Endleiste unten
@@ -215,38 +224,32 @@ def run(context):
                     zustand['koerper'].name = NAME
                 return True
 
+            spitze = None
+            if RANDSPITZE and SPITZE:
+                pin = comp.constructionPlanes.createInput()
+                pin.setByOffset(comp.yZConstructionPlane, adsk.core.ValueInput.createByReal(punkt(SPITZE).x))
+                ebene = comp.constructionPlanes.add(pin)
+                ebene.name = 'Randspitze'
+                sk = comp.sketches.add(ebene)
+                sk.name = 'Randspitze'
+                spitze = sk.sketchPoints.add(sk.modelToSketchSpace(punkt(SPITZE)))
             # ein Loft je Abschnitt zwischen den Knicken der V-Form, die weiteren werden angefügt.
-            # Lehnt Fusion einen Abschnitt ab (schneidet sich selbst), wird er Station für Station gelofted.
+            # Der letzte Abschnitt läuft über die Ellipsenschnitte des Randbogens bis in die Spitze.
+            # Lehnt Fusion das ab: ohne Spitze (Ende im kleinsten Ellipsenschnitt), sonst Station für Station.
             grenzen = [0] + knicke + [len(profile) - 1]
             for g in range(len(grenzen) - 1):
                 teile = profile[grenzen[g]:grenzen[g + 1] + 1]
-                if not loft(teile):
-                    for k in range(len(teile) - 1):
-                        if not loft(teile[k:k + 2]):
-                            notiz.append('Loft ' + STATIONEN[grenzen[g] + k][0] + ' bis ' + STATIONEN[grenzen[g] + k + 1][0] + ' fehlgeschlagen')
-                    notiz.append('Abschnitt ab ' + STATIONEN[grenzen[g]][0] + ' Station für Station gelofted (Kanten an den Stationen)')
-            # Randbogen: erst bis zum Punkt, sonst bis zu einem kleinen Profil (10 %), sonst flaches Ende
-            if RANDSPITZE and SPITZE:
-                letzte = STATIONEN[-1][2]
-                ok = False
-                try:
-                    pin = comp.constructionPlanes.createInput()
-                    pin.setByOffset(comp.yZConstructionPlane, adsk.core.ValueInput.createByReal(punkt(SPITZE).x))
-                    ebene = comp.constructionPlanes.add(pin)
-                    ebene.name = 'Randspitze'
-                    sk = comp.sketches.add(ebene)
-                    sk.name = 'Randspitze'
-                    ok = loft([profile[-1], sk.sketchPoints.add(sk.modelToSketchSpace(punkt(SPITZE)))])
-                except:
-                    ok = False
-                if not ok:
-                    mitte = [(min(p[i] for p in letzte) + max(p[i] for p in letzte)) / 2 for i in range(3)]
-                    klein = [[SPITZE[i] + (p[i] - mitte[i]) * 0.1 if i != 1 else SPITZE[1] for i in range(3)] for p in letzte]
-                    try:
-                        ok = loft([profile[-1], skizze(comp, 'Randspitze_klein', klein)])
-                    except:
-                        ok = False
-                    notiz.append('Randbogen endet in einem kleinen Profil (10 %)' if ok else 'Randbogen ohne Spitze, Ende flach')
+                letzter = g == len(grenzen) - 2
+                if letzter and spitze is not None and loft(teile + [spitze]):
+                    continue
+                if loft(teile):
+                    if letzter and spitze is not None:
+                        notiz.append('Randbogen endet im kleinsten Ellipsenschnitt statt in der Spitze')
+                    continue
+                for k in range(len(teile) - 1):
+                    if not loft(teile[k:k + 2]):
+                        notiz.append('Loft ' + STATIONEN[grenzen[g] + k][0] + ' bis ' + STATIONEN[grenzen[g] + k + 1][0] + ' fehlgeschlagen')
+                notiz.append('Abschnitt ab ' + STATIONEN[grenzen[g]][0] + ' Station für Station gelofted (Kanten an den Stationen)')
         ui.messageBox(NAME + ': ' + str(len(STATIONEN)) + ' Schnitte' + (' gelofted.' if LOFT else ' als Skizzen angelegt.') + ('\\n' + '\\n'.join(notiz) if notiz else ''))
     except:
         if ui:
