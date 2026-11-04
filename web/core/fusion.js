@@ -8,9 +8,25 @@
   const isNode = typeof module !== 'undefined' && module.exports;
   const M = isNode ? require('./modell.js') : root.MMPA.modell;
   const V = isNode ? require('./vlm.js') : root.MMPA.vlm;
+  const P = isNode ? require('./profil.js') : root.MMPA.profil;
 
   const RAD = Math.PI / 180;
   const STEP = 100; // mm: grösster Abstand der Schnitte, dazwischen lineare Zwischenschnitte
+  // Profile aus Messungen (3MF, Rhino) haben feine Wellen; 100 Punkte je Seite mit Wellen bringen den
+  // Fitted Spline in Fusion zum Schwingen und den Loft zum Selbstschnitt. Darum je Seite N_SIDE Punkte
+  // (Kosinusteilung) und Dicke und Wölbung leicht geglättet (Abweichung meist unter 0,1 mm).
+  const N_SIDE = 50, PASSES = 2;
+  function glatt(geo, n, passes) {
+    const x = P.cosspace(n), { t, c } = P.thicknessCamber(geo, x);
+    const sm = a => {
+      let b = a.slice();
+      for (let k = 0; k < passes; k++) { const o = b.slice(); for (let i = 2; i < b.length - 1; i++) o[i] = (b[i - 1] + 2 * b[i] + b[i + 1]) / 4; b = o; }
+      return b;
+    };
+    const ts = sm(t), cs = sm(c);
+    const up = x.map((xv, k) => [xv, cs[k] + ts[k] / 2]), lo = x.map((xv, k) => [xv, cs[k] - ts[k] / 2]);
+    return up.slice().reverse().concat(lo.slice(1));
+  }
   const nameOf = (part, d) => `${part === 'wing' ? 'WG' : 'HLW'}_Y${String(Math.round(d)).padStart(4, '0')}`;
   const MIN_TE = 0.05; // mm: Fusion braucht eine offene Endleiste, damit die Skizze eine Fläche schliesst
 
@@ -37,7 +53,7 @@
       const s = st[i], g = M.stationGeometry(s, profiles);
       if (!g) { missing.push(Math.round(s.y)); continue; }
       const c = s.chord, tw = (s.twist || 0) * RAD, ct = Math.cos(tw), sn = Math.sin(tw);
-      const geo = g.geo.map(p => p.slice());
+      const geo = opts.raw ? g.geo.map(p => p.slice()) : glatt(g.geo, opts.n || N_SIDE, opts.passes ?? PASSES);
       // Endleiste mindestens MIN_TE offen, sanft über die hinteren 20 %
       const n = geo.length, gap = (geo[0][1] - geo[n - 1][1]) * c;
       if (gap < MIN_TE) {
@@ -274,7 +290,7 @@ def run(context):
     return { name: name + '.zip', bytes: zip([{ name: name + '/' + name + '.py', data: script(model, profiles, part, opts) }, { name: name + '/' + name + '.manifest', data: manifest() }]) };
   }
 
-  const api = { sections, script, scriptZip, zip, crc32, manifest, fileName, firstStation, MIN_TE, STEP };
+  const api = { glatt, N_SIDE, PASSES, sections, script, scriptZip, zip, crc32, manifest, fileName, firstStation, MIN_TE, STEP };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).fusion = api;
 })(typeof self !== 'undefined' ? self : this);
