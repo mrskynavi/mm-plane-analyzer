@@ -80,3 +80,13 @@ test('Fusion: Ellipsenschnitte am Randbogen', () => {
   tipS.forEach(s => { const f = s.chord / last.chord; assert.ok(Math.abs((r.tip.dist - (s.y - last.y)) / r.tip.dist - f * f) < 1e-9); });
   assert.ok(tipS.every((s, i) => i === 0 || s.y > tipS[i - 1].y));
 });
+
+test('Fusion: Start ab gewählter Station', () => {
+  const { project, model } = wing();
+  assert.strictEqual(FU.sections(model, project.profiles, 'wing', { fromY: 0 }).skipped, 0);
+  const r = FU.sections(model, project.profiles, 'wing', { fromY: 500 });
+  assert.strictEqual(r.start, 500);
+  assert.strictEqual(r.stations[0].name, 'WG_Y0000');
+  assert.strictEqual(FU.startIndex(model.wing.stations, { fromY: 960 }), 3); // letzte Station geht nicht, eine davor
+  assert.strictEqual(FU.startIndex(model.wing.stations, {}), 1);
+});

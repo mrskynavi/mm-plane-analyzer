@@ -648,7 +648,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <div class="btnrow"><button type="button" class="btn ghost sm" data-add="wing">Station anfügen</button><button type="button" class="btn ghost sm" data-fusion="wing" title="Skript für Autodesk Fusion (ZIP mit Skriptordner): Skizzen je Station und Loft zum Körper">Für Fusion …</button><button type="button" class="iconbtn sm" data-info="info-fusion" aria-expanded="false" aria-controls="info-fusion" aria-label="So kommt die Fläche nach Fusion">i</button></div>
           <div class="infopop" id="info-fusion" hidden>
             <p><b>Für Fusion:</b> lädt ein ZIP mit einem Skriptordner (Python-Skript und .manifest) mit allen Stationen dieser Fläche, so wie die App sie rechnet: Profil mit Dicke, Wölbung, Rücklagen und Endleistendicke, Tiefe, Pfeilung, V-Form und Schränkung (um die Nasenleiste). ZIP entpacken, in Fusion unter Dienstprogramme → Add-Ins → Skripte und Zusatzmodule (Shift+S) mit „+“ → „Skript oder Zusatzmodul von Gerät“ den Ordner wählen, dann das Skript auswählen und ausführen (ein Design muss offen sein). Es legt eine neue Komponente an: je Schnitt eine Ebene mit Skizze (Profil als Spline, Endleiste als Linie) und einen Loft zum Volumenkörper, an jedem Knick der V-Form ein neuer Abschnitt.</p>
-            <p>Stationen im Rumpf (gleiche Tiefe und gleiches Profil wie die nächste) lässt es weg, der Nullpunkt ist die Nasenleiste der Wurzelrippe; X ist die Spannweite. Lange Segmente bekommen alle 100 mm einen linearen Zwischenschnitt, damit Nasen- und Endleiste dazwischen gerade bleiben. Am Randbogen rechnet das Skript aus den letzten zwei Stationen hoch, wo die Ellipse auf Tiefe null kommt, und lässt den Loft dort in einem Punkt enden. Je mehr Stationen am Rand, desto genauer der Bogen.</p>
+            <p>Im Fenster wählst Du, ab welcher Station exportiert wird, z. B. ab der Wurzelrippe ohne das Segment im Rumpf (vorgeschlagen: die erste Station, die sich von der nächsten unterscheidet; die Wahl bleibt im Modell). Der Nullpunkt ist die Nasenleiste dieser Station, X die Spannweite ab dort. Lange Segmente bekommen alle 100 mm einen linearen Zwischenschnitt, damit Nasen- und Endleiste dazwischen gerade bleiben. Am Randbogen rechnet das Skript aus den letzten zwei Stationen hoch, wo die Ellipse auf Tiefe null kommt, und lässt den Loft dort in einem Punkt enden. Je mehr Stationen am Rand, desto genauer der Bogen.</p>
             <p>Oben im Skript lässt sich umstellen: LOFT = False nur Skizzen, HOCH = 'Z' für Z nach oben, SPIEGELN = True für die linke Hälfte, RANDSPITZE = False für ein flaches Ende.</p>
           </div>
           <div class="form" id="bWing">
@@ -827,6 +827,15 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
     <div class="row"><label for="nacaCode">NACA 4-Ziffern</label><input class="txt" id="nacaCode" value="0009" style="width:8ch" maxlength="4" inputmode="numeric"><button type="button" class="btn sm" id="nacaAdd">Hinzufügen</button></div>
     <p class="hint">Die mitgelieferten Profile stammen aus der UIUC-Profildatenbank (m-selig.ae.illinois.edu).</p>
     <div class="row end"><button type="button" class="btn ghost" id="libClose">Schliessen</button></div>
+  </div>
+</dialog>
+
+<dialog id="fusionDlg">
+  <h2 id="fusionTitle">Für Fusion</h2>
+  <div class="setform">
+    <label class="field"><span>Ab Station</span><select id="fusionFrom"></select></label>
+    <p class="hint" id="fusionInfo"></p>
+    <div class="row end"><button type="button" class="btn ghost" id="fusionCancel">Abbrechen</button><button type="button" class="btn" id="fusionGo">ZIP laden</button></div>
   </div>
 </dialog>
 
@@ -1995,19 +2004,45 @@ for (const which of ['wing', 'tail']) {
     persist(); stationTable(which); scheduleModel();
   });
 }
-// Python-Skript für Autodesk Fusion: Skizzen je Station und Loft
-document.querySelectorAll('[data-fusion]').forEach(b => b.addEventListener('click', () => {
-  const m = curModel(), part = b.dataset.fusion;
+// Python-Skript für Autodesk Fusion: Skizzen je Station und Loft. Vorher wählen, ab welcher Station
+// (die Stationen im Rumpf will man nicht zeichnen); die Wahl bleibt im Modell (m.fusion.wing/tail = y in mm).
+let fusionPart = 'wing';
+function fusionOpts() { return { fromY: parseFloat($('fusionFrom').value) }; }
+function fusionInfo() {
   try {
-    const FU = MMPA.fusion, z = FU.scriptZip(m, project.profiles, part);
+    const r = MMPA.fusion.sections(curModel(), project.profiles, fusionPart, fusionOpts());
+    $('fusionInfo').textContent = `${r.stations.length} Stationen, ${r.sections.length} Schnitte; Nullpunkt an der Nasenleiste dieser Station, X = Spannweite ab hier` +
+      (r.tip ? `; Randbogen mit Ellipsenschnitten bis in die Spitze (${fmt(r.tip.dist, 1)} mm ausserhalb der letzten Station)` : '') +
+      (r.missing.length ? `; ohne Profil weggelassen: ${r.missing.join(', ')} mm` : '') + '.';
+  } catch (e) { $('fusionInfo').textContent = e.message; }
+}
+document.querySelectorAll('[data-fusion]').forEach(b => b.addEventListener('click', () => {
+  const m = curModel(), FU = MMPA.fusion;
+  fusionPart = b.dataset.fusion;
+  const st = m[fusionPart].stations;
+  const saved = m.fusion && m.fusion[fusionPart];
+  const k0 = FU.startIndex(st, { fromY: saved });
+  $('fusionTitle').textContent = fusionPart === 'wing' ? 'Flügel für Fusion' : 'Höhenleitwerk für Fusion';
+  $('fusionFrom').innerHTML = st.slice(0, -1).map((s, i) =>
+    `<option value="${s.y}"${i === k0 ? ' selected' : ''}>${i + 1}: ${fmt(s.y, 1)} mm, Tiefe ${fmt(s.chord, 1)} mm${i === FU.firstStation(st) && i > 0 ? ' (erste ausserhalb Rumpf)' : ''}</option>`).join('');
+  fusionInfo();
+  $('fusionDlg').showModal();
+}));
+$('fusionFrom').onchange = fusionInfo;
+$('fusionCancel').onclick = () => $('fusionDlg').close();
+$('fusionGo').onclick = () => {
+  const m = curModel(), FU = MMPA.fusion, opts = fusionOpts();
+  try {
+    const z = FU.scriptZip(m, project.profiles, fusionPart, opts);
+    m.fusion = { ...(m.fusion || {}), [fusionPart]: opts.fromY }; persist();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([z.bytes], { type: 'application/zip' }));
     a.download = z.name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    const r = FU.sections(m, project.profiles, part);
-    toast(`${a.download}: ${r.sections.length} Schnitte${r.tip ? ', Randbogen bis Spitze' : ''}${r.missing.length ? `, ohne Profil weggelassen: ${r.missing.join(', ')} mm` : ''}`);
+    $('fusionDlg').close();
+    toast(`${a.download} geladen`);
   } catch (e) { toast('Fusion-Export: ' + e.message); }
-}));
+};
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
   const st = curModel()[b.dataset.add].stations, l = st[st.length - 1], p = st[st.length - 2] || l;
   // neue Station aussen, Tiefe und Versatz fortgesetzt

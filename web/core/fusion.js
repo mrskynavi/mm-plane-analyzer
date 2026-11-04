@@ -40,13 +40,23 @@
     return k;
   }
 
+  function startIndex(st, opts = {}) {
+    if (opts.all) return 0;
+    if (Number.isFinite(opts.fromY)) {
+      const k = st.findIndex(s => s.y >= opts.fromY - 1e-6);
+      if (k >= 0) return Math.min(k, st.length - 2);
+    }
+    return firstStation(st);
+  }
+
   // Schnitte einer Fläche. part 'wing' | 'tail'. Ursprung = Nasenleiste der ersten ausgegebenen Station.
-  // opts.fromRoot: Stationen im Rumpf weglassen (Standard true), opts.all: alle Stationen.
+  // opts.fromY: ab der Station mit diesem y (mm, gewählt in der App), opts.all: alle Stationen,
+  // sonst ab der ersten Station ausserhalb des Rumpfs (firstStation).
   function sections(model, profiles, part = 'wing', opts = {}) {
     const R = M.resolveTe(model);
     const st = R[part].stations;
     if (!st || st.length < 2) throw new Error('Mindestens zwei Stationen nötig');
-    const k0 = opts.all ? 0 : firstStation(st);
+    const k0 = startIndex(st, opts);
     const P = V.stationPoints(st);
     const o = P[k0].le, y0 = st[k0].y;
     const out = [], missing = [];
@@ -293,7 +303,7 @@ def run(context):
     return { name: name + '.zip', bytes: zip([{ name: name + '/' + name + '.py', data: script(model, profiles, part, opts) }, { name: name + '/' + name + '.manifest', data: manifest() }]) };
   }
 
-  const api = { glatt, N_SIDE, PASSES, sections, script, scriptZip, zip, crc32, manifest, fileName, firstStation, MIN_TE, STEP };
+  const api = { startIndex, glatt, N_SIDE, PASSES, sections, script, scriptZip, zip, crc32, manifest, fileName, firstStation, MIN_TE, STEP };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).fusion = api;
 })(typeof self !== 'undefined' ? self : this);
