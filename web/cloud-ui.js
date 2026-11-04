@@ -95,6 +95,7 @@
     setSha(remote.path, remote.sha);
     project = PR.parse(remote.text);
     ui.varOff.clear();
+    if (window.histChanged) window.histChanged('vor Laden von GitHub');
     st.paused = false;
     clearTimeout(saveTimer); store.set('mmpa.projekt', PR.serialize(project));
     if (typeof autoSave === 'function') autoSave();
