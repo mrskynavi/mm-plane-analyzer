@@ -105,8 +105,9 @@
     const head = [
       `# ${label.trim()} für Autodesk Fusion, erzeugt von MM Plane Analyzer am ${new Date().toISOString().slice(0, 10)}`,
       '#',
-      '# In Fusion: Dienstprogramme → Add-Ins → Skripte und Add-Ins (Shift+S) → „+“ → Skript aus Datei',
-      '# (oder neues Python-Skript anlegen und diesen Inhalt einfügen), dann Ausführen.',
+      '# In Fusion: Dienstprogramme → Add-Ins → Skripte und Zusatzmodule (Shift+S) → „+“ → „Skript oder Zusatzmodul',
+      '# von Gerät“ und den Ordner mit dieser Datei und der .manifest-Datei wählen (aus dem ZIP der App), dann Ausführen.',
+      '# Oder: „Skript oder Zusatzmodul erstellen“ → Python, im Editor den Inhalt durch diese Datei ersetzen.',
       '# Das Skript legt im aktiven Design eine neue Komponente an: je Station eine Skizze mit dem Profil',
       '# als Spline und der Endleiste als Linie, dann einen Loft zum Volumenkörper (eine Hälfte).',
       '#',
@@ -208,7 +209,40 @@ def run(context):
   const fileName = (model, part) => ((model.name || 'Modell') + '_' + (part === 'wing' ? 'Fluegel' : 'HLW') + '_Fusion')
     .replace(/[äÄ]/g, 'ae').replace(/[öÖ]/g, 'oe').replace(/[üÜ]/g, 'ue').replace(/[^A-Za-z0-9_-]+/g, '_') + '.py';
 
-  const api = { sections, script, fileName, firstStation, MIN_TE, STEP };
+  // Fusion will beim Hinzufügen („Skript oder Zusatzmodul von Gerät“) einen Ordner mit <Name>.py und
+  // <Name>.manifest. Darum ein ZIP mit diesem Ordner (ohne Kompression, Inhalt UTF-8).
+  function manifest() {
+    return JSON.stringify({ autodeskProduct: 'Fusion', type: 'script', author: 'MM Plane Analyzer',
+      description: { '': 'Profilschnitte und Loft aus MM Plane Analyzer' }, supportedOS: 'windows|mac', editEnabled: true }, null, '\t') + '\n';
+  }
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files) {
+    const enc = new TextEncoder(), parts = [], central = [];
+    let off = 0;
+    const u16 = v => [v & 255, (v >>> 8) & 255], u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+    for (const f of files) {
+      const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+      // Version, Flag UTF-8 (Bit 11), Methode 0, Zeit/Datum 1.1.2026
+      const common = [...u16(20), ...u16(0x800), ...u16(0), ...u16(0), ...u16(0x5C21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)];
+      const head = Uint8Array.from([...u32(0x04034b50), ...common]);
+      parts.push(head, name, data);
+      central.push(Uint8Array.from([...u32(0x02014b50), ...u16(20), ...common, ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), name);
+      off += head.length + name.length + data.length;
+    }
+    const cdSize = central.reduce((a, b) => a + b.length, 0);
+    const end = Uint8Array.from([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(off), ...u16(0)]);
+    const all = parts.concat(central, [end]), out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+    let p = 0; for (const b of all) { out.set(b, p); p += b.length; }
+    return out;
+  }
+  // ZIP mit dem Skriptordner; name ohne Endung
+  function scriptZip(model, profiles, part = 'wing', opts = {}) {
+    const name = fileName(model, part).replace(/\.py$/, '');
+    return { name: name + '.zip', bytes: zip([{ name: name + '/' + name + '.py', data: script(model, profiles, part, opts) }, { name: name + '/' + name + '.manifest', data: manifest() }]) };
+  }
+
+  const api = { sections, script, scriptZip, zip, crc32, manifest, fileName, firstStation, MIN_TE, STEP };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).fusion = api;
 })(typeof self !== 'undefined' ? self : this);
