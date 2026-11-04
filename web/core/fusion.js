@@ -142,6 +142,25 @@ def punkt(p):
     return adsk.core.Point3D.create(y, z, x)
 
 
+def skizze(comp, name, pts):
+    pin = comp.constructionPlanes.createInput()
+    pin.setByOffset(comp.yZConstructionPlane, adsk.core.ValueInput.createByReal(punkt(pts[0]).x))
+    ebene = comp.constructionPlanes.add(pin)
+    ebene.name = name
+    sk = comp.sketches.add(ebene)
+    sk.name = name
+    sk.isComputeDeferred = True
+    coll = adsk.core.ObjectCollection.create()
+    for p in pts:
+        coll.add(sk.modelToSketchSpace(punkt(p)))
+    spl = sk.sketchCurves.sketchFittedSplines.add(coll)
+    sk.sketchCurves.sketchLines.addByTwoPoints(spl.startSketchPoint, spl.endSketchPoint)
+    sk.isComputeDeferred = False
+    if sk.profiles.count < 1:
+        raise Exception('Skizze ' + name + ' ist nicht geschlossen.')
+    return sk.profiles.item(0)
+
+
 def run(context):
     ui = None
     try:
@@ -157,49 +176,62 @@ def run(context):
         profile = []
         knicke = []
         for name, knick, pts in STATIONEN:
-            pin = comp.constructionPlanes.createInput()
-            pin.setByOffset(comp.yZConstructionPlane, adsk.core.ValueInput.createByReal(punkt(pts[0]).x))
-            ebene = comp.constructionPlanes.add(pin)
-            ebene.name = name
-            sk = comp.sketches.add(ebene)
-            sk.name = name
-            sk.isComputeDeferred = True
-            coll = adsk.core.ObjectCollection.create()
-            for p in pts:
-                coll.add(sk.modelToSketchSpace(punkt(p)))
-            spl = sk.sketchCurves.sketchFittedSplines.add(coll)
-            sk.sketchCurves.sketchLines.addByTwoPoints(spl.startSketchPoint, spl.endSketchPoint)
-            sk.isComputeDeferred = False
-            if sk.profiles.count < 1:
-                ui.messageBox('Skizze ' + name + ' ist nicht geschlossen.')
-                return
-            profile.append(sk.profiles.item(0))
+            profile.append(skizze(comp, name, pts))
             if knick:
                 knicke.append(len(profile) - 1)
-        if LOFT and RANDSPITZE and SPITZE:
-            pin = comp.constructionPlanes.createInput()
-            pin.setByOffset(comp.yZConstructionPlane, adsk.core.ValueInput.createByReal(punkt(SPITZE).x))
-            ebene = comp.constructionPlanes.add(pin)
-            ebene.name = 'Randspitze'
-            sk = comp.sketches.add(ebene)
-            sk.name = 'Randspitze'
-            profile.append(sk.sketchPoints.add(sk.modelToSketchSpace(punkt(SPITZE))))
+        notiz = []
         if LOFT:
-            # ein Loft je Abschnitt zwischen den Knicken der V-Form, die weiteren werden angefügt
             lofts = comp.features.loftFeatures
-            grenzen = [0] + knicke + [len(profile) - 1]
-            koerper = None
-            for g in range(len(grenzen) - 1):
-                op = adsk.fusion.FeatureOperations.NewBodyFeatureOperation if koerper is None else adsk.fusion.FeatureOperations.JoinFeatureOperation
+            zustand = {'koerper': None}
+
+            def loft(teile):
+                op = adsk.fusion.FeatureOperations.NewBodyFeatureOperation if zustand['koerper'] is None else adsk.fusion.FeatureOperations.JoinFeatureOperation
                 li = lofts.createInput(op)
-                for pr in profile[grenzen[g]:grenzen[g + 1] + 1]:
+                for pr in teile:
                     li.loftSections.add(pr)
                 li.isSolid = True
-                loft = lofts.add(li)
-                if koerper is None and loft.bodies.count:
-                    koerper = loft.bodies.item(0)
-                    koerper.name = NAME
-        ui.messageBox(NAME + ': ' + str(len(STATIONEN)) + ' Schnitte' + (' gelofted.' if LOFT else ' als Skizzen angelegt.'))
+                try:
+                    f = lofts.add(li)
+                except:
+                    return False
+                if zustand['koerper'] is None and f.bodies.count:
+                    zustand['koerper'] = f.bodies.item(0)
+                    zustand['koerper'].name = NAME
+                return True
+
+            # ein Loft je Abschnitt zwischen den Knicken der V-Form, die weiteren werden angefügt.
+            # Lehnt Fusion einen Abschnitt ab (schneidet sich selbst), wird er Station für Station gelofted.
+            grenzen = [0] + knicke + [len(profile) - 1]
+            for g in range(len(grenzen) - 1):
+                teile = profile[grenzen[g]:grenzen[g + 1] + 1]
+                if not loft(teile):
+                    for k in range(len(teile) - 1):
+                        if not loft(teile[k:k + 2]):
+                            notiz.append('Loft ' + STATIONEN[grenzen[g] + k][0] + ' bis ' + STATIONEN[grenzen[g] + k + 1][0] + ' fehlgeschlagen')
+                    notiz.append('Abschnitt ab ' + STATIONEN[grenzen[g]][0] + ' Station für Station gelofted (Kanten an den Stationen)')
+            # Randbogen: erst bis zum Punkt, sonst bis zu einem kleinen Profil (10 %), sonst flaches Ende
+            if RANDSPITZE and SPITZE:
+                letzte = STATIONEN[-1][2]
+                ok = False
+                try:
+                    pin = comp.constructionPlanes.createInput()
+                    pin.setByOffset(comp.yZConstructionPlane, adsk.core.ValueInput.createByReal(punkt(SPITZE).x))
+                    ebene = comp.constructionPlanes.add(pin)
+                    ebene.name = 'Randspitze'
+                    sk = comp.sketches.add(ebene)
+                    sk.name = 'Randspitze'
+                    ok = loft([profile[-1], sk.sketchPoints.add(sk.modelToSketchSpace(punkt(SPITZE)))])
+                except:
+                    ok = False
+                if not ok:
+                    mitte = [(min(p[i] for p in letzte) + max(p[i] for p in letzte)) / 2 for i in range(3)]
+                    klein = [[SPITZE[i] + (p[i] - mitte[i]) * 0.1 if i != 1 else SPITZE[1] for i in range(3)] for p in letzte]
+                    try:
+                        ok = loft([profile[-1], skizze(comp, 'Randspitze_klein', klein)])
+                    except:
+                        ok = False
+                    notiz.append('Randbogen endet in einem kleinen Profil (10 %)' if ok else 'Randbogen ohne Spitze, Ende flach')
+        ui.messageBox(NAME + ': ' + str(len(STATIONEN)) + ' Schnitte' + (' gelofted.' if LOFT else ' als Skizzen angelegt.') + ('\\n' + '\\n'.join(notiz) if notiz else ''))
     except:
         if ui:
             ui.messageBox('Fehler:\\n' + traceback.format_exc())
