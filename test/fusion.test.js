@@ -69,3 +69,14 @@ test('Fusion: ZIP mit Skriptordner, von unzip lesbar', () => {
   assert.match(py, /Für Autodesk Fusion|für Autodesk Fusion/);
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'Test_Fluegel_Fusion', 'Test_Fluegel_Fusion.manifest'), 'utf8')).type, 'script');
 });
+
+test('Fusion: Ellipsenschnitte am Randbogen', () => {
+  const { project, model } = wing();
+  const r = FU.sections(model, project.profiles, 'wing');
+  const tipS = r.sections.filter(s => s.tipSection);
+  assert.deepStrictEqual(tipS.map(s => s.name), ['WG_Y0900_Rand1', 'WG_Y0900_Rand2', 'WG_Y0900_Rand3', 'WG_Y0900_Rand4']);
+  // c² linear: Abstand zur Spitze ∝ f²
+  const last = r.sections[r.sections.length - 5];
+  tipS.forEach(s => { const f = s.chord / last.chord; assert.ok(Math.abs((r.tip.dist - (s.y - last.y)) / r.tip.dist - f * f) < 1e-9); });
+  assert.ok(tipS.every((s, i) => i === 0 || s.y > tipS[i - 1].y));
+});
