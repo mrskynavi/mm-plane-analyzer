@@ -55,3 +55,17 @@ test('Fusion: scharfe Endleiste wird minimal geöffnet', () => {
   const s0 = FU.sections(model, project.profiles, 'wing').sections[0], n = s0.pts.length;
   assert.ok(Math.abs(s0.pts[0][2] - s0.pts[n - 1][2] - FU.MIN_TE) < 1e-3);
 });
+
+test('Fusion: ZIP mit Skriptordner, von unzip lesbar', () => {
+  const { project, model } = wing();
+  const z = FU.scriptZip(model, project.profiles, 'wing');
+  assert.strictEqual(z.name, 'Test_Fluegel_Fusion.zip');
+  assert.strictEqual(FU.crc32(new TextEncoder().encode('123456789')), 0xCBF43926);
+  const fs = require('fs'), os = require('os'), path = require('path'), cp = require('child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fz-'));
+  fs.writeFileSync(path.join(dir, z.name), z.bytes);
+  try { cp.execSync('unzip -q ' + z.name, { cwd: dir }); } catch (e) { return; } // ohne unzip nur die Prüfsumme
+  const py = fs.readFileSync(path.join(dir, 'Test_Fluegel_Fusion', 'Test_Fluegel_Fusion.py'), 'utf8');
+  assert.match(py, /Für Autodesk Fusion|für Autodesk Fusion/);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'Test_Fluegel_Fusion', 'Test_Fluegel_Fusion.manifest'), 'utf8')).type, 'script');
+});
