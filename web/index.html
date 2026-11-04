@@ -21,6 +21,7 @@
 <script src="core/cloud.js"></script>
 <script src="core/frage.js"></script>
 <script src="core/dreiseiten.js"></script>
+<script src="core/fusion.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -620,7 +621,12 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <section class="pol-box">
           <div class="pol-head"><h2>Flügel</h2><span class="status" id="wingInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="wingTable"></table></div>
-          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="wing">Station anfügen</button></div>
+          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="wing">Station anfügen</button><button type="button" class="btn ghost sm" data-fusion="wing" title="Python-Skript für Autodesk Fusion: Skizzen je Station und Loft zum Körper">Für Fusion (.py)</button><button type="button" class="iconbtn sm" data-info="info-fusion" aria-expanded="false" aria-controls="info-fusion" aria-label="So kommt die Fläche nach Fusion">i</button></div>
+          <div class="infopop" id="info-fusion" hidden>
+            <p><b>Für Fusion:</b> lädt ein Python-Skript mit allen Stationen dieser Fläche, so wie die App sie rechnet: Profil mit Dicke, Wölbung, Rücklagen und Endleistendicke, Tiefe, Pfeilung, V-Form und Schränkung (um die Nasenleiste). In Fusion unter Dienstprogramme → Add-Ins → Skripte und Add-Ins (Shift+S) mit „+“ das Skript hinzufügen und ausführen. Es legt eine neue Komponente an: je Schnitt eine Ebene mit Skizze (Profil als Spline, Endleiste als Linie) und einen Loft zum Volumenkörper, an jedem Knick der V-Form ein neuer Abschnitt.</p>
+            <p>Stationen im Rumpf (gleiche Tiefe und gleiches Profil wie die nächste) lässt es weg, der Nullpunkt ist die Nasenleiste der Wurzelrippe; X ist die Spannweite. Lange Segmente bekommen alle 100 mm einen linearen Zwischenschnitt, damit Nasen- und Endleiste dazwischen gerade bleiben. Am Randbogen rechnet das Skript aus den letzten zwei Stationen hoch, wo die Ellipse auf Tiefe null kommt, und lässt den Loft dort in einem Punkt enden. Je mehr Stationen am Rand, desto genauer der Bogen.</p>
+            <p>Oben im Skript lässt sich umstellen: LOFT = False nur Skizzen, HOCH = 'Z' für Z nach oben, SPIEGELN = True für die linke Hälfte, RANDSPITZE = False für ein flaches Ende.</p>
+          </div>
           <div class="form" id="bWing">
             <div class="field"><span>Bauweise Flügel <button type="button" class="iconbtn sm" data-info="info-build" aria-expanded="false" aria-controls="info-build" aria-label="So wird die Bauweise gerechnet">i</button></span><span class="seg" data-bk="type"><button type="button" data-v="voll">Vollbeplankt</button><button type="button" data-v="rippen">Rippen</button></span></div>
             <label class="field" data-rib><span>Beplankung oben bis</span><span class="row"><input class="num" data-bk="top" type="number" step="1" min="0" max="100"><span class="u">%</span></span></label>
@@ -641,7 +647,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <section class="pol-box">
           <div class="pol-head"><h2>Höhenleitwerk</h2><span class="status" id="tailInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="tailTable"></table></div>
-          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="tail">Station anfügen</button><span class="hint">V-Leitwerk: V-Form eintragen, z. B. 40°. Profil leer lassen für eine ebene Platte.</span></div>
+          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="tail">Station anfügen</button><button type="button" class="btn ghost sm" data-fusion="tail" title="Python-Skript für Autodesk Fusion: Skizzen je Station und Loft zum Körper">Für Fusion (.py)</button><span class="hint">V-Leitwerk: V-Form eintragen, z. B. 40°. Profil leer lassen für eine ebene Platte.</span></div>
           <div class="form" id="bTail">
             <div class="field"><span>Bauweise Leitwerk <button type="button" class="iconbtn sm" data-info="info-buildT" aria-expanded="false" aria-controls="info-buildT" aria-label="So wird die Bauweise gerechnet">i</button></span><span class="seg" data-bk="type"><button type="button" data-v="voll">Vollbeplankt</button><button type="button" data-v="rippen">Rippen</button></span></div>
             <label class="field" data-rib><span>Beplankung oben bis</span><span class="row"><input class="num" data-bk="top" type="number" step="1" min="0" max="100"><span class="u">%</span></span></label>
@@ -1954,6 +1960,19 @@ for (const which of ['wing', 'tail']) {
     persist(); stationTable(which); scheduleModel();
   });
 }
+// Python-Skript für Autodesk Fusion: Skizzen je Station und Loft
+document.querySelectorAll('[data-fusion]').forEach(b => b.addEventListener('click', () => {
+  const m = curModel(), part = b.dataset.fusion;
+  try {
+    const FU = MMPA.fusion, txt = FU.script(m, project.profiles, part);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/x-python' }));
+    a.download = FU.fileName(m, part);
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    const r = FU.sections(m, project.profiles, part);
+    toast(`${a.download}: ${r.sections.length} Schnitte${r.tip ? ', Randbogen bis Spitze' : ''}${r.missing.length ? `, ohne Profil weggelassen: ${r.missing.join(', ')} mm` : ''}`);
+  } catch (e) { toast('Fusion-Export: ' + e.message); }
+}));
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
   const st = curModel()[b.dataset.add].stations, l = st[st.length - 1], p = st[st.length - 2] || l;
   // neue Station aussen, Tiefe und Versatz fortgesetzt
