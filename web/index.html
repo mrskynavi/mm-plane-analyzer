@@ -73,6 +73,11 @@ header.appbar .actions{display:flex;gap:6px;align-items:center;margin-left:auto;
 .partseg{display:flex}
 .partseg .seg button small{font:.72rem var(--mono);color:inherit;opacity:.75;margin-left:4px}
 .st-table td.pf{white-space:nowrap}
+.st-table tr.alle th{padding-top:0;padding-bottom:4px}
+.st-table tr.alle th.i{font:.66rem var(--mono);color:var(--muted);text-transform:none;letter-spacing:0}
+.st-table .toall{border:1px solid var(--line);border-radius:5px;background:none;color:var(--muted);cursor:pointer;font-size:.72rem;line-height:1;padding:2px 5px}
+.st-table .toall:hover,.st-table .toall:focus-visible{color:var(--accent);border-color:var(--accent)}
+.st-table tr.act td.i{color:var(--accent);font-weight:700}
 .st-table .tolab{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.95rem;padding:0 2px 0 4px;vertical-align:middle}
 .st-table .tolab:hover,.st-table .tolab:focus-visible{color:var(--accent)}
 h1{font:700 1.6rem/1 var(--display);white-space:nowrap;letter-spacing:.01em;margin:0;display:flex;align-items:center;gap:.4em}
@@ -1949,7 +1954,11 @@ function stationTable(which) {
   const m = curModel(), st = m[which].stations;
   const profOpts = sel => `<option value="">${which === 'tail' ? 'ebene Platte' : '– kein Profil –'}</option>` + project.profiles.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   const cols = which === 'tail' ? COLS.filter(c => c[0] !== 'flapMix') : COLS;
-  const head = '<thead><tr><th>#</th>' + cols.map(([k, l, u, , t]) => `<th${t ? ` title="${t}"` : ''}>${l}${u ? ` <small>${u}</small>` : ''}</th>`).join('') + '<th></th></tr></thead>';
+  const act = Math.min(stAct[which] ?? 0, st.length - 1);
+  // Zeile „alle“: Wert der aktiven Station (zuletzt angeklickt, Nummer hervorgehoben) in diese Spalte aller Stationen
+  const allRow = '<tr class="alle"><th class="i" title="Wert der hervorgehobenen Station auf alle Stationen übernehmen">alle</th>' + cols.map(([k, l]) => k === 'y' ? '<th></th>' :
+    `<th><button type="button" class="toall" data-all="${k}" title="${l.replace(/\u00ad/g, '')} der hervorgehobenen Station auf alle Stationen übernehmen" aria-label="${l.replace(/\u00ad/g, '')} auf alle Stationen übernehmen">⇣</button></th>`).join('') + '<th></th></tr>';
+  const head = '<thead><tr><th>#</th>' + cols.map(([k, l, u, , t]) => `<th${t ? ` title="${t}"` : ''}>${l}${u ? ` <small>${u}</small>` : ''}</th>`).join('') + '<th></th></tr>' + allRow + '</thead>';
   const body = st.map((s, i) => {
     const sp = MD.stationGeometry(s, project.profiles);
     const raw = s.profileId && profById(s.profileId) ? profStat(profById(s.profileId)) : null;
@@ -1971,7 +1980,7 @@ function stationTable(which) {
       return `<td><input class="num" type="number" step="${step}" data-k="${k}" value="${off ? '' : s[k]}" ${off || ro ? 'disabled' : ''} aria-label="${k} Station ${i + 1}"></td>`;
     }).join('');
     const del = st.length > 2 && i > 0 ? `<button type="button" class="x" data-del="${i}" title="Station entfernen" aria-label="Station ${i + 1} entfernen">×</button>` : '';
-    return `<tr data-i="${i}"><td class="i">${i + 1}</td>${cells}<td>${del}</td></tr>`;
+    return `<tr data-i="${i}"${i === act ? ' class="act"' : ''}><td class="i">${i + 1}</td>${cells}<td>${del}</td></tr>`;
   }).join('');
   // Fokus behalten: wer gerade in der Tabelle steht (oder hineingeklickt hat), steht nach dem Neuaufbau wieder dort
   const tbl = $(which + 'Table'), ae = document.activeElement;
@@ -1985,8 +1994,42 @@ function stationTable(which) {
 // Erst nach dem Klick neu aufbauen: Die Änderung kommt beim Verlassen des Felds, bevor das angeklickte Feld den Fokus hat.
 // Sofort neu gebaut, wäre das angeklickte Feld schon ersetzt und der Klick verloren.
 const stationTableLater = which => setTimeout(() => stationTable(which), 0);
+// aktive Station je Tabelle: Quelle für „auf alle“
+const stAct = { wing: 0, tail: 0 };
+const OFF_LAST = ['dihedral', 'flapDepth', 'flap', 'flapMix']; // gelten bis zur nächsten Station, an der letzten ohne Bedeutung
+function applyToAll(which, k) {
+  const tb = $(which + 'Table'), ae = document.activeElement;
+  // Feld, in dem gerade getippt wird, zuerst übernehmen (löst „change“ aus)
+  if (ae && tb.contains(ae) && ae.dataset.k) ae.blur();
+  const st = curModel()[which].stations;
+  let a = Math.min(stAct[which] ?? 0, st.length - 1);
+  if (OFF_LAST.includes(k) && a === st.length - 1) a = Math.max(0, a - 1);
+  const src = st[a], COL = COLS.find(c => c[0] === k);
+  st.forEach((s, i) => {
+    if (s === src || (OFF_LAST.includes(k) && i === st.length - 1)) return;
+    if (k === 'profileId') { s.profileId = src.profileId; s.thickness = null; s.camber = null; s.xThickness = null; s.xCamber = null; }
+    else if (k === 'te') { if (src.te != null) s.te = src.te; else delete s.te; }
+    else s[k] = src[k] ?? null;
+  });
+  persist(); stationTable(which); scheduleModel();
+  const v = k === 'profileId' ? (profById(src.profileId)?.name || (which === 'tail' ? 'ebene Platte' : 'kein Profil')) : '';
+  toast(`${COL[1].replace(/\u00ad/g, '')}${v ? ' „' + v + '“' : ''} von Station ${a + 1} auf alle ${st.length} Stationen übernommen`);
+}
 for (const which of ['wing', 'tail']) {
   const tb = $(which + 'Table');
+  tb.addEventListener('focusin', e => {
+    const tr = e.target.closest('tr[data-i]'); if (!tr || +tr.dataset.i === stAct[which]) return;
+    stAct[which] = +tr.dataset.i;
+    tb.querySelectorAll('tr.act').forEach(r => r.classList.remove('act')); tr.classList.add('act');
+  });
+  // Maus/Finger: schon beim Drücken auslösen, sonst baut die Tabelle nach dem „change“ des Felds neu auf und der Klick geht verloren
+  tb.addEventListener('mousedown', e => {
+    const b = e.target.closest('[data-all]'); if (!b) return;
+    e.preventDefault(); applyToAll(which, b.dataset.all);
+  });
+  tb.addEventListener('click', e => {
+    const b = e.target.closest('[data-all]'); if (b && e.detail === 0) applyToAll(which, b.dataset.all); // Tastatur
+  });
   // ↗ neben dem Profil: Profil in Karte A laden und ins Labor wechseln
   tb.addEventListener('click', e => {
     const b = e.target.closest('[data-lab]'); if (!b) return;
