@@ -69,11 +69,14 @@
     return m;
   }
 
+  // Kennwerte des unveränderten Profils, je Koordinatenliste nur einmal gerechnet
+  const rawMemo = new WeakMap();
+  const rawStats = coords => { let r = rawMemo.get(coords); if (!r) { r = P.stats(P.modify(coords, {})); rawMemo.set(coords, r); } return r; };
   // Profil einer Station mit eigener Dicke und Wölbung (absolut, Bruchteil der Tiefe)
   function stationProfile(st, profiles) {
     const p = st.profileId && profiles.find(q => q.id === st.profileId);
     if (!p) return null;
-    const raw = P.stats(P.modify(p.coords, {}));
+    const raw = rawStats(p.coords);
     const mod = { ...p.mod };
     if (st.thickness != null && raw.thickness > 0) mod.thickness = st.thickness / raw.thickness;
     if (st.camber != null && raw.camber > 1e-4) mod.camber = st.camber / raw.camber;
@@ -84,8 +87,17 @@
     if (st.teGap != null) mod.teGap = st.teGap;
     return { profile: p, mod, coords: p.coords };
   }
-  const cache = new Map();
-  const cached = (key, fn) => { if (!cache.has(key)) { if (cache.size > 400) cache.delete(cache.keys().next().value); cache.set(key, fn()); } return cache.get(key); };
+  // Zwischenspeicher für Geometrien, Polaren und Wirbelgitter. Zuletzt benutzte Einträge bleiben (LRU).
+  // Gross genug für Flügel und Leitwerk mit vielen Stationen: eine Rechnung braucht je Leitwerksstation
+  // bis zu ~27 Polaren (eine je Re), dazu der Vergleich mit scharfer Endleiste. War er zu klein,
+  // wurde bei jeder Eingabe alles neu gerechnet.
+  const cache = new Map(), CACHE_MAX = 6000;
+  const cached = (key, fn) => {
+    if (cache.has(key)) { const v = cache.get(key); cache.delete(key); cache.set(key, v); return v; }
+    const v = fn();
+    if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+    cache.set(key, v); return v;
+  };
 
   function stationGeometry(st, profiles) {
     const sp = stationProfile(st, profiles);

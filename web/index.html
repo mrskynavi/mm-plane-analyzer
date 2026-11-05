@@ -1973,8 +1973,18 @@ function stationTable(which) {
     const del = st.length > 2 && i > 0 ? `<button type="button" class="x" data-del="${i}" title="Station entfernen" aria-label="Station ${i + 1} entfernen">×</button>` : '';
     return `<tr data-i="${i}"><td class="i">${i + 1}</td>${cells}<td>${del}</td></tr>`;
   }).join('');
-  $(which + 'Table').innerHTML = head + '<tbody>' + body + '</tbody>';
+  // Fokus behalten: wer gerade in der Tabelle steht (oder hineingeklickt hat), steht nach dem Neuaufbau wieder dort
+  const tbl = $(which + 'Table'), ae = document.activeElement;
+  const keep = ae && tbl.contains(ae) && ae.closest('tr[data-i]') ? { i: ae.closest('tr[data-i]').dataset.i, k: ae.dataset.k } : null;
+  tbl.innerHTML = head + '<tbody>' + body + '</tbody>';
+  if (keep && keep.k) {
+    const el = tbl.querySelector(`tr[data-i="${keep.i}"] [data-k="${keep.k}"]`);
+    if (el && !el.disabled) el.focus({ preventScroll: true });
+  }
 }
+// Erst nach dem Klick neu aufbauen: Die Änderung kommt beim Verlassen des Felds, bevor das angeklickte Feld den Fokus hat.
+// Sofort neu gebaut, wäre das angeklickte Feld schon ersetzt und der Klick verloren.
+const stationTableLater = which => setTimeout(() => stationTable(which), 0);
 for (const which of ['wing', 'tail']) {
   const tb = $(which + 'Table');
   // ↗ neben dem Profil: Profil in Karte A laden und ins Labor wechseln
@@ -1992,11 +2002,11 @@ for (const which of ['wing', 'tail']) {
     else if (k === 'te') { const v = parseFloat(e.target.value); if (Number.isFinite(v)) s.te = Math.min(3, Math.max(0, v)); else delete s.te; }
     else if (k === 'flapMix') { const v = parseFloat(e.target.value); s.flapMix = Number.isFinite(v) ? Math.min(2, Math.max(-1, v / 100)) : null; }
     else {
-      const v = parseFloat(e.target.value); if (!Number.isFinite(v)) { stationTable(which); return; }
+      const v = parseFloat(e.target.value); if (!Number.isFinite(v)) { stationTableLater(which); return; }
       s[k] = k === 'chord' ? Math.max(5, v) : v;
       if (k === 'y') { st.sort((a, b) => a.y - b.y); st[0].y = 0; }
     }
-    persist(); stationTable(which); scheduleModel();
+    persist(); stationTableLater(which); scheduleModel();
   });
   tb.addEventListener('click', e => {
     const b = e.target.closest('[data-del]'); if (!b) return;
@@ -2222,7 +2232,9 @@ function scheduleTe() {
   const m = curModel(), r = lastModel;
   if (!teCmp || teCmp.r !== r) teCmp = null;
   renderTe();
-  if (!r || teCmp || !teUsed(m)) return;
+  // Der Vergleich kostet eine ganze zweite Modellrechnung: nur rechnen, wenn er zu sehen ist
+  const shown = ($('teInfo') && $('teInfo').offsetParent !== null) || document.querySelector('.kpibar.all');
+  if (!r || teCmp || !teUsed(m) || !shown) return;
   teTimer = setTimeout(() => {
     if (curModel() !== m || lastModel !== r) return;
     teCmp = { r, sharp: cmpResult(MD.withTe(m, 0)) };
@@ -2465,8 +2477,13 @@ function flapsOf(m) {
 const hasFlaps = m => m.wing.stations.slice(0, -1).some(s => s.flapDepth > 0 && (s.flapMix ?? 1) !== 0);
 const modelKey = m => PR.hash(JSON.stringify([{ ...m, name: '', notes: '', flaps: null, opt: null }, lab.nCrit, project.profiles.map(p => [p.id, p.mod])]));
 
-let modeRes = null, modeTimer = null;
-function scheduleModes() { clearTimeout(modeTimer); modeTimer = setTimeout(() => computeModes(false), 250); }
+let modeRes = null, modeTimer = null, modeStale = false;
+// Flugzustände nur rechnen, wenn ihre Tabelle zu sehen ist; sonst beim Wechsel in den Reiter
+function scheduleModes() {
+  clearTimeout(modeTimer);
+  if ($('flInfo').offsetParent === null) { modeStale = true; return; }
+  modeStale = false; modeTimer = setTimeout(() => computeModes(false), 250);
+}
 function computeModes(best) {
   const m = curModel(), F = flapsOf(m), o = optOf(m);
   try {
@@ -2948,7 +2965,7 @@ function showTheme(k) {
   document.querySelectorAll('.rview').forEach(x => x.hidden = !T.views.includes(x.dataset.view));
   $('mBench').classList.toggle('solo', !T.views.length); $('mBench').classList.toggle('stack', !!T.stack);
   $('mOut').scrollTop = 0;
-  if (ui.tab === 'modell' && lastModel) { if (viewOn('plan')) drawPlan(curModel(), lastModel); if (viewOn('opt')) renderOptResult(); }
+  if (ui.tab === 'modell' && lastModel) { if (viewOn('plan')) drawPlan(curModel(), lastModel); if (viewOn('opt')) renderOptResult(); scheduleTe(); if (modeStale) scheduleModes(); }
 }
 $('mThemes').addEventListener('click', e => { const b = e.target.closest('[data-theme]'); if (b) showTheme(b.dataset.theme); });
 $('planPart').addEventListener('click', e => {
@@ -2962,7 +2979,7 @@ document.addEventListener('keydown', e => {
 });
 const kpiBar = document.querySelector('.kpibar');
 function setKpiAll(on) { kpiBar.classList.toggle('all', on); $('mKpiMore').setAttribute('aria-expanded', on); $('mKpiMore').textContent = on ? 'weniger' : 'mehr'; store.set('mmpa.kpiAll', on ? '1' : '0'); }
-$('mKpiMore').onclick = () => setKpiAll(!kpiBar.classList.contains('all'));
+$('mKpiMore').onclick = () => { setKpiAll(!kpiBar.classList.contains('all')); if (lastModel) scheduleTe(); };
 setKpiAll(store.get('mmpa.kpiAll') === '1');
 // Die Ergebnisspalte bleibt unter der Kennzahlenleiste stehen
 if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => $('pane-modell').style.setProperty('--stick', kpiBar.offsetHeight + 8 + 'px')).observe(kpiBar);
