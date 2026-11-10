@@ -23,6 +23,7 @@
 <script src="core/dreiseiten.js"></script>
 <script src="core/fusion.js"></script>
 <script src="core/verlauf.js"></script>
+<script src="core/sfw.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -650,7 +651,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <section class="pol-box">
           <div class="pol-head"><h2>Flügel</h2><span class="status" id="wingInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="wingTable"></table></div>
-          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="wing">Station anfügen</button><button type="button" class="btn ghost sm" data-fusion="wing" title="Skript für Autodesk Fusion (ZIP mit Skriptordner): Skizzen je Station und Loft zum Körper">Für Fusion …</button><button type="button" class="iconbtn sm" data-info="info-fusion" aria-expanded="false" aria-controls="info-fusion" aria-label="So kommt die Fläche nach Fusion">i</button></div>
+          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="wing">Station anfügen</button><button type="button" class="btn ghost sm" data-sfw="wing" title="Flügel aus StepFour-Dateien (.sfw) übernehmen: Tiefe, Pfeilung, Profil, Dicke und Wölbung je Station">SFW laden …</button><button type="button" class="btn ghost sm" data-fusion="wing" title="Skript für Autodesk Fusion (ZIP mit Skriptordner): Skizzen je Station und Loft zum Körper">Für Fusion …</button><button type="button" class="iconbtn sm" data-info="info-fusion" aria-expanded="false" aria-controls="info-fusion" aria-label="So kommt die Fläche nach Fusion">i</button></div>
           <div class="infopop" id="info-fusion" hidden>
             <p><b>Für Fusion:</b> lädt ein ZIP mit einem Skriptordner (Python-Skript und .manifest) mit allen Stationen dieser Fläche, so wie die App sie rechnet: Profil mit Dicke, Wölbung, Rücklagen und Endleistendicke, Tiefe, Pfeilung, V-Form und Schränkung (um die Nasenleiste). ZIP entpacken, in Fusion unter Dienstprogramme → Add-Ins → Skripte und Zusatzmodule (Shift+S) mit „+“ → „Skript oder Zusatzmodul von Gerät“ den Ordner wählen, dann das Skript auswählen und ausführen (ein Design muss offen sein). Es legt eine neue Komponente an: je Schnitt eine Ebene mit Skizze (Profil als Spline, Endleiste als Linie) und einen Loft zum Volumenkörper, an jedem Knick der V-Form ein neuer Abschnitt.</p>
             <p>Im Fenster wählst Du, ab welcher Station exportiert wird, z. B. ab der Wurzelrippe ohne das Segment im Rumpf (vorgeschlagen: die erste Station, die sich von der nächsten unterscheidet; die Wahl bleibt im Modell). Der Nullpunkt ist die Nasenleiste dieser Station, X die Spannweite ab dort. Lange Segmente bekommen alle 100 mm einen linearen Zwischenschnitt, damit Nasen- und Endleiste dazwischen gerade bleiben. Am Randbogen rechnet das Skript aus den letzten zwei Stationen hoch, wo die Ellipse auf Tiefe null kommt, und lässt den Loft dort in einem Punkt enden. Je mehr Stationen am Rand, desto genauer der Bogen.</p>
@@ -676,7 +677,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <section class="pol-box">
           <div class="pol-head"><h2>Höhenleitwerk</h2><span class="status" id="tailInfo"></span></div>
           <div class="tablewrap"><table class="st-table" id="tailTable"></table></div>
-          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="tail">Station anfügen</button><button type="button" class="btn ghost sm" data-fusion="tail" title="Skript für Autodesk Fusion (ZIP mit Skriptordner): Skizzen je Station und Loft zum Körper">Für Fusion …</button><span class="hint">V-Leitwerk: V-Form eintragen, z. B. 40°. Profil leer lassen für eine ebene Platte.</span></div>
+          <div class="btnrow"><button type="button" class="btn ghost sm" data-add="tail">Station anfügen</button><button type="button" class="btn ghost sm" data-sfw="tail" title="HLW aus StepFour-Dateien (.sfw) übernehmen: Tiefe, Pfeilung, Profil, Dicke und Wölbung je Station">SFW laden …</button><button type="button" class="btn ghost sm" data-fusion="tail" title="Skript für Autodesk Fusion (ZIP mit Skriptordner): Skizzen je Station und Loft zum Körper">Für Fusion …</button><span class="hint">V-Leitwerk: V-Form eintragen, z. B. 40°. Profil leer lassen für eine ebene Platte.</span></div>
           <div class="form" id="bTail">
             <div class="field"><span>Bauweise Leitwerk <button type="button" class="iconbtn sm" data-info="info-buildT" aria-expanded="false" aria-controls="info-buildT" aria-label="So wird die Bauweise gerechnet">i</button></span><span class="seg" data-bk="type"><button type="button" data-v="voll">Vollbeplankt</button><button type="button" data-v="rippen">Rippen</button></span></div>
             <label class="field" data-rib><span>Beplankung oben bis</span><span class="row"><input class="num" data-bk="top" type="number" step="1" min="0" max="100"><span class="u">%</span></span></label>
@@ -832,6 +833,18 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
     <div class="row"><label for="nacaCode">NACA 4-Ziffern</label><input class="txt" id="nacaCode" value="0009" style="width:8ch" maxlength="4" inputmode="numeric"><button type="button" class="btn sm" id="nacaAdd">Hinzufügen</button></div>
     <p class="hint">Die mitgelieferten Profile stammen aus der UIUC-Profildatenbank (m-selig.ae.illinois.edu).</p>
     <div class="row end"><button type="button" class="btn ghost" id="libClose">Schliessen</button></div>
+  </div>
+</dialog>
+
+<dialog id="sfwDlg">
+  <h2 id="sfwTitle">SFW laden</h2>
+  <div class="setform">
+    <p class="hint">StepFour-Flügeldateien (.sfw). Mehrere Teile (z. B. innen und aussen) zusammen wählen, sie werden in der Reihenfolge der Dateinamen aneinandergehängt.</p>
+    <div class="row"><button type="button" class="btn ghost sm" id="sfwPick">Dateien wählen …</button><input type="file" id="sfwFile" accept=".sfw,.SFW" multiple hidden><span class="hint" id="sfwFiles"></span></div>
+    <label class="field"><span>Wurzelrippe bei</span><span class="row"><input class="num" id="sfwRoot" type="number" step="1" min="0" max="500"><span class="u">mm ab Mitte</span></span></label>
+    <div class="tablewrap"><table class="st-table" id="sfwTable"></table></div>
+    <p class="hint" id="sfwInfo"></p>
+    <div class="row end"><button type="button" class="btn ghost" id="sfwCancel">Abbrechen</button><button type="button" class="btn" id="sfwGo" disabled>Übernehmen</button></div>
   </div>
 </dialog>
 
@@ -3072,4 +3085,5 @@ renderAll();
 <script src="dreiseiten-ui.js"></script>
 <script src="cloud-ui.js"></script>
 <script src="verlauf-ui.js"></script>
+<script src="sfw-ui.js"></script>
 
