@@ -63,3 +63,20 @@ test('3D-Import: Lage wie Fusion (Y oben, Nase −Z), Halbflügel gespiegelt, HL
   assert.ok(t.part === 'tail' && t.dx === 900 && t.dz === 40);
   assert.throws(() => IM.basis({ up: '+Y', nose: '-Y' }), /dieselbe Achse/);
 });
+
+test('3D-Import: Rhino 3DM über Worker-Ergebnis, Lage Z oben / Nase −Y, ganzes Modell Nase an Nase', async () => {
+  await assert.rejects(IM.parse('a.3dm', new Uint8Array(4)), /3dm-Leser/);
+  // Rumpf von y 0 (Nase) bis 1500, Flügel ±2500 bei y 600
+  const res = { success: true, unit: 1, skipped: { Curve: 3 }, hidden: 2, meshes: [
+    { name: 'Rumpf', layer: 'Rumpf', how: 'Render-Netz', positions: [0, 0, 0, 0, 1500, 0, 30, 700, 40], indices: [0, 1, 2] },
+    { name: 'Wing', layer: 'Wing', how: 'abgetastet', positions: [-2500, 600, 50, 2500, 600, 50, 0, 840, 50], indices: [0, 1, 2] },
+  ] };
+  const r = await IM.parse('Shark.3dm', new Uint8Array(4), { rhino: async () => res });
+  assert.ok(r.source === '3dm' && r.sampled && r.meshes.length === 2);
+  const p = IM.suggest(r, 'Shark.3dm', { wing: { stations: [{ chord: 240 }] }, tail: { x: 1200, z: 0 } }, { noseX: -613 });
+  assert.ok(p.up === '+Z' && p.nose === '-Y' && p.part === 'all' && !p.mirror);
+  const b = IM.bounds(IM.place(r.meshes, r.unit, p));
+  assert.ok(Math.abs(b.min[0] + 613) < 1e-3 && Math.abs(b.max[0] - 887) < 1e-3);
+  assert.ok(Math.abs(b.max[1] - 2500) < 1e-3 && Math.abs(b.min[1] + 2500) < 1e-3);
+  assert.throws(() => IM.fromRhino({ success: true, meshes: [], skipped: { Curve: 5 }, hidden: 1 }), /nur 5× Curve/);
+});

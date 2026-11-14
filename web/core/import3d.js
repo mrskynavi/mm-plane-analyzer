@@ -1,4 +1,4 @@
-// 3D-Dateien einlesen (3MF, OBJ, STL; STEP über OpenCascade, siehe vendor/occt) und in die App-Achsen legen,
+// 3D-Dateien einlesen (3MF, OBJ, STL; STEP über OpenCascade, siehe vendor/occt; Rhino 3DM über rhino3dm, vendor/rhino3dm) und in die App-Achsen legen,
 // damit das gebaute Teil in der 3D-Ansicht neben dem gerechneten Modell liegt.
 // Ergebnis: { meshes: [{ name, positions: Float32Array, indices: Uint32Array }], unit, source }, Längen in der
 // Einheit der Datei mal unit = mm.
@@ -8,7 +8,7 @@
 
   const UNITS = { micron: 0.001, millimeter: 1, centimeter: 10, meter: 1000, inch: 25.4, foot: 304.8 };
   const extOf = name => (String(name).toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || '';
-  const KINDS = { '3mf': '3mf', obj: 'obj', stl: 'stl', step: 'step', stp: 'step' };
+  const KINDS = { '3mf': '3mf', obj: 'obj', stl: 'stl', step: 'step', stp: 'step', '3dm': '3dm' };
   const kindOf = name => KINDS[extOf(name)] || null;
 
   // ---- ZIP (für 3MF): zentrales Verzeichnis lesen, Deflate über DecompressionStream (Browser, Node ≥ 18)
@@ -200,6 +200,16 @@
     if (!meshes.length) throw new Error('STEP ohne Flächen');
     return { meshes, unit: 1, source: 'step' };
   }
+  // ---- Rhino 3DM: Ergebnis von vendor/rhino3dm/rhino-worker.js (Render-Netze oder abgetastete Flächen)
+  function fromRhino(r) {
+    if (!r || !r.success) throw new Error(r && r.error ? '3dm: ' + r.error : '3dm-Datei liess sich nicht lesen');
+    const meshes = (r.meshes || []).map(m => ({ name: m.name, layer: m.layer, how: m.how, positions: Float32Array.from(m.positions), indices: Uint32Array.from(m.indices) })).filter(m => m.indices.length);
+    if (!meshes.length) {
+      const sk = Object.entries(r.skipped || {}).map(([k, n]) => n + '× ' + k).join(', ');
+      throw new Error('3dm ohne Flächen oder Netze' + (sk ? ' (nur ' + sk + ')' : '') + (r.hidden ? ', ' + r.hidden + ' ausgeblendet' : ''));
+    }
+    return { meshes, unit: r.unit || 1, source: '3dm', sampled: meshes.some(m => m.how === 'abgetastet'), skipped: r.skipped || {}, hidden: r.hidden || 0 };
+  }
   const OCCT_PARAMS = { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.0015, angularDeflection: 0.35 };
 
   // Datei lesen. opts.step(u8) liefert das occt-Ergebnis (Browser: Worker, Node: Modul)
@@ -212,7 +222,11 @@
       if (!opts.step) throw new Error('STEP-Leser nicht geladen');
       return fromOcct(await opts.step(new Uint8Array(buf)));
     }
-    throw new Error('Dateityp nicht erkannt (3MF, OBJ, STL, STEP)');
+    if (kind === '3dm') {
+      if (!opts.rhino) throw new Error('3dm-Leser nicht geladen');
+      return fromRhino(await opts.rhino(new Uint8Array(buf)));
+    }
+    throw new Error('Dateityp nicht erkannt (3MF, OBJ, STL, STEP, 3DM)');
   }
 
   // ---- Lage im Modell: welche Dateiachse oben ist und wohin die Nase zeigt, Einheit, Verschiebung, Spiegeln
@@ -255,8 +269,11 @@
     return { min: lo, max: hi };
   }
   // Vorschlag für die Lage: Halbteil (alles auf einer Seite) spiegeln; Name mit HLW/Höhenleitwerk an die Leitwerkslage
-  function suggest(r, fileName, model) {
-    const p = { ...DEFAULT_PLACE };
+  // Rhino: Z oben, Rumpfachse +Y nach hinten (so ist der Shark gezeichnet)
+  const RHINO_PLACE = { up: '+Z', nose: '-Y' };
+  // opts.noseX: Rumpfspitze des Modells (rumpf.shape(model).x0). Ein ganzes Modell oder ein Rumpf wird Nase an Nase gelegt.
+  function suggest(r, fileName, model, opts = {}) {
+    const p = { ...DEFAULT_PLACE, ...(r.source === '3dm' ? RHINO_PLACE : {}) };
     const b = bounds(place(r.meshes, r.unit, p));
     const span = b.max[1] - b.min[1];
     if (b.min[1] > -0.02 * span || b.max[1] < 0.02 * span) p.mirror = true;
@@ -264,11 +281,15 @@
     const n = (fileName + ' ' + (r.title || '')).toLowerCase();
     if (model && /hlw|höhenleitwerk|hoehenleitwerk|leitwerk|tail/.test(n)) { p.dx = model.tail.x || 0; p.dz = model.tail.z || 0; p.part = 'tail'; }
     else p.part = /rumpf|fuse/.test(n) ? 'fuse' : /fl(ü|ue)gel|wing/.test(n) ? 'wing' : 'free';
+    // länger als 2,5 Wurzeltiefen: da ist ein Rumpf dabei
+    const c0 = model?.wing?.stations?.[0]?.chord || 0;
+    if (p.part === 'free' && c0 && b.max[0] - b.min[0] > 2.5 * c0) p.part = 'all';
+    if ((p.part === 'all' || p.part === 'fuse') && Number.isFinite(opts.noseX)) p.dx = opts.noseX - b.min[0];
     return p;
   }
   const triangles = meshes => meshes.reduce((a, m) => a + m.indices.length / 3, 0);
 
-  const api = { UNITS, kindOf, unzip, parse3mfXml, parse3mf, parseObj, parseStl, fromOcct, OCCT_PARAMS, parse, AX, DEFAULT_PLACE, basis, place, bounds, suggest, triangles };
+  const api = { UNITS, kindOf, unzip, parse3mfXml, parse3mf, parseObj, parseStl, fromOcct, fromRhino, RHINO_PLACE, OCCT_PARAMS, parse, AX, DEFAULT_PLACE, basis, place, bounds, suggest, triangles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).import3d = api;
 })(typeof self !== 'undefined' ? self : this);

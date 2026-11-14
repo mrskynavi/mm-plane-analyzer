@@ -184,9 +184,20 @@ function readStep(u8) {
   });
 }
 
+// Rhino 3DM: rhino3dm im Worker, erst beim ersten 3DM geladen (2,7 MB)
+let rhinoWorker = null;
+function readRhino(u8) {
+  return new Promise((resolve, reject) => {
+    rhinoWorker = rhinoWorker || new Worker('vendor/rhino3dm/rhino-worker.js');
+    rhinoWorker.onmessage = e => resolve(e.data);
+    rhinoWorker.onerror = e => { e.preventDefault(); rhinoWorker.terminate(); rhinoWorker = null; reject(new Error('3dm-Leser liess sich nicht laden')); };
+    rhinoWorker.postMessage({ buffer: u8 });
+  });
+}
+
 async function parseImp(q) {
   q.err = ''; q.busy = true; renderImpList();
-  try { q.raw = await IM.parse(q.name, q.buf.slice(0), { step: readStep }); } catch (e) { q.raw = null; q.err = e.message; }
+  try { q.raw = await IM.parse(q.name, q.buf.slice(0), { step: readStep, rhino: readRhino }); } catch (e) { q.raw = null; q.err = e.message; }
   q.busy = false;
   placeImp(q);
 }
@@ -230,17 +241,18 @@ async function addFiles(files) {
   if (impModel !== m.id) impReady = loadImports(m);
   await impReady; // gespeicherte Importe zuerst, sonst überschreiben sie die neuen
   for (const f of files) {
-    if (!IM.kindOf(f.name)) { toast?.('Nicht unterstützt: ' + f.name + ' (3MF, OBJ, STL, STEP)'); continue; }
+    if (!IM.kindOf(f.name)) { toast?.('Nicht unterstützt: ' + f.name + ' (3MF, OBJ, STL, STEP, 3DM)'); continue; }
     const q = { id: m.id + ':' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), model: m.id, name: f.name, buf: await f.arrayBuffer(), place: null, visible: true, raw: null, out: null, err: '' };
     imports.push(q);
     await parseImp(q);
-    if (q.raw) { q.place = IM.suggest(q.raw, f.name, m); placeImp(q); }
+    if (q.raw) { q.place = IM.suggest(q.raw, f.name, m, { noseX: noseOf(m) }); placeImp(q); }
     else q.place = { ...IM.DEFAULT_PLACE, part: 'free' };
     saveImp(q);
   }
   redraw(true);
 }
 
+const noseOf = m => { try { return window.MMPA.rumpf.shape(m).x0; } catch (e) { return NaN; } };
 const AXES = ['+X', '-X', '+Y', '-Y', '+Z', '-Z'];
 const opt = (list, v) => list.map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('');
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -248,11 +260,12 @@ function renderImpList() {
   const box = $id('p3imp'); if (!box) return;
   box.innerHTML = imports.map(q => {
     const p = q.place || IM.DEFAULT_PLACE;
-    const info = q.busy ? 'liest …' : q.err ? `<span class="err">${esc(q.err)}</span>` : q.raw ? `${(n => n < 10000 ? n : Math.round(n / 1000) + 'k')(IM.triangles(q.raw.meshes))} Dreiecke · ${q.raw.meshes.length} Körper` : '';
-    const unitKnown = q.raw && (q.raw.source === '3mf' || q.raw.source === 'step');
+    const note = q.raw && q.raw.sampled ? ' · ohne Render-Netz: Flächen abgetastet, Trimmung fehlt' : '';
+    const info = q.busy ? 'liest …' : q.err ? `<span class="err">${esc(q.err)}</span>` : q.raw ? `${(n => n < 10000 ? n : Math.round(n / 1000) + 'k')(IM.triangles(q.raw.meshes))} Dreiecke · ${q.raw.meshes.length} Körper${note}` : '';
+    const unitKnown = q.raw && (q.raw.source === '3mf' || q.raw.source === 'step' || q.raw.source === '3dm');
     return `<div class="p3row" data-id="${esc(q.id)}">
       <label title="zeigen"><input type="checkbox" data-k="visible"${q.visible ? ' checked' : ''}></label><b>${esc(q.name)}</b><small>${info}</small>
-      <label>Teil <select data-k="part">${opt([['wing', 'Flügel'], ['tail', 'Höhenleitwerk'], ['fuse', 'Rumpf'], ['free', 'frei']], p.part || 'free')}</select></label>
+      <label>Teil <select data-k="part">${opt([['all', 'ganzes Modell'], ['wing', 'Flügel'], ['tail', 'Höhenleitwerk'], ['fuse', 'Rumpf'], ['free', 'frei']], p.part || 'free')}</select></label>
       <label>oben <select data-k="up">${opt(AXES.map(a => [a, a]), p.up)}</select></label>
       <label>Nase <select data-k="nose">${opt(AXES.map(a => [a, a]), p.nose)}</select></label>
       ${unitKnown ? '' : `<label>Einheit <select data-k="scale">${opt([['1', 'mm'], ['10', 'cm'], ['1000', 'm'], ['25.4', 'Zoll']], String(p.scale || 1))}</select></label>`}
@@ -276,6 +289,11 @@ $id('p3imp').addEventListener('change', e => {
     // Lage aus dem Modell: Flügel an der Wurzelnase, HLW an der Leitwerkslage, sonst wie gesetzt
     p.part = e.target.value; const m = curModel();
     if (p.part === 'wing') { p.dx = 0; p.dz = 0; } else if (p.part === 'tail') { p.dx = m.tail.x || 0; p.dz = m.tail.z || 0; }
+    else if ((p.part === 'all' || p.part === 'fuse') && q.raw) {
+      // Nase an Nase: vordersten Punkt der Datei (ohne Verschiebung) an die Rumpfspitze des Modells
+      const b = IM.bounds(IM.place(q.raw.meshes, q.raw.unit, { ...p, dx: 0, dy: 0, dz: 0, mirror: false }));
+      const nx = noseOf(m); if (Number.isFinite(nx)) p.dx = nx - b.min[0];
+    }
   } else if (/^d[xyz]$/.test(k)) p[k] = parseFloat(e.target.value) || 0;
   placeImp(q); saveImp(q);
 });
