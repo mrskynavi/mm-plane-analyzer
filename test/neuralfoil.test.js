@@ -40,3 +40,22 @@ test('lstsq löst ein überbestimmtes System', () => {
   const x = NF.lstsq(A, b);
   assert.ok(Math.abs(x[0] - 1) < 1e-12 && Math.abs(x[1] - 2) < 1e-12);
 });
+
+test('Grenzschicht (θ, H, ue/V) wie NeuralFoil in Python', () => {
+  const ref = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'nf-grenzschicht.json'), 'utf8'));
+  for (const c of ref) {
+    const at = NF.prepare(dat(c.profil));
+    c.x.forEach((x, i) => assert.ok(Math.abs(NF.BL_X[i] - x) < 1e-12));
+    c.alpha.forEach((a, j) => {
+      const r = at(a, c.Re, c.ncrit, 1, 1, true);
+      for (const side of ['upper', 'lower']) {
+        for (const [q, key] of [['theta', 'theta'], ['H', 'H'], ['ue', 'ue/vinf']]) {
+          r.bl[side][q].forEach((v, i) => {
+            const e = c[`${side}_${key}`][j][i];
+            assert.ok(Math.abs(v - e) <= 1e-9 * Math.max(1, Math.abs(e)), `${c.profil} α ${a} ${side} ${q} ${i}: ${v} statt ${e}`);
+          });
+        }
+      }
+    });
+  }
+});
