@@ -186,7 +186,7 @@ function need(keys) {
   const list = want.map(k => wkStates.find(q => q.key === k)).filter(Boolean);
   if (!druckWorker) {
     try {
-      druckWorker = new Worker('core/modell-worker.js');
+      druckWorker = new Worker('core/modell-worker.js?v=' + (window.MMPA_BUILD || ''));
       druckWorker.onmessage = onFrame;
       druckWorker.onerror = e => { e.preventDefault(); druckWorker.terminate(); druckWorker = null; pending.clear(); keyInfo('Druckbild konnte nicht gerechnet werden.'); };
     } catch (e) { keyInfo('Druckbild braucht Web Worker.'); return; }
