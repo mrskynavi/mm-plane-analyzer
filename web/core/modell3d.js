@@ -16,10 +16,11 @@
 
   // Netz sammeln: Punkte und Dreiecke
   function mesh(name, kind) {
-    const pos = [], idx = [];
+    const pos = [], idx = [], att = [];
     return {
-      name, kind, pos, idx,
-      v(p) { pos.push(p[0], p[1], p[2]); return pos.length / 3 - 1; },
+      name, kind, pos, idx, att,
+      // a = [x/c, Seite]: Seite +1 oben, −1 unten, 0 ohne (Deckel, Rumpf); für Druckbild und Ablösekarte
+      v(p, a) { pos.push(p[0], p[1], p[2]); att.push(a ? a[0] : 0, a ? a[1] : 0); return pos.length / 3 - 1; },
       tri(a, b, c) { idx.push(a, b, c); },
       quad(a, b, c, d) { idx.push(a, b, c, a, c, d); },
     };
@@ -28,13 +29,16 @@
   const done = (m, rev) => {
     const I = Uint32Array.from(m.idx);
     if (rev) for (let i = 0; i < I.length; i += 3) { const t = I[i + 1]; I[i + 1] = I[i + 2]; I[i + 2] = t; }
-    return { name: m.name, kind: m.kind, positions: Float32Array.from(m.pos), indices: I };
+    return { name: m.name, kind: m.kind, positions: Float32Array.from(m.pos), indices: I, surface: Float32Array.from(m.att) };
   };
 
   // Fläche (Flügel oder HLW) aus Schnitten, die alle gleich viele Punkte haben (Endleiste oben → Nase → Endleiste unten)
   // Beide Hälften: die linke gespiegelt (y → −y, Umlauf gedreht).
-  function lofted(name, kind, secs, tip, shift, rot) {
+  function lofted(name, kind, secs, tip, shift, rot, nSide) {
     const m = mesh(name, kind);
+    // Punkte je Schnitt: oben von der Endleiste zur Nase (Kosinusteilung), dann unten zurück (ohne Nase)
+    const xs = P.cosspace(nSide);
+    const param = i => (i < nSide ? [xs[nSide - 1 - i], 1] : [xs[i - nSide + 1], -1]);
     const tf = p => {
       // Einstellwinkel um die Nasenleiste der Wurzel (Nase hoch positiv), dann an die Lage im Modell schieben
       const x = p[0], z = p[2], c = Math.cos(rot), s = Math.sin(rot);
@@ -42,10 +46,10 @@
     };
     [1, -1].forEach(side => {
       const flip = side < 0;
-      const put = p => { const q = tf(p); return m.v([q[0], q[1] * side, q[2]]); };
+      const put = (p, i) => { const q = tf(p); return m.v([q[0], q[1] * side, q[2]], i == null ? null : param(i)); };
       const T = flip ? (a, b, c) => m.tri(a, c, b) : (a, b, c) => m.tri(a, b, c);
       const Q = (a, b, c, d) => { T(a, b, c); T(a, c, d); };
-      const rings = secs.map(s => s.pts.map(put));
+      const rings = secs.map(s => s.pts.map((p, i) => put(p, i)));
       const n = rings[0].length;
       for (let j = 1; j < rings.length; j++) {
         const a = rings[j - 1], b = rings[j];
@@ -54,7 +58,7 @@
       }
       // Wurzel: Deckel als Fächer (liegt meist im Rumpf)
       // eigene Punkte, damit die Schattierung an der Kante nicht verschmiert
-      const r0 = secs[0].pts.map(put);
+      const r0 = secs[0].pts.map(p => put(p));
       for (let i = 1; i < n - 1; i++) T(r0[0], r0[i + 1], r0[i]);
       // Spitze: zum Randpunkt, sonst Deckel
       const rl = rings[rings.length - 1];
@@ -73,7 +77,9 @@
     const x0 = part === 'tail' ? model.tail.x : 0, z0 = part === 'tail' ? (model.tail.z || 0) : 0;
     const o = V.stationPoints(st, x0, z0)[0].le;
     const rot = part === 'wing' ? (S.incidence || 0) * RAD : 0;
-    return { mesh: lofted(part === 'wing' ? 'Flügel' : 'Höhenleitwerk', part, r.sections, r.tip, o, rot), sections: r };
+    const n = opts.n || 24;
+    if (r.sections[0].pts.length !== 2 * n - 1) throw new Error('Schnitte mit unerwarteter Punktzahl');
+    return { mesh: lofted(part === 'wing' ? 'Flügel' : 'Höhenleitwerk', part, r.sections, r.tip, o, rot, n), sections: r };
   }
 
   // Rumpf: Ringe über die Kontur, Querschnitt elliptisch (Breite w, Höhe h). Achse gerade, so gelegt, dass die

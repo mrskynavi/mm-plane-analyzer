@@ -26,6 +26,7 @@
 <script src="core/verlauf.js"></script>
 <script src="core/sfw.js"></script>
 <script src="core/modell3d.js"></script>
+<script src="core/druckbild.js"></script>
 <script src="core/import3d.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
@@ -287,6 +288,12 @@ tr.low td{color:var(--warn)}
 .cbox.zoomed .p3host{flex:1 1 auto;height:auto}
 .p3chk{display:inline-flex;gap:5px;align-items:center;font:.82rem var(--body);color:var(--fg)}
 .p3imp{display:grid;gap:6px}
+.p3key{font:.8rem var(--body);color:var(--muted);line-height:1.5}
+.p3key .leg{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-top:2px}
+.p3key i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:4px}
+.p3key .bar{display:inline-block;width:140px;height:10px;border-radius:2px;vertical-align:-1px;margin:0 6px}
+.p3key b{color:var(--fg);font-weight:600}
+.p3key .warn{color:var(--bad);font-weight:600}
 .p3imp:empty{display:none}
 .p3row{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--violet);border-radius:6px;padding:6px 8px;font:.82rem var(--body)}
 .p3row b{font-weight:600}
@@ -814,6 +821,8 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <section class="pol-box rv-sec"><div class="cbox"><div class="ct">Grundriss <span><span class="legend" id="planLegend"></span> <span class="seg" id="planMode" role="group" aria-label="Ansicht"><button type="button" data-pm="plan" aria-pressed="true">Draufsicht</button><button type="button" data-pm="3d" aria-pressed="false">3D</button></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="plan"><canvas id="planCv" aria-label="Grundriss mit Neutralpunkt und Schwerpunkt"></canvas></div>
 <div class="plan3d" id="plan3d" hidden><div class="p3host" id="p3host" aria-label="3D-Ansicht des Modells: ziehen dreht, zwei Finger oder Mausrad zoomen"></div>
 <div class="p3bar"><span class="seg" id="p3view" role="group" aria-label="Blickrichtung"><button type="button" data-v="iso" aria-pressed="true">Schräg</button><button type="button" data-v="top" aria-pressed="false">Oben</button><button type="button" data-v="front" aria-pressed="false">Vorne</button><button type="button" data-v="side" aria-pressed="false">Seite</button></span><button type="button" class="btn ghost sm" id="p3load" title="Gebautes Teil aus dem CAD (3MF, OBJ, STL, STEP, Rhino 3DM) neben das gerechnete Modell legen">3D-Datei laden …</button><input type="file" id="p3file" multiple hidden><label class="p3chk"><input type="checkbox" id="p3model" checked> gerechnetes Modell</label><span class="p3hint" id="p3hint">Ziehen dreht · Mausrad oder zwei Finger zoomen · rechte Maustaste oder zwei Finger verschieben</span></div>
+<div class="p3bar p3wk"><span class="seg" id="p3layer" role="group" aria-label="Bild auf dem Modell"><button type="button" data-l="form" aria-pressed="true">Form</button><button type="button" data-l="cp" aria-pressed="false" title="Druckbeiwert Cp auf Ober- und Unterseite">Druck</button><button type="button" data-l="bl" aria-pressed="false" title="laminar, turbulent, Ablöseblase, abgelöst">Grenzschicht</button></span><label class="p3chk">Zustand <select id="p3state" aria-label="Flugzustand"></select></label><button type="button" class="btn ghost sm" id="p3film" title="α hochfahren: wo reisst der Flügel zuerst ab?">▶ Abriss-Film</button><label class="p3chk"><input type="checkbox" id="p3lastv"> Lastverteilung</label></div>
+<div class="p3key" id="p3key" hidden></div>
 <div class="p3imp" id="p3imp"></div></div></div></section>
 </div>
 <div class="rview" data-view="dist" hidden>
