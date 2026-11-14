@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <script>try{ const t=localStorage.getItem('mmpa.theme'); if (t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>window.MMPA_BUILD = '58'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
 <script src="core/profil.js"></script>
 <script src="core/nf-gewichte.js"></script>
 <script src="core/neuralfoil.js"></script>
@@ -15,7 +16,7 @@
 <script src="core/bibliothek.js"></script>
 <script src="core/vlm.js"></script>
 <script src="core/rumpf.js"></script>
-<script src="core/modell.js"></script>
+<script src="core/modell.js?v=58"></script>
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
 <script src="core/ordner.js"></script>
@@ -25,9 +26,9 @@
 <script src="core/fusion.js"></script>
 <script src="core/verlauf.js"></script>
 <script src="core/sfw.js"></script>
-<script src="core/modell3d.js"></script>
-<script src="core/druckbild.js"></script>
-<script src="core/struktur.js"></script>
+<script src="core/modell3d.js?v=58"></script>
+<script src="core/druckbild.js?v=58"></script>
+<script src="core/struktur.js?v=58"></script>
 <script src="core/import3d.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
@@ -2551,7 +2552,7 @@ function computeModel() {
   const seq = ++modelSeq;
   if (modelWorkerOk && !modelWorker) {
     try {
-      modelWorker = new Worker('core/modell-worker.js');
+      modelWorker = new Worker('core/modell-worker.js?v=' + window.MMPA_BUILD);
       modelWorker.onerror = e => {
         // Worker lässt sich nicht laden: künftig auf der Seite rechnen, die offene Anfrage gleich hier
         e.preventDefault(); modelWorker.terminate(); modelWorker = null; modelWorkerOk = false;
@@ -3377,6 +3378,6 @@ renderAll();
 <script src="cloud-ui.js"></script>
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
-<script src="festigkeit-ui.js"></script>
-<script type="module" src="drei-ui.js"></script>
+<script src="festigkeit-ui.js?v=58"></script>
+<script type="module" src="drei-ui.js?v=58"></script>
 

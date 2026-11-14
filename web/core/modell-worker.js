@@ -3,7 +3,9 @@
 // Nachricht rein: { seq, model, profiles, nCrit }. Raus: { seq, result } oder { seq, error }.
 // Druckbild (W2): { kind: 'druck', seq, model, profiles, r, states, nCrit } → je Zustand { kind: 'frame', seq, i, frame },
 // zum Schluss { kind: 'done', seq }. Eine neue Druck-Anfrage bricht die laufende nach dem aktuellen Zustand ab.
-importScripts('profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js', 'struktur.js');
+// Die Seite hängt ?v=<Stand> an: so holt der Browser nach einem Update auch die Rechenkerne neu statt aus dem Zwischenspeicher.
+const VQ = self.location.search || '';
+importScripts(...['profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js', 'struktur.js'].map(f => f + VQ));
 let druckSeq = 0;
 self.onmessage = e => {
   const d = e.data;

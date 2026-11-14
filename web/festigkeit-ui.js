@@ -155,19 +155,25 @@
     const m = curModel(), r = lastModel;
     if (!m || !r || !r.load) { last = null; lastErr = r ? '' : 'Modellrechnung fehlt'; renderOut(); status(); return; }
     const my = ++seq, msg = { kind: 'struktur', seq: my, model: m, profiles: project.profiles, r, nCrit: lab.nCrit, materials: project.materials || {} };
-    const done = (res, err) => { if (my !== seq) return; busy = false; last = res || null; lastErr = err || ''; status(); renderOut(); };
+    let watch = null;
+    const done = (res, err) => { clearTimeout(watch); if (my !== seq) return; busy = false; last = res || null; lastErr = err || ''; status(); renderOut(); };
+    // Ohne Worker, bei einem alten Worker aus dem Zwischenspeicher (kennt 'struktur' nicht) oder wenn er nicht antwortet: in der Seite rechnen
+    const inPage = () => { if (worker && worker.cb) delete worker.cb[my]; if (my !== seq) return; try { done(S.analyze(m, project.profiles, r, { nCrit: lab.nCrit, project })); } catch (e2) { done(null, e2.message); } };
     busy = true; status();
     try {
       if (!worker) {
-        worker = new Worker('core/modell-worker.js');
-        worker.onmessage = e => { const d = e.data; if (d.kind === 'struktur' && worker.cb && worker.cb[d.seq]) { worker.cb[d.seq](d.result, d.error); delete worker.cb[d.seq]; } };
-        worker.onerror = e => { e.preventDefault(); worker.terminate(); worker = null; busy = false; lastErr = 'Rechnung im Hintergrund fehlgeschlagen'; status(); };
+        worker = new Worker('core/modell-worker.js?v=' + (window.MMPA_BUILD || ''));
         worker.cb = {};
+        worker.onmessage = e => {
+          const d = e.data, cb = worker.cb[d.seq]; if (!cb) return;
+          delete worker.cb[d.seq];
+          if (d.kind === 'struktur') cb.done(d.result, d.error); else cb.inPage();
+        };
+        worker.onerror = e => { e.preventDefault(); const cbs = Object.values(worker.cb); worker.terminate(); worker = null; cbs.forEach(c => c.inPage()); };
       }
-      worker.cb[my] = done; worker.postMessage(msg);
-    } catch (err) {
-      try { done(S.analyze(m, project.profiles, r, { nCrit: lab.nCrit, project })); } catch (e2) { done(null, e2.message); }
-    }
+      worker.cb[my] = { done, inPage }; worker.postMessage(msg);
+      watch = setTimeout(inPage, 12000);
+    } catch (err) { inPage(); }
   }
 
   // ---------- Ergebnisse ----------
