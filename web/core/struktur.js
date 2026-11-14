@@ -17,8 +17,8 @@
   // Richtwerte (N/mm², kg/m³). E/G entlang der Faser bzw. bei 0/90, E45/G45 bei ±45°. Alle im Projekt überschreibbar.
   const MATERIALS = {
     'cfk-roving': { name: 'CFK-Rovings, handlaminiert', group: 'Faser', E: 110000, G: 4000, sigT: 1200, sigC: 700, tau: 50, rho: 1500 },
-    'cfk-gewebe': { name: 'CFK-Gewebe', group: 'Faser', E: 50000, E45: 14000, G: 4000, G45: 22000, sigT: 500, sigC: 400, tau: 50, rho: 1450 },
-    'gfk-gewebe': { name: 'GFK-Gewebe', group: 'Faser', E: 18000, E45: 9000, G: 3500, G45: 7500, sigT: 250, sigC: 200, tau: 40, rho: 1800 },
+    'cfk-gewebe': { name: 'CFK-Gewebe', group: 'Faser', E: 50000, E45: 14000, G: 4000, G45: 22000, sigT: 500, sigC: 400, tau: 50, rho: 1450, rhoF: 1780, phi: 0.42 },
+    'gfk-gewebe': { name: 'GFK-Gewebe', group: 'Faser', E: 18000, E45: 9000, G: 3500, G45: 7500, sigT: 250, sigC: 200, tau: 40, rho: 1800, rhoF: 2550, phi: 0.38 },
     'cfk-stab': { name: 'CFK-Stab/-Rohr pultrudiert', group: 'Halbfabrikat', E: 130000, G: 5000, sigT: 1800, sigC: 1100, tau: 60, rho: 1600 },
     'cfk-rohr-gew': { name: 'CFK-Rohr gewickelt', group: 'Halbfabrikat', E: 70000, G: 12000, sigT: 700, sigC: 500, tau: 60, rho: 1550 },
     'gfk-stab': { name: 'GFK-Stab pultrudiert', group: 'Halbfabrikat', E: 40000, G: 4000, sigT: 900, sigC: 500, tau: 50, rho: 2000 },
@@ -30,6 +30,16 @@
     'birke': { name: 'Birkensperrholz', group: 'Holz', E: 8000, G: 700, sigT: 50, sigC: 40, tau: 8, rho: 700 },
     'styro': { name: 'Styropor/Styrodur', group: 'Kern', E: 8, G: 3, sigT: 0.2, sigC: 0.15, tau: 0.15, rho: 30 },
   };
+  // Gewebe wird als Flächengewicht eingegeben (g/m², trocken). Dicke des Laminats = g / (Faserdichte · Faservolumenanteil)
+  const fabric = id => (MATERIALS[id] && MATERIALS[id].rhoF ? MATERIALS[id] : null);
+  const fabricT = (id, g) => { const f = fabric(id); return f ? (+g || 0) / (f.rhoF * f.phi) : 0; };
+  const fabricG = (id, t) => { const f = fabric(id); return f ? (+t || 0) * f.rhoF * f.phi : 0; };
+  function layerOf(l) {
+    const o = { ...l };
+    if (fabric(o.mat)) { if (!(+o.g >= 0) || o.g === '' || o.g == null) o.g = Math.round(fabricG(o.mat, o.t)); o.t = fabricT(o.mat, o.g); }
+    else delete o.g;
+    return o;
+  }
   const MAT_FIELDS = ['E', 'G', 'sigT', 'sigC', 'tau', 'rho'];
   // Bibliothek plus Änderungen und eigene Materialien des Projekts (project.materials = { id: { name?, E?, … } })
   function materials(project) {
@@ -59,13 +69,13 @@
     schale: {
       label: 'Schalenflügel',
       spar: { pos: 30, mat: 'cfk-roving', b: 12, t0: 1.2, t1: 0.3 }, web: { mat: 'balsa', t: 3 },
-      shell: { box: 'voll', layers: [{ mat: 'gfk-gewebe', t: 0.05, angle: 45 }, { mat: 'balsa', t: 1.0, angle: 0 }, { mat: 'gfk-gewebe', t: 0.03, angle: 45 }] },
+      shell: { box: 'voll', layers: [{ mat: 'gfk-gewebe', g: 49, angle: 45 }, { mat: 'balsa', t: 1.0, angle: 0 }, { mat: 'gfk-gewebe', g: 25, angle: 45 }] },
       fill: 'hohl',
     },
     styro: {
       label: 'Styro/Abachi',
       spar: { pos: 30, mat: 'cfk-roving', b: 10, t0: 0.8, t1: 0.2 }, web: { mat: 'balsa', t: 2 },
-      shell: { box: 'voll', layers: [{ mat: 'gfk-gewebe', t: 0.04, angle: 45 }, { mat: 'abachi', t: 0.6, angle: 0 }] },
+      shell: { box: 'voll', layers: [{ mat: 'gfk-gewebe', g: 49, angle: 45 }, { mat: 'abachi', t: 0.6, angle: 0 }] },
       fill: 'styro',
     },
     rippen: {
@@ -88,7 +98,7 @@
       template: tpl,
       spar: { ...T.spar, ...(s.spar || {}) },
       web: { ...T.web, ...(s.web || {}) },
-      shell: { box: (s.shell && s.shell.box) || T.shell.box, layers: (s.shell && Array.isArray(s.shell.layers) ? s.shell.layers : T.shell.layers).map(l => ({ ...l })) },
+      shell: { box: (s.shell && s.shell.box) || T.shell.box, layers: (s.shell && Array.isArray(s.shell.layers) ? s.shell.layers : T.shell.layers).map(layerOf) },
       fill: s.fill || T.fill,
       ribs: s.ribs ?? (S.build && S.build.ribs) ?? 60, ribT: s.ribT ?? 2,
       joiner: { ...JOINER[part], ...(s.joiner || {}) },
@@ -385,7 +395,7 @@
   }
   function fmt(v, d = 1) { return Number(v).toFixed(d).replace('.', ','); }
 
-  const api = { MATERIALS, MAT_FIELDS, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, structOf, loadsOf, stations, stress, massOf, trimLine, stateFor, beam, flapGroups, analyze };
+  const api = { MATERIALS, MAT_FIELDS, fabric, fabricT, fabricG, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, structOf, loadsOf, stations, stress, massOf, trimLine, stateFor, beam, flapGroups, analyze };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).struktur = api;
 })(typeof self !== 'undefined' ? self : this);
