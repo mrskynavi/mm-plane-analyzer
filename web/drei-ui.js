@@ -163,6 +163,8 @@ const redraw = refit => { if (refit) fitted = false; if (lastArgs) draw(...lastA
 let layer = 'form', wkR = null, wkStates = [], wkKey = 'trim', frames = new Map(), pending = new Set();
 let druckWorker = null, druckSeq = 0, filmTimer = null, filmIdx = -1, showBands = false, bands = null;
 try { const v = localStorage.getItem('mmpa.p3layer'); if (v === 'cp' || v === 'bl') layer = v; } catch (e) {}
+// Biegung (F2): Ergebnis aus dem Reiter Festigkeit, Lastfall und Überhöhung
+let festRes = null, defCase = '', defScale = 1, ghost = null;
 const STATE_COL = ['--accent', '--good', '--warn', '--bad'];
 const STATE_TXT = ['laminar', 'turbulent', 'Ablöseblase', 'abgelöst'];
 const CP_MIN = -1.5, CP_MAX = 1;
@@ -177,7 +179,7 @@ function syncWk(m, r) {
     if (filmTimer) stopFilm();
   }
   document.querySelectorAll('#p3layer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === layer)));
-  if (layer !== 'form') need([wkKey]);
+  if (layer === 'def') needFest(); else if (layer !== 'form') need([wkKey]);
 }
 function need(keys) {
   const m = lastArgs && lastArgs[0];
@@ -225,12 +227,14 @@ const rgbOf = v => { const c = new THREE.Color(cssVar(v) || '#888'); return [c.r
 // Farben je Punkt der Flügel- und HLW-Netze aus den Streifen des Bildes
 function paint() {
   if (!group) return;
-  const f = layer === 'form' ? null : frames.get(wkKey);
+  deform();
+  const f = layer === 'form' || layer === 'def' ? null : frames.get(wkKey);
   stateRgb = STATE_COL.map(rgbOf);
   group.children.forEach(o => {
     const u = o.userData;
     if (u.kind !== 'wing' && u.kind !== 'tail') return;
     const strips = f ? (u.kind === 'wing' ? f.wing : f.tail) : null;
+    if (u.def) return; // Biegung färbt selbst
     if (!strips || !strips.length) {
       if (o.geometry.attributes.color) { o.geometry.deleteAttribute('color'); o.material.vertexColors = false; o.material.color.set(u.base); o.material.needsUpdate = true; }
       return;
@@ -255,7 +259,71 @@ function paint() {
     o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
     o.material.vertexColors = true; o.material.color.set(0xffffff); o.material.needsUpdate = true;
   });
-  key(f);
+  if (layer === 'def') keyDef(); else key(f);
+}
+
+// ---------- Biegung: verformter Flügel mit Reserve als Farbe ----------
+function needFest() {
+  if (!window.MMPAFest) { keyInfo('Festigkeit ist nicht geladen.'); return; }
+  keyInfo('rechnet …');
+  window.MMPAFest.need(res => {
+    festRes = res;
+    const sel = $id('p3case'), cs = res ? res.wing.cases : [];
+    if (!cs.some(c => c.key === defCase)) defCase = cs[0] ? cs[0].key : '';
+    sel.innerHTML = cs.map(c => `<option value="${c.key}"${c.key === defCase ? ' selected' : ''}>${c.label} · n ${c.n.toFixed(1)}</option>`).join('');
+    if (layer === 'def') { paint(); render(); }
+  });
+}
+const lin = (xs, arr, x) => { if (x <= xs[0]) return arr[0]; for (let i = 1; i < xs.length; i++) if (x <= xs[i]) { const t = (x - xs[i - 1]) / (xs[i] - xs[i - 1]); return arr[i - 1] + (arr[i] - arr[i - 1]) * t; } return arr[arr.length - 1]; };
+function reserveColor(r) {
+  const t = Math.min(1, Math.max(0, r - 1)); // 1 → rot, 2 → grün
+  const bad = [0.84, 0.22, 0.2], mid = [0.93, 0.72, 0.2], good = [0.22, 0.66, 0.38];
+  return t < 0.5 ? lerpCol(bad, mid, t * 2) : lerpCol(mid, good, t * 2 - 1);
+}
+function deform() {
+  const m = lastArgs && lastArgs[0], on = layer === 'def' && festRes && m;
+  if (ghost) { scene.remove(ghost); ghost.traverse(o => { o.material?.dispose(); }); ghost = null; }
+  if (on) ghost = new THREE.Group();
+  group.children.forEach(o => {
+    const u = o.userData;
+    if (u.kind !== 'wing' && u.kind !== 'tail') return;
+    const Pt = on ? festRes[u.kind] : null, c = Pt && (Pt.cases.find(q => q.key === defCase) || Pt.cases[0]);
+    if (!c) {
+      if (u.def) { o.geometry.setAttribute('position', new THREE.BufferAttribute(toThree(u.app), 3)); o.geometry.computeVertexNormals(); u.def = false; }
+      return;
+    }
+    // Holmachse: Nasenleiste + Holmlage · Tiefe an jeder Station
+    const tail = u.kind === 'tail', S = m[u.kind], pos = Pt.struct.spar.pos / 100;
+    const SP = tail ? VL.stationPoints(S.stations, m.tail.x, m.tail.z || 0) : VL.stationPoints(S.stations);
+    const yS = SP.map(p => p.le[1]), xS = SP.map((p, i) => p.le[0] + pos * S.stations[i].chord);
+    const A = u.app, n = A.length / 3, out = new Float32Array(A.length), col = new Float32Array(A.length);
+    const res = Pt.ys.map((_, i) => Math.min(c.rCap[i], c.rWeb[i], c.rShell[i], c.rTors[i]));
+    for (let i = 0; i < n; i++) {
+      const x = A[i * 3], y = A[i * 3 + 1], z = A[i * 3 + 2], ya = Math.abs(y);
+      const w = lin(Pt.ys, c.w, ya) * defScale, ph = lin(Pt.ys, c.phi, ya) * defScale * Math.PI / 180, xs = lin(yS, xS, ya);
+      // Verwindung um die Holmachse (Nase hoch positiv), dann Durchbiegung nach oben
+      out[i * 3] = xs + (x - xs) * Math.cos(ph); out[i * 3 + 1] = y; out[i * 3 + 2] = z - (x - xs) * Math.sin(ph) + w;
+      const cc = reserveColor(lin(Pt.ys, res, ya));
+      col[i * 3] = cc[0]; col[i * 3 + 1] = cc[1]; col[i * 3 + 2] = cc[2];
+    }
+    // Geisterbild der unverformten Form
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute('position', new THREE.BufferAttribute(toThree(A), 3)); gg.setIndex(o.geometry.index); gg.computeVertexNormals();
+    ghost.add(new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ color: u.base, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide })));
+    o.geometry.setAttribute('position', new THREE.BufferAttribute(toThree(out), 3)); o.geometry.computeVertexNormals();
+    o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    o.material.vertexColors = true; o.material.color.set(0xffffff); o.material.needsUpdate = true;
+    u.def = true;
+  });
+  if (ghost) scene.add(ghost);
+}
+function keyDef() {
+  const k = $id('p3key'); k.hidden = false;
+  if (!festRes) { k.innerHTML = 'rechnet …'; return; }
+  const P = festRes.wing, c = P.cases.find(q => q.key === defCase) || P.cases[0];
+  if (!c) { k.innerHTML = ''; return; }
+  const w = c.worst, bar = 'linear-gradient(90deg,rgb(214,56,51),rgb(237,184,51),rgb(56,168,97))';
+  k.innerHTML = `<div><b>${c.label}</b> · n ${c.n.toFixed(1)} · Rand ${Math.round(c.tipW)} mm · Verwindung ${c.tipPhi.toFixed(1)}°${defScale > 1 ? ' · ' + defScale + '-fach überhöht' : ''}${Number.isFinite(w.reserve) ? ` · <span class="${w.reserve < 1 ? 'warn' : ''}">kleinste Reserve ${w.reserve.toFixed(2)} (${w.what}, y ${Math.round(w.y)} mm)</span>` : ''}</div><div class="leg"><span>Reserve 1 <span class="bar" style="background:${bar}"></span> 2 und mehr</span><span>Aufbau und Lasten im Reiter Festigkeit</span></div>`;
 }
 
 function keyInfo(t) { const k = $id('p3key'); k.hidden = false; k.innerHTML = t; }
@@ -321,7 +389,8 @@ function setLayer(l) {
   if ((was === 'form') !== (l === 'form') && imports.some(q => q.visible && q.out)) buildImpGroup();
   else redraw();
   document.querySelectorAll('#p3layer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === layer)));
-  if (layer !== 'form') need([wkKey]);
+  $id('p3def').hidden = layer !== 'def'; $id('p3wkc').hidden = layer === 'def';
+  if (layer === 'def') { if (filmTimer) stopFilm(); needFest(); } else if (layer !== 'form') need([wkKey]);
 }
 function setState(k) {
   wkKey = k; $id('p3state').value = k;
@@ -353,6 +422,8 @@ function playFilm() {
 $id('p3layer').addEventListener('click', e => { const b = e.target.closest('button[data-l]'); if (b) setLayer(b.dataset.l); });
 $id('p3state').addEventListener('change', e => { if (filmTimer) stopFilm(); setState(e.target.value); });
 $id('p3film').addEventListener('click', playFilm);
+$id('p3case').addEventListener('change', e => { defCase = e.target.value; paint(); render(); });
+$id('p3scale').addEventListener('click', e => { const b = e.target.closest('button[data-s]'); if (!b) return; defScale = +b.dataset.s; document.querySelectorAll('#p3scale button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); paint(); render(); });
 $id('p3lastv').addEventListener('change', e => { showBands = e.target.checked; if (lastArgs) loadBands(lastArgs[0], lastArgs[1]); key(frames.get(wkKey)); render(); });
 
 // ---------- Importierte 3D-Dateien (3MF, OBJ, STL, STEP) ----------

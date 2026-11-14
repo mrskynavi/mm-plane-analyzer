@@ -2,7 +2,8 @@
 // Aufbau: Holm (Lage, Gurte oben/unten), Steg, Schale (Lagen), Füllung, Verbinder, Anlenkung. Daraus Masse je Meter.
 // Lasten je Lastfall aus der linearen Streifenbasis der Modellrechnung (r.load) und dem Druckbild (Cm, Scharniermoment):
 // Querkraft Q(y), Biegemoment M(y), Torsion T(y) um die Holmachse, Verbinder σ = M/W, Kraft an den Anlenkungen.
-// Steifigkeit, Spannungen in Gurt/Steg/Schale und die Verformung folgen in F2.
+// F2: Biegesteifigkeit EI und Torsionssteifigkeit GJ (Bredt) je Station, Spannungen und Reserve in Gurt, Steg und Schale,
+// Durchbiegung und Verwindung je Lastfall (Balken, an der Wurzel eingespannt).
 (function (root) {
   'use strict';
 
@@ -98,39 +99,116 @@
   const loadsOf = model => ({ ...LOADS, ...(model.loads || {}) });
 
   // Umfang, Fläche und Holmhöhe des Profils einer Station (bezogen auf Tiefe 1)
-  function contour(geo, pos) {
-    let per = 0, perBox = 0, area = 0;
+  function contour(geo, pos, box = 'voll') {
+    let per = 0, perBox = 0, area = 0, areaBox = 0, sz = 0, sl = 0;
+    const segs = [];
     for (let i = 1; i < geo.length; i++) {
-      const a = geo[i - 1], b = geo[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      per += d; if ((a[0] + b[0]) / 2 <= pos) perBox += d;
-      area += a[0] * b[1] - b[0] * a[1];
+      const a = geo[i - 1], b = geo[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]), inBox = (a[0] + b[0]) / 2 <= pos;
+      per += d; area += a[0] * b[1] - b[0] * a[1];
+      if (inBox) { perBox += d; areaBox += a[0] * b[1] - b[0] * a[1]; }
+      if (box !== 'dbox' || inBox) { segs.push([(a[1] + b[1]) / 2, d]); sz += (a[1] + b[1]) / 2 * d; sl += d; }
     }
-    return { per, perBox, area: Math.abs(area) / 2, t: P.thicknessCamber(geo, [pos]).t[0] };
+    // Schale als dünne Linie: Schwerpunkt, Flächenmoment je Dicke und Randabstände (bezogen auf Tiefe 1)
+    const zs = sl ? sz / sl : 0;
+    let iz = 0, zTop = 0, zBot = 0;
+    for (const [z, d] of segs) { iz += (z - zs) ** 2 * d; zTop = Math.max(zTop, z - zs); zBot = Math.min(zBot, z - zs); }
+    const tc = P.thicknessCamber(geo, [pos]);
+    return { per, perBox, area: Math.abs(area) / 2, areaBox: Math.abs(areaBox) / 2, t: tc.t[0], zc: tc.c[0], zs, iz, zTop, zBot };
   }
 
-  // Querschnitt und Masse je Meter an jeder Station einer Fläche
+  // Dehn- und Schubsteifigkeit einer Lage je Faserrichtung
+  const eOf = (m, angle) => (m ? (+angle === 45 && m.E45 ? m.E45 : m.E) : 0);
+  const gOf = (m, angle) => (m ? (+angle === 45 && m.G45 ? m.G45 : m.G) : 0);
+
+  // Querschnitt, Steifigkeit und Masse je Meter an jeder Station einer Fläche.
+  // EI um die Querachse durch den Schwerpunkt der Schale (Gurte, Steg, Schale), GJ nach Bredt für den geschlossenen Kasten
+  // (ganze Schale, oder Nase bis Holm mit dem Steg als Rückwand).
   function stations(model, profiles, part, mats) {
     const S = structOf(model, part), st = model[part].stations;
     const yEnd = st[st.length - 1].y || 1;
     const rho = id => (mats[id] ? mats[id].rho : 0);
-    const tShell = S.shell.layers.reduce((a, l) => a + (+l.t || 0), 0);
-    const mShell = S.shell.layers.reduce((a, l) => a + (+l.t || 0) * rho(l.mat), 0); // g/m² je mm·kg/m³ = g/m²
+    const L = S.shell.layers;
+    const tShell = L.reduce((a, l) => a + (+l.t || 0), 0);
+    const mShell = L.reduce((a, l) => a + (+l.t || 0) * rho(l.mat), 0); // g/m² je mm·kg/m³ = g/m²
+    const etShell = L.reduce((a, l) => a + (+l.t || 0) * eOf(mats[l.mat], l.angle), 0); // N/mm
+    const gtShell = L.reduce((a, l) => a + (+l.t || 0) * gOf(mats[l.mat], l.angle), 0);
+    const mc = mats[S.spar.mat], mw = mats[S.web.mat];
     return st.map(q => {
-      const g = M.stationGeometry(q, profiles);
-      const c = g ? contour(g.geo, S.spar.pos / 100) : { per: 2.05, perBox: 0.65, area: 0.07, t: 0.1 };
+      const g = M.stationGeometry(q, profiles), c0 = q.chord;
+      const c = g ? contour(g.geo, S.spar.pos / 100, S.shell.box) : { per: 2.05, perBox: 0.65, area: 0.07, areaBox: 0.02, t: 0.1, zc: 0, zs: 0, iz: 0.002, zTop: 0.06, zBot: -0.04 };
       const f = Math.min(1, Math.max(0, q.y / yEnd));
-      const tCap = S.spar.t0 + (S.spar.t1 - S.spar.t0) * f;
-      const hOut = c.t * q.chord - 2 * tShell;                     // Holmhöhe aussen (unter der Schale)
-      const aCap = S.spar.b * Math.max(0, Math.min(tCap, hOut / 2)); // je Gurt
-      const hWeb = Math.max(0, hOut - 2 * tCap);
-      const per = (S.shell.box === 'dbox' ? c.perBox : c.per) * q.chord;
-      const aProf = c.area * q.chord * q.chord;
+      const hOut = c.t * c0 - 2 * tShell;                                    // Holmhöhe aussen (unter der Schale)
+      const tCap = Math.max(0, Math.min(S.spar.t0 + (S.spar.t1 - S.spar.t0) * f, hOut / 2));
+      const aCap = S.spar.b * tCap;                                          // je Gurt
+      const hWeb = Math.max(0, hOut - 2 * tCap), tWeb = +S.web.t || 0;
+      const per = (S.shell.box === 'dbox' ? c.perBox : c.per) * c0;
+      const aProf = c.area * c0 * c0;
+      // Lage der Gurte über der Biegeachse (mm): Holmmitte liegt auf der Skelettlinie
+      const z0 = (c.zc - c.zs) * c0, zCapT = z0 + hOut / 2 - tCap / 2, zCapB = z0 - hOut / 2 + tCap / 2;
+      const eiCap = mc ? mc.E * (aCap * (zCapT * zCapT + zCapB * zCapB) + 2 * S.spar.b * tCap ** 3 / 12) : 0;
+      const eiWeb = mw ? mw.E * (tWeb * hWeb ** 3 / 12 + tWeb * hWeb * z0 * z0) : 0;
+      const eiShell = etShell * c.iz * c0 ** 3;
+      const EI = eiCap + eiWeb + eiShell;                                    // N·mm²
+      // Bredt: GJ = 4·A² / ∮ ds/(G·t)
+      const aCell = (S.shell.box === 'dbox' ? c.areaBox : c.area) * c0 * c0;
+      let flex = gtShell > 0 ? per / gtShell : Infinity;
+      if (S.shell.box === 'dbox') flex += mw && tWeb > 0 && hWeb > 0 ? hWeb / (mw.G * tWeb) : Infinity;
+      const GJ = Number.isFinite(flex) && flex > 0 ? 4 * aCell * aCell / flex : 0;
       // Masse je Meter Spannweite in g/m: mm² · kg/m³ = mg/m
-      let mm = (2 * aCap * rho(S.spar.mat) + hWeb * (+S.web.t || 0) * rho(S.web.mat)) / 1000 + per / 1000 * mShell;
+      let mm = (2 * aCap * rho(S.spar.mat) + hWeb * tWeb * rho(S.web.mat)) / 1000 + per / 1000 * mShell;
       if (S.fill === 'styro') mm += aProf * rho('styro') / 1000;
       if (S.fill === 'rippen') mm += aProf * 0.6 * S.ribT / Math.max(10, S.ribs) * rho('balsa') / 1000;
-      return { y: q.y, chord: q.chord, tCap, hOut, hWeb, aCap, perimeter: per, tShell, massPerM: mm };
+      return { y: q.y, chord: c0, tCap, hOut, hWeb, aCap, perimeter: per, tShell, massPerM: mm, EI, GJ, eiCap, eiWeb, eiShell, aCell, gtShell,
+        zCapT: zCapT + tCap / 2, zCapB: zCapB - tCap / 2, zTop: c.zTop * c0, zBot: c.zBot * c0, hShear: Math.max(1e-6, hOut - tCap) };
     });
+  }
+
+  // Spannungen, Reserve und Verformung einer Halbfläche in einem Lastfall. ys in mm, M/T in Nm, Q in N.
+  // Reserve = zulässig / vorhanden. Positive M (Auftrieb): oben Druck, unten Zug.
+  function stress(rows, str, mats, ys, c) {
+    const mc = mats[str.spar.mat], mw = mats[str.web.mat], tWeb = +str.web.t || 0;
+    const n = ys.length, w = new Array(n).fill(0), phi = new Array(n).fill(0), slope = new Array(n).fill(0);
+    const eps = [], rCap = [], rWeb = [], rShell = [], rTors = [];
+    let worst = { reserve: Infinity };
+    const note = (reserve, what, y) => { if (reserve < worst.reserve) worst = { reserve, what, y, case: c.label }; };
+    const kap = [], tw = [];
+    for (let i = 0; i < n; i++) {
+      const y = ys[i], g = k => lerpSt(rows, y, k);
+      const EI = Math.max(g('EI'), 1), GJ = g('GJ'), Mb = c.M[i] * 1000, T = c.T[i] * 1000, Q = c.Q[i];
+      const k = Mb / EI;                                   // Krümmung 1/mm
+      kap.push(k); tw.push(GJ > 0 ? T / GJ : 0);
+      // Gurte: Dehnung am äusseren Rand
+      const eT = -k * g('zCapT'), eB = -k * g('zCapB');    // oben, unten (positiv = Zug)
+      const lim = e => (e >= 0 ? mc.sigT : mc.sigC) / mc.E;
+      const capOk = g('aCap') > 1e-6 && mc;
+      const rc = capOk ? Math.min(lim(eT) / Math.max(Math.abs(eT), 1e-12), lim(eB) / Math.max(Math.abs(eB), 1e-12)) : Infinity;
+      eps.push(Math.max(Math.abs(eT), Math.abs(eB)) * 100); rCap.push(rc);
+      if (capOk) note(rc, (Mb >= 0 ? eT : eB) < 0 && mc.sigC / mc.E < mc.sigT / mc.E ? 'Gurt Druck' : 'Gurt', y);
+      // Steg: Schub aus der Querkraft zwischen den Gurtmitten
+      const tau = tWeb > 0 ? Math.abs(Q) / (tWeb * g('hShear')) : Infinity;
+      const rw = mw && tWeb > 0 ? mw.tau / Math.max(tau, 1e-12) : Infinity;
+      rWeb.push(rw); if (Number.isFinite(rw)) note(rw, 'Steg Schub', y);
+      // Schale: Biegedehnung am Rand je Lage, Schubfluss aus der Torsion
+      const eS = [-k * g('zTop'), -k * g('zBot')], qT = g('aCell') > 0 ? Math.abs(T) / (2 * g('aCell')) : 0, gam = g('gtShell') > 0 ? qT / g('gtShell') : 0;
+      let rs = Infinity, rt = Infinity, ls = '', lt = '';
+      for (const l of str.shell.layers) {
+        const m = mats[l.mat]; if (!m || !(+l.t > 0)) continue;
+        const E = eOf(m, l.angle), G = gOf(m, l.angle);
+        for (const e of eS) { const r = (e >= 0 ? m.sigT : m.sigC) / Math.max(E * Math.abs(e), 1e-12); if (r < rs) { rs = r; ls = m.name; } }
+        const r2 = m.tau / Math.max(G * gam, 1e-12); if (r2 < rt) { rt = r2; lt = m.name; }
+      }
+      rShell.push(rs); rTors.push(rt);
+      if (Number.isFinite(rs)) note(rs, 'Schale Biegung (' + ls + ')', y);
+      if (Number.isFinite(rt)) note(rt, 'Schale Torsion (' + lt + ')', y);
+    }
+    // Biegelinie und Verdrehung ab der Einspannung an der Wurzel (Trapezregel)
+    for (let i = 1; i < n; i++) {
+      const dy = ys[i] - ys[i - 1];
+      slope[i] = slope[i - 1] + (kap[i] + kap[i - 1]) / 2 * dy;
+      w[i] = w[i - 1] + (slope[i] + slope[i - 1]) / 2 * dy;
+      phi[i] = phi[i - 1] + (tw[i] + tw[i - 1]) / 2 * dy * 180 / Math.PI;
+    }
+    return { w, phi, eps, rCap, rWeb, rShell, rTors, tipW: w[n - 1], tipPhi: phi[n - 1], worst };
   }
   const lerpSt = (rows, y, k) => {
     let i = 1; while (i < rows.length - 1 && y > rows[i].y) i++;
@@ -240,8 +318,23 @@
         // Landung: die Fläche will nach unten weiter, die Last zeigt nach unten
         if (c.ground) strips.forEach(s => { s.weight = Math.abs(s.weight); });
         const b = beam(strips, Pt.ys);
-        Pt.cases.push({ ...c, cl, alpha: state ? state.alpha : null, lift: 2 * strips.reduce((a, s) => a + s.lift, 0), ...b, rootQ: b.Q[0], rootM: b.M[0], rootT: b.T[0] });
+        const cs = { ...c, cl, alpha: state ? state.alpha : null, lift: 2 * strips.reduce((a, s) => a + s.lift, 0), ...b, rootQ: b.Q[0], rootM: b.M[0], rootT: b.T[0] };
+        Object.assign(cs, stress(Pt.stations, Pt.struct, mats, Pt.ys, cs));
+        Pt.cases.push(cs);
       }
+    }
+
+    // Kleinste Reserve je Bauteil über alle Lastfälle, und EI/GJ auf dem Raster
+    for (const part of ['wing', 'tail']) {
+      const Pt = parts[part];
+      Pt.EI = Pt.ys.map(y => lerpSt(Pt.stations, y, 'EI') / 1e6);   // N·m²
+      Pt.GJ = Pt.ys.map(y => lerpSt(Pt.stations, y, 'GJ') / 1e6);
+      Pt.use = [['rCap', 'Holmgurte'], ['rWeb', 'Steg'], ['rShell', 'Schale Biegung'], ['rTors', 'Schale Torsion']].map(([k, label]) => {
+        let best = { reserve: Infinity, y: null, case: '' };
+        const env = Pt.ys.map((y, i) => { let m = Infinity; for (const c of Pt.cases) { if (c[k][i] < m) m = c[k][i]; if (c[k][i] < best.reserve) best = { reserve: c[k][i], y, case: c.label }; } return m; });
+        return { key: k, label, env, ...best };
+      });
+      Pt.worst = Pt.cases.reduce((m, c) => (c.worst.reserve < m.reserve ? c.worst : m), { reserve: Infinity });
     }
 
     // Verbinder: Nennspannung im ungünstigsten Lastfall
@@ -292,7 +385,7 @@
   }
   function fmt(v, d = 1) { return Number(v).toFixed(d).replace('.', ','); }
 
-  const api = { MATERIALS, MAT_FIELDS, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, structOf, loadsOf, stations, massOf, trimLine, stateFor, beam, flapGroups, analyze };
+  const api = { MATERIALS, MAT_FIELDS, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, structOf, loadsOf, stations, stress, massOf, trimLine, stateFor, beam, flapGroups, analyze };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).struktur = api;
 })(typeof self !== 'undefined' ? self : this);

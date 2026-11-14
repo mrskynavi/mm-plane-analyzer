@@ -91,3 +91,32 @@ test('Klappengruppen', () => {
   const g = S.flapGroups(st);
   assert.deepStrictEqual(g.map(q => [q.y0, q.y1]), [[0, 200], [300, 400]]);
 });
+
+test('F2: EI und GJ, Balken gegen die Handrechnung, Reserve', () => {
+  const { project, m, r } = setup();
+  const mats = S.materials(project), rows = S.stations(m, project.profiles, 'wing', mats);
+  // EI an der Wurzel mindestens der Steiner-Anteil der Gurte, GJ > 0, beide fallen nach aussen
+  const st = S.structOf(m, 'wing'), q = rows[0], z = q.hOut / 2 - q.tCap / 2;
+  assert.ok(q.EI >= mats[st.spar.mat].E * 2 * q.aCap * z * z * 0.9, 'EI ' + q.EI);
+  assert.ok(q.GJ > 0 && rows[rows.length - 1].EI < q.EI && rows[rows.length - 1].GJ < q.GJ);
+  // Kragbalken mit konstantem EI und Einzellast am Ende: w = F·L³ / (3·EI), Randdehnung = M·z / EI
+  const L = 1000, F = 10, EI = 1e9, GJ = 5e8, n = 200;
+  const flat = [0, L].map(y => ({ y, EI, GJ, aCap: 10, zCapT: 10, zCapB: -10, zTop: 12, zBot: -12, hShear: 18, aCell: 2000, gtShell: 500 }));
+  const ys = Array.from({ length: n + 1 }, (_, i) => L * i / n);
+  const c = { label: 't', M: ys.map(y => F * (L - y) / 1000), Q: ys.map(() => F), T: ys.map(() => 2) };
+  const res = S.stress(flat, { spar: { mat: 'cfk-roving' }, web: { mat: 'balsa', t: 2 }, shell: { layers: [{ mat: 'gfk-gewebe', t: 0.1, angle: 45 }] } }, mats, ys, c);
+  near(res.tipW, F * L ** 3 / (3 * EI), 1e-3 * F * L ** 3 / (3 * EI), 'Durchbiegung');
+  near(res.tipPhi, 2000 * L / GJ * 180 / Math.PI, 1e-6, 'Verwindung');
+  near(res.eps[0], F * L * 10 / EI * 100, 1e-9, 'Dehnung');
+  // Druckgurt oben: Reserve = σ Druck / (E · ε)
+  near(res.rCap[0], mats['cfk-roving'].sigC / (mats['cfk-roving'].E * F * L * 10 / EI), 1e-6, 'Gurt');
+  near(res.rWeb[0], mats.balsa.tau / (F / (2 * 18)), 1e-9, 'Steg');
+  // ganzes Modell: mehr Gurt gibt mehr Reserve und weniger Durchbiegung
+  const a = S.analyze(m, project.profiles, r, { project });
+  m.wing.struct = { spar: { t0: 3, t1: 1, b: 20 } };
+  const b = S.analyze(m, project.profiles, r, { project });
+  const ca = a.wing.cases[0], cb = b.wing.cases[0];
+  assert.ok(cb.tipW < ca.tipW && cb.tipW > 0, `Durchbiegung ${ca.tipW} → ${cb.tipW}`);
+  assert.ok(b.wing.use[0].reserve > a.wing.use[0].reserve);
+  assert.ok(Number.isFinite(a.wing.worst.reserve) && a.wing.worst.what);
+});
