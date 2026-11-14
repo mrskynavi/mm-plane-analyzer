@@ -42,6 +42,7 @@ Profil-Labor:
 - Kennzahl Cw Mittel im Einsatzbereich, dazu E max, Ca^1,5/Cw, Ca max, Cm0; Vergleichstabelle mit wählbarem Bezug
 - Zustände merken, einblenden, in A oder B laden und als Profil speichern
 - Polaren im Detail: Reihen über Klappenstellungen oder Re·√Ca mit Hüllkurve, Anstellwinkelbereich, Diagramme gross, Punktetabelle mit Umschlagpunkten und Konfidenz
+- Windkanal (`web/core/kanal.js`): Strömungsbild um das Profil einer Karte bei gewähltem α (▶ läuft über die Polare). Druckfeld und Stromlinien aus einem Panelverfahren (Hess-Smith), Grenzschicht aus NeuralFoil (θ, H, ue/V an 32 Punkten je Seite, wie im Python-Original): Band auf der Kontur laminar / turbulent / Ablöseblase / abgelöst, Verdrängungsdicke 10-fach, Druckverteilung reibungsfrei und mit Grenzschicht, Umschlag, Blase und Ablösung über α
 - Projektdatei (`.mmpa.json`) speichern und öffnen; im Browser wird automatisch zwischengespeichert
 - Projektordner in den Einstellungen (Chrome, Edge): Projekte direkt in einem Ordner auf dem Rechner oder einem Netzlaufwerk speichern und von dort öffnen, auf Wunsch automatisch bei jeder Änderung (`web/core/ordner.js`, File System Access API). Andere Browser speichern per Download
 

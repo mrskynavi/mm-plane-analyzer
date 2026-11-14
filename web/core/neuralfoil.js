@@ -122,7 +122,12 @@
   const sind = a => Math.sin(a * Math.PI / 180), cosd = a => Math.cos(a * Math.PI / 180);
 
   // Ein Betriebspunkt aus Kulfan-Parametern. alpha in Grad.
-  function fromKulfan(k, alpha, Re, nCrit = 9, xtrUpper = 1, xtrLower = 1) {
+  // Grenzschicht: NeuralFoil schätzt an N = 32 Punkten je Seite (x/c = Mitten von 32 gleichen Abschnitten)
+  // Impulsverlustdicke θ/c, Formfaktor H und Randgeschwindigkeit ue/V. Mit withBl = true kommen sie mit zurück.
+  const BL_N = 32;
+  const BL_X = Array.from({ length: BL_N }, (_, i) => (i + 0.5) / BL_N);
+
+  function fromKulfan(k, alpha, Re, nCrit = 9, xtrUpper = 1, xtrLower = 1, withBl = false) {
     const x = Float64Array.from([
       ...k.upper, ...k.lower, k.leWeight, k.teThickness * 50,
       sind(2 * alpha), cosd(alpha), 1 - cosd(alpha) ** 2,
@@ -136,13 +141,34 @@
     xf[16] = -x[16]; xf[18] = -x[18]; xf[23] = x[24]; xf[24] = x[23];
     const yf = evalNet(xf);
     yf[0] -= mahalanobis2(xf) / (2 * n);
-    // nur die Beiwerte zurückspiegeln, die Grenzschichtgrössen braucht die App nicht
+    // Beiwerte zurückspiegeln (Grenzschicht nur auf Wunsch, siehe unten)
     const f0 = (y[0] + yf[0]) / 2, f1 = (y[1] - yf[1]) / 2, f2 = (y[2] + yf[2]) / 2, f3 = (y[3] - yf[3]) / 2;
     const f4 = (y[4] + yf[5]) / 2, f5 = (y[5] + yf[4]) / 2;
-    return {
+    const r = {
       conf: sigmoid(f0), cl: f1 / 2, cd: Math.exp((f2 - 2) * 2), cm: f3 / 20,
       xtrTop: Math.min(Math.max(f4, 0), 1), xtrBot: Math.min(Math.max(f5, 0), 1),
     };
+    if (withBl) r.bl = blFrom(y, yf, Re);
+    return r;
+  }
+
+  // Grenzschicht wie get_aero_from_kulfan_parameters: gespiegelte Auswertung tauscht oben und unten,
+  // ue/V wechselt dabei das Vorzeichen. Ausgänge 6.. = oben θ, H, ue, dann unten θ, H, ue (je N).
+  function blFrom(y, yf, Re) {
+    const N = BL_N, o = 6;
+    const fused = (i, j, sgn = 1) => (y[i] + sgn * yf[j]) / 2;
+    const side = up => {
+      const a = up ? o : o + 3 * N, b = up ? o + 3 * N : o;
+      const ue = [], theta = [], H = [];
+      for (let i = 0; i < N; i++) {
+        const u = fused(a + 2 * N + i, b + 2 * N + i, -1);
+        ue.push(u);
+        theta.push((10 ** fused(a + i, b + i) - 0.1) / (Math.abs(u) * Math.abs(Re)));
+        H.push(2.6 * Math.exp(fused(a + N + i, b + N + i)));
+      }
+      return { theta, H, ue };
+    };
+    return { x: BL_X, upper: side(true), lower: side(false) };
   }
 
   // Wie get_aero_from_airfoil: Koordinaten normieren, Winkel/Re/Moment auf die Originallage zurückrechnen.
@@ -153,8 +179,8 @@
     const s = nrm.scale, da = nrm.rotDeg;
     const xq = -nrm.dx + 0.25 * (1 / s * cosd(da)) - 0.25;
     const yq = -nrm.dy + 0.25 * (1 / s * sind(-da));
-    const at = (alpha, Re, nCrit = 9, xtrUpper = 1, xtrLower = 1) => {
-      const r = fromKulfan(k, alpha + da, Re / s, nCrit, xtrUpper, xtrLower);
+    const at = (alpha, Re, nCrit = 9, xtrUpper = 1, xtrLower = 1, withBl = false) => {
+      const r = fromKulfan(k, alpha + da, Re / s, nCrit, xtrUpper, xtrLower, withBl);
       r.cm += -r.cl * xq + r.cd * yq;
       return r;
     };
@@ -162,7 +188,7 @@
     return at;
   }
 
-  const api = { kulfanFit, fromKulfan, prepare, lstsq };
+  const api = { kulfanFit, fromKulfan, prepare, lstsq, BL_X };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).neuralfoil = api;
 })(typeof self !== 'undefined' ? self : this);
