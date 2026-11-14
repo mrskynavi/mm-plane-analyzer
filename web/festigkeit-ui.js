@@ -58,8 +58,8 @@
     ${num('Masse gewogen', 'mass', st.mass ?? '', 'g', 10, 'min="0" placeholder="gerechnet" title="Beide Hälften. Leer = aus dem Aufbau gerechnet"')}
   </div>
   <h3 class="sub">Schale, Lagen von aussen nach innen</h3>
-  <div class="tablewrap"><table><thead><tr><th>Material</th><th>Dicke mm</th><th>Faser</th><th></th></tr></thead><tbody>
-    ${st.shell.layers.map((l, i) => `<tr><td>${matSel('layer.' + i + '.mat', l.mat, mats)}</td><td><input class="num" type="number" step="0.01" min="0" data-k="layer.${i}.t" value="${l.t}"></td><td><select data-k="layer.${i}.angle"><option value="0"${+l.angle === 0 ? ' selected' : ''}>0/90°</option><option value="45"${+l.angle === 45 ? ' selected' : ''}>±45°</option></select></td><td><button type="button" class="iconbtn sm" data-del="${i}" aria-label="Lage löschen">×</button></td></tr>`).join('')}
+  <div class="tablewrap"><table><thead><tr><th>Material</th><th>Gewicht / Dicke</th><th>Faser</th><th></th></tr></thead><tbody>
+    ${st.shell.layers.map((l, i) => `<tr><td>${matSel('layer.' + i + '.mat', l.mat, mats)}</td><td>${S.fabric(l.mat) ? `<span class="row"><input class="num" type="number" step="1" min="0" data-k="layer.${i}.g" value="${l.g}" title="Flächengewicht des trockenen Gewebes"><span class="u">g/m²</span></span><span class="hint" style="display:block">= ${fmt(l.t, 2)} mm Laminat</span>` : `<span class="row"><input class="num" type="number" step="0.1" min="0" data-k="layer.${i}.t" value="${l.t}"><span class="u">mm</span></span>`}</td><td><select data-k="layer.${i}.angle"><option value="0"${+l.angle === 0 ? ' selected' : ''}>0/90°</option><option value="45"${+l.angle === 45 ? ' selected' : ''}>±45°</option></select></td><td><button type="button" class="iconbtn sm" data-del="${i}" aria-label="Lage löschen">×</button></td></tr>`).join('')}
   </tbody></table></div>
   <div class="btnrow"><button type="button" class="btn ghost" data-add>+ Lage</button></div>
   <h3 class="sub">Verbinder</h3>
@@ -95,7 +95,9 @@
     const [a, b, c] = path.split('.');
     if (a === 'layer') {
       const cur = S.structOf(m, part).shell.layers;
-      cur[+b][c] = c === 'mat' ? v : +v;
+      const l = cur[+b], was = !!S.fabric(l.mat);
+      l[c] = c === 'mat' ? v : +v;
+      if (c === 'mat' && was !== !!S.fabric(v)) { if (was) { delete l.g; l.t = 1; } else l.g = 49; } // Gewebe ↔ Holz: sinnvoller Startwert
       s.shell = { ...(s.shell || {}), layers: cur };
     } else if (a === 'template') {
       // neue Vorlage: Holm, Steg, Schale und Füllung von dort, Verbinder und Anlenkung bleiben
@@ -121,7 +123,7 @@
         changed(false);
       } else if (k === 'link.cuts') {
         setStruct(k, t.value.split(/[;,\s]+/).map(x => parseFloat(x)).filter(x => Number.isFinite(x) && x > 0).sort((a, b) => a - b)); changed(true);
-      } else { setStruct(k, v); changed(k === 'joiner.form'); }
+      } else { setStruct(k, v); changed(k === 'joiner.form' || k.startsWith('layer.')); }
     } else if (t.dataset.mk) {
       const [id, f] = t.dataset.mk.split('.');
       project.materials = project.materials || {};
@@ -138,7 +140,7 @@
     if (b.dataset.finfo != null) { const p = $('festInfo'); p.hidden = !p.hidden; b.setAttribute('aria-expanded', String(!p.hidden)); return; }
     if (b.dataset.add != null || b.dataset.del != null) {
       const cur = S.structOf(m, part).shell.layers;
-      if (b.dataset.del != null) cur.splice(+b.dataset.del, 1); else cur.push({ mat: 'gfk-gewebe', t: 0.05, angle: 45 });
+      if (b.dataset.del != null) cur.splice(+b.dataset.del, 1); else cur.push({ mat: 'gfk-gewebe', g: 49, angle: 45 });
       const s = m[part].struct = m[part].struct || {}; s.shell = { ...(s.shell || {}), layers: cur };
       changed(true); return;
     }

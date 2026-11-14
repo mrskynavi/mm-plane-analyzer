@@ -120,3 +120,16 @@ test('F2: EI und GJ, Balken gegen die Handrechnung, Reserve', () => {
   assert.ok(b.wing.use[0].reserve > a.wing.use[0].reserve);
   assert.ok(Number.isFinite(a.wing.worst.reserve) && a.wing.worst.what);
 });
+
+test('Gewebe: Flächengewicht statt Dicke', () => {
+  // 49 g/m² Glas, Faserdichte 2550, Faservolumenanteil 0,38 → 0,0506 mm
+  assert.ok(Math.abs(S.fabricT('gfk-gewebe', 49) - 49 / (2550 * 0.38)) < 1e-9);
+  assert.ok(Math.abs(S.fabricT('cfk-gewebe', 160) - 0.214) < 0.002);
+  assert.equal(S.fabricT('balsa', 100), 0);
+  const m = { wing: { struct: { shell: { layers: [{ mat: 'cfk-gewebe', g: 160, angle: 45 }, { mat: 'balsa', t: 1.2, angle: 0 }, { mat: 'gfk-gewebe', t: 0.05, angle: 45 }] } } } };
+  const L = S.structOf(m, 'wing').shell.layers;
+  assert.ok(Math.abs(L[0].t - 0.214) < 0.002);
+  assert.equal(L[1].t, 1.2); assert.equal(L[1].g, undefined);
+  assert.equal(L[2].g, 48);                       // alte Projekte mit Dicke: Gewicht wird daraus bestimmt
+  assert.ok(Math.abs(L[2].t - 0.05) < 0.002);
+});
