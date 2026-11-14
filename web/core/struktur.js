@@ -75,7 +75,7 @@
     },
   };
   const JOINER = { wing: { mat: 'federstahl', form: 'rund', d: 8, di: 6, b: 10, h: 8, t: 1, len: 160, n: 1 }, tail: { mat: 'cfk-stab', form: 'rund', d: 4, di: 2, b: 4, h: 4, t: 1, len: 60, n: 1 } };
-  const LINK = { horn: 12, arm: 10 };
+  const LINK = { horn: 12, arm: 10, cuts: [] };
   const LOADS = { n: 30, vMax: 60, gust: 10, nLand: 6, tow: 0, flap: 10, elev: 15 };
 
   // Aufbau einer Fläche mit Vorgaben. part = 'wing' | 'tail'
@@ -267,11 +267,24 @@
       const pend = part === 'tail' && model.tail.elevator && model.tail.elevator.type === 'pendel';
       const run = d => DB.surface(model, profiles, r, surf, stV, nCrit, () => d);
       const up = run(-defl), down = run(defl);
-      groups.forEach((g, k) => {
-        const mom = strips => strips.filter(s => g.segs.includes(s.seg) && Number.isFinite(s.ch)).reduce((a, s) => a + qV * s.ch * s.chord * s.chord * s.width / 1e9, 0);
+      // Trennstellen (link.cuts, y in mm) teilen ein Ruder in Stücke mit je einem Servo
+      const cuts = (Array.isArray(link.cuts) ? link.cuts : []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+      const pieces = [];
+      groups.forEach(g => {
+        const ys = [g.y0, ...cuts.filter(c => c > g.y0 + 1 && c < g.y1 - 1), g.y1];
+        for (let i = 1; i < ys.length; i++) pieces.push({ g, y0: ys[i - 1], y1: ys[i] });
+      });
+      pieces.forEach((pc, k) => {
+        const g = pc.g;
+        // Streifen anteilig, soweit sie im Stück liegen
+        const mom = strips => strips.filter(s => g.segs.includes(s.seg) && Number.isFinite(s.ch)).reduce((a, s) => {
+          const lo = Math.max(pc.y0, s.y - s.width / 2), hi = Math.min(pc.y1, s.y + s.width / 2);
+          return hi > lo ? a + qV * s.ch * s.chord * s.chord * (hi - lo) / 1e9 : a;
+        }, 0);
         const mU = mom(up), mD = mom(down), mh = Math.abs(mU) > Math.abs(mD) ? mU : mD;
         const force = Math.abs(mh) * 1000 / link.horn, torque = force * link.arm / 10; // N, Ncm
-        servo.push({ part, name: (part === 'wing' ? 'Flügel Klappe ' : 'Höhenruder ') + (groups.length > 1 ? k + 1 : '').toString().trim(), y0: g.y0, y1: g.y1, depth: g.depth, defl, v: Ld.vMax, moment: mh, momentUp: mU, momentDown: mD, force, torque, kgcm: torque / G0, horn: link.horn, arm: link.arm, pendel: !!pend });
+        const name = (part === 'wing' ? 'Flügel Ruder' : 'Höhenruder') + (pieces.length > 1 ? ' ' + (k + 1) : '');
+        servo.push({ part, name, y0: pc.y0, y1: pc.y1, depth: g.depth, defl, v: Ld.vMax, moment: mh, momentUp: mU, momentDown: mD, force, torque, kgcm: torque / G0, horn: link.horn, arm: link.arm, pendel: !!pend });
       });
     }
 

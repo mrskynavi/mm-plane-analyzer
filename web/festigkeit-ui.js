@@ -75,6 +75,7 @@
   <div class="form">
     ${num('Ruderhorn', 'link.horn', st.link.horn, 'mm', 1, 'min="1" title="Abstand Scharnier bis Gestänge"')}
     ${num('Servoarm', 'link.arm', st.link.arm, 'mm', 1, 'min="1"')}
+    <label class="field"><span>Ruder trennen bei y</span><span class="row"><input class="txt" data-k="link.cuts" value="${esc((st.link.cuts || []).join(', '))}" placeholder="z. B. 900, 1700" title="Spannweitenlage der Trennstellen zwischen den Rudern, mit Komma getrennt. Jedes Stück hat ein Servo."><span class="u">mm</span></span></label>
   </div>
 </section>
 <section class="pol-box">
@@ -117,6 +118,8 @@
         if (v === '') delete m.loads[f === 'vMaxKmh' ? 'vMax' : f];
         else if (f === 'vMaxKmh') m.loads.vMax = v / 3.6; else m.loads[f] = v;
         changed(false);
+      } else if (k === 'link.cuts') {
+        setStruct(k, t.value.split(/[;,\s]+/).map(x => parseFloat(x)).filter(x => Number.isFinite(x) && x > 0).sort((a, b) => a - b)); changed(true);
       } else { setStruct(k, v); changed(k === 'joiner.form'); }
     } else if (t.dataset.mk) {
       const [id, f] = t.dataset.mk.split('.');
@@ -221,7 +224,7 @@
     $('festServo').innerHTML = sv.length ? `<thead><tr><th>Ruder</th><th>von–bis mm</th><th>Tiefe %</th><th>Ausschlag</th><th>Scharniermoment Nm</th><th>Kraft im Gestänge N</th><th>Servomoment Ncm</th><th>kg·cm</th></tr></thead><tbody>` +
       sv.map(s => `<tr><td>${esc(s.name)}</td><td>${fmt(s.y0, 0)}–${fmt(s.y1, 0)}</td><td>${fmt(s.depth, 0)}</td><td>±${fmt(s.defl, 0)}°</td><td>${fmt(Math.abs(s.moment), 3)}</td><td>${fmt(s.force, 1)}</td><td>${fmt(s.torque, 1)}</td><td>${fmt(s.kgcm, 2)}</td></tr>`).join('') + '</tbody>'
       : '<tbody><tr><td>Keine Klappen eingetragen (Klappentiefe in der Stationstabelle).</td></tr></tbody>';
-    $('festServoHint').textContent = sv.length ? `Bei ${fmt(me.loads.vMax * 3.6, 0)} km/h, je Hälfte und Ruder, der grössere Wert aus Ausschlag nach oben und unten. Ruderhorn und Servoarm aus „Anlenkung“. Ein Servo sollte etwa das Doppelte halten.` : '';
+    $('festServoHint').textContent = sv.length ? `Bei ${fmt(me.loads.vMax * 3.6, 0)} km/h, je Hälfte und Ruder, der grössere Wert aus Ausschlag nach oben und unten. Ruderhorn, Servoarm und Trennstellen aus „Anlenkung“: jede Zeile ist ein Ruder mit einem Servo. Ein Servo sollte etwa das Doppelte halten.` : '';
 
     $('festSt').innerHTML = `<thead><tr><th>y mm</th><th>Tiefe mm</th><th>Holmhöhe mm</th><th>Gurtdicke mm</th><th>Gurtfläche mm²</th><th>Steghöhe mm</th><th>Schale mm</th><th>Masse g/m</th></tr></thead><tbody>` +
       P.stations.map(s => `<tr><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td${s.hOut < 2 * s.tCap ? ' class="warn" title="Gurte passen nicht in die Profilhöhe"' : ''}>${fmt(s.hOut, 1)}</td><td>${fmt(s.tCap, 2)}</td><td>${fmt(s.aCap, 1)}</td><td>${fmt(s.hWeb, 1)}</td><td>${fmt(s.tShell, 2)}</td><td>${fmt(s.massPerM * P.scale, 0)}</td></tr>`).join('') + '</tbody>';
