@@ -4,7 +4,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 
-const D3 = window.MMPA.modell3d, IM = window.MMPA.import3d;
+const D3 = window.MMPA.modell3d, IM = window.MMPA.import3d, DBild = window.MMPA.druckbild, VL = window.MMPA.vlm;
 const $id = id => document.getElementById(id);
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const host = $id('p3host');
@@ -74,6 +74,7 @@ function build(m, r) {
     const mat = new THREE.MeshStandardMaterial({ color: C[p.kind] ?? 0xcccccc, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide, transparent: see, opacity: see ? 0.45 : 1, depthWrite: !see });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = p.name;
+    mesh.userData = { kind: p.kind, app: p.positions, surface: p.surface, base: C[p.kind] ?? 0xcccccc };
     group.add(mesh);
   });
   group.visible = showModel;
@@ -90,6 +91,9 @@ function build(m, r) {
   [...group.children, ...(impGroup ? impGroup.children : [])].forEach(o => { const a = o.geometry.attributes.position.array, st = Math.max(12, 3 * Math.ceil(a.length / 3 / 4000) * 3); for (let i = 0; i < a.length; i += st) all.push(a[i], a[i + 1], a[i + 2]); });
   pts = Float32Array.from(all);
   markersFor(r);
+  syncWk(m, r);
+  paint();
+  loadBands(m, r);
   $id('p3hint').textContent = g.missing.length ? 'Nicht gezeichnet: ' + g.missing.join(' · ') : 'Ziehen dreht · Mausrad oder zwei Finger zoomen · rechte Maustaste oder zwei Finger verschieben';
 }
 
@@ -151,6 +155,200 @@ function draw(m, r) {
   if (!fitted) setView(view); else render();
 }
 const redraw = refit => { if (refit) fitted = false; if (lastArgs) draw(...lastArgs); };
+
+// ---------- Druckbild, Ablösekarte, Abriss-Film, Lastverteilung (W2) ----------
+// Gerechnet in einem eigenen Worker (core/modell-worker.js, Nachricht kind 'druck'); je Flugzustand ein Bild,
+// zwischengespeichert, bis sich die Modellrechnung ändert.
+let layer = 'form', wkR = null, wkStates = [], wkKey = 'trim', frames = new Map(), pending = new Set();
+let druckWorker = null, druckSeq = 0, filmTimer = null, filmIdx = -1, showBands = false, bands = null;
+try { const v = localStorage.getItem('mmpa.p3layer'); if (v === 'cp' || v === 'bl') layer = v; } catch (e) {}
+const STATE_COL = ['--accent', '--good', '--warn', '--bad'];
+const STATE_TXT = ['laminar', 'turbulent', 'Ablöseblase', 'abgelöst'];
+const CP_MIN = -1.5, CP_MAX = 1;
+
+function syncWk(m, r) {
+  if (r !== wkR) {
+    wkR = r; frames.clear(); pending.clear(); druckSeq++;
+    wkStates = r && r.load ? DBild.states(m, r) : [];
+    if (!wkStates.some(q => q.key === wkKey)) wkKey = 'trim';
+    const sel = $id('p3state');
+    sel.innerHTML = wkStates.map(q => `<option value="${q.key}"${q.key === wkKey ? ' selected' : ''}>${q.label}${q.v ? ' · ' + Math.round(q.v * 3.6) + ' km/h' : ''}</option>`).join('');
+    if (filmTimer) stopFilm();
+  }
+  document.querySelectorAll('#p3layer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === layer)));
+  if (layer !== 'form') need([wkKey]);
+}
+function need(keys) {
+  const m = lastArgs && lastArgs[0];
+  const want = keys.filter(k => !frames.has(k) && !pending.has(k));
+  if (!want.length || !wkR || !m) return;
+  const list = want.map(k => wkStates.find(q => q.key === k)).filter(Boolean);
+  if (!druckWorker) {
+    try {
+      druckWorker = new Worker('core/modell-worker.js');
+      druckWorker.onmessage = onFrame;
+      druckWorker.onerror = e => { e.preventDefault(); druckWorker.terminate(); druckWorker = null; pending.clear(); keyInfo('Druckbild konnte nicht gerechnet werden.'); };
+    } catch (e) { keyInfo('Druckbild braucht Web Worker.'); return; }
+  }
+  // offene Anfragen gehen in der neuen auf (der Worker bricht die alte nach dem laufenden Zustand ab)
+  const all = [...pending].map(k => wkStates.find(q => q.key === k)).filter(Boolean).concat(list);
+  all.forEach(q => pending.add(q.key));
+  druckSeq++;
+  druckWorker.seqStates = all;
+  druckWorker.postMessage({ kind: 'druck', seq: druckSeq, model: m, profiles: project.profiles, r: wkR, states: all, nCrit: lab.nCrit });
+  keyInfo('rechnet …');
+}
+function onFrame(e) {
+  const d = e.data;
+  if (d.seq !== druckSeq) return;
+  if (d.kind === 'done') return;
+  const st = druckWorker.seqStates[d.i];
+  if (!st) return;
+  pending.delete(st.key);
+  if (d.error) { keyInfo('Druckbild: ' + d.error); return; }
+  frames.set(st.key, d.frame);
+  if (st.key === wkKey) { paint(); render(); }
+}
+
+const lerpCol = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const CP_LO = [0.12, 0.33, 0.85], CP_MID = [0.93, 0.93, 0.92], CP_HI = [0.85, 0.25, 0.2];
+function cpColor(cp) {
+  if (!Number.isFinite(cp)) return CP_MID;
+  // Wurzel macht kleine Unterschiede sichtbar (Cp −0,3 … −0,7 im Reiseflug)
+  if (cp < 0) return lerpCol(CP_MID, CP_LO, Math.sqrt(Math.min(1, cp / CP_MIN)));
+  return lerpCol(CP_MID, CP_HI, Math.sqrt(Math.min(1, cp / CP_MAX)));
+}
+let stateRgb = null;
+const rgbOf = v => { const c = new THREE.Color(cssVar(v) || '#888'); return [c.r, c.g, c.b]; };
+
+// Farben je Punkt der Flügel- und HLW-Netze aus den Streifen des Bildes
+function paint() {
+  if (!group) return;
+  const f = layer === 'form' ? null : frames.get(wkKey);
+  stateRgb = STATE_COL.map(rgbOf);
+  group.children.forEach(o => {
+    const u = o.userData;
+    if (u.kind !== 'wing' && u.kind !== 'tail') return;
+    const strips = f ? (u.kind === 'wing' ? f.wing : f.tail) : null;
+    if (!strips || !strips.length) {
+      if (o.geometry.attributes.color) { o.geometry.deleteAttribute('color'); o.material.vertexColors = false; o.material.color.set(u.base); o.material.needsUpdate = true; }
+      return;
+    }
+    const P = u.app, A = u.surface, n = P.length / 3, col = new Float32Array(n * 3), xs = f.x, base = new THREE.Color(u.base);
+    const ys = strips.map(q => q.y);
+    for (let i = 0; i < n; i++) {
+      const side = A[i * 2 + 1], xc = A[i * 2];
+      let c;
+      if (!side) c = [base.r, base.g, base.b];
+      else {
+        const y = Math.abs(P[i * 3 + 1]);
+        let k = 1; while (k < ys.length - 1 && y > ys[k]) k++;
+        const a = strips[Math.max(0, k - 1)], b = strips[Math.min(strips.length - 1, k)];
+        const t = ys.length < 2 ? 0 : Math.min(1, Math.max(0, (y - a.y) / ((b.y - a.y) || 1)));
+        const sa = side > 0 ? a.upper : a.lower, sb = side > 0 ? b.upper : b.lower;
+        if (layer === 'cp') c = cpColor(DBild.at(xs, sa.cp, xc) * (1 - t) + DBild.at(xs, sb.cp, xc) * t);
+        else c = stateRgb[DBild.stateAt(xs, (t < 0.5 ? sa : sb).st, xc)];
+      }
+      col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
+    }
+    o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    o.material.vertexColors = true; o.material.color.set(0xffffff); o.material.needsUpdate = true;
+  });
+  key(f);
+}
+
+function keyInfo(t) { const k = $id('p3key'); k.hidden = false; k.innerHTML = t; }
+function key(f) {
+  const k = $id('p3key');
+  if (layer === 'form' && !showBands) { k.hidden = true; return; }
+  const st = wkStates.find(q => q.key === wkKey);
+  const head = st ? `<b>${st.label}</b>${st.v ? ' · ' + Math.round(st.v * 3.6) + ' km/h' : ''} · Ca ${st.cl.toFixed(2)}` : '';
+  let leg = '';
+  if (layer === 'cp') leg = `<span>Sog <span class="bar" style="background:linear-gradient(90deg,rgb(31,84,217),rgb(237,237,235) 60%,rgb(217,64,51))"></span> Druck</span><span>Cp ${CP_MIN.toLocaleString('de-CH')} … 0 … +${CP_MAX}</span>`;
+  if (layer === 'bl') leg = STATE_TXT.map((t, i) => `<span><i style="background:${cssVar(STATE_COL[i])}"></i>${t}</span>`).join('');
+  let stall = '';
+  // Wo der Abriss beginnt: erster Zustand (nach Ca geordnet) mit abgelösten Streifen
+  const onset = wkStates.filter(q => q.film).map(q => [q, frames.get(q.key)]).find(([, g]) => g && g.stall.first && g.stall.stalled >= 0.05);
+  if (f && layer !== 'form') {
+    const s = f.stall;
+    if (s.first) {
+      const where = s.first.eta < 0.5 ? 'innen, gutmütig' : s.first.eta > 0.75 ? 'aussen, kritisch' : 'Mitte';
+      stall = ` · <span class="warn">Ablösung bei ${Math.round(s.first.eta * 100)} % Halbspannweite (${where}), ${Math.round(s.stalled * 100)} % des Flügels</span>`;
+    } else stall = ' · Strömung liegt an';
+    if (onset && onset[0].key !== wkKey) stall += ` · Abriss beginnt bei ${onset[0].label} (${Math.round(onset[1].stall.first.eta * 100)} % Halbspannweite)`;
+  } else if (layer !== 'form') stall = ' · rechnet …';
+  k.hidden = false;
+  k.innerHTML = `<div>${head}${stall}</div>${leg ? '<div class="leg">' + leg + '</div>' : ''}`;
+}
+
+// Auftrieb je Streifen (Ca · Tiefe) als Band über dem Flügel, elliptisch gestrichelt zum Vergleich
+function loadBands(m, r) {
+  if (bands) { scene.remove(bands); bands.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); bands = null; }
+  if (!showBands || !r || !r.load) return;
+  const st = wkStates.find(q => q.key === wkKey) || wkStates[0]; if (!st) return;
+  const L = r.load, P = VL.stationPoints(m.wing.stations), yS = P.map(p => p.le[1]);
+  const leX = y => { let k = 1; while (k < yS.length - 1 && y > yS[k]) k++; const t = Math.min(1, Math.max(0, (y - yS[k - 1]) / ((yS[k] - yS[k - 1]) || 1))); return P[k - 1].le[0] + (P[k].le[0] - P[k - 1].le[0]) * t; };
+  const W = [];
+  for (let i = 0; i < L.surf.length; i++) if (L.surf[i] === 0) W.push({ y: L.y[i], z: L.z[i], c: L.chord[i], w: L.width[i], g: (L.c0[i] + st.alpha * L.ca[i] + st.it * L.ci[i]) * L.chord[i] });
+  if (!W.length) return;
+  W.sort((a, b) => a.y - b.y);
+  const b2 = r.wing.projSpan / 2, gMax = Math.max(...W.map(q => Math.abs(q.g)), 1e-6), h = 0.12 * b2 / gMax;
+  // elliptisch mit gleichem Gesamtauftrieb: ∫ g dy = π/4 · g0 · b/2
+  const area = W.reduce((s, q) => s + q.g * q.w, 0), g0 = area / (Math.PI / 4 * b2);
+  bands = new THREE.Group();
+  const acc = new THREE.Color(cssVar('--accent') || '#0b6bcb'), mut = new THREE.Color(cssVar('--muted') || '#888');
+  [1, -1].forEach(sd => {
+    const top = [], ell = [], seg = [];
+    W.forEach(q => {
+      const x = leX(q.y) + q.c / 4, base = new THREE.Vector3(q.y * sd, q.z, x), tip = new THREE.Vector3(q.y * sd, q.z + q.g * h, x);
+      top.push(tip); seg.push(base, tip);
+      ell.push(new THREE.Vector3(q.y * sd, q.z + g0 * Math.sqrt(Math.max(0, 1 - (q.y / b2) ** 2)) * h, x));
+    });
+    bands.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(top), new THREE.LineBasicMaterial({ color: acc })));
+    bands.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg), new THREE.LineBasicMaterial({ color: acc, transparent: true, opacity: 0.45 })));
+    const e = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ell), new THREE.LineDashedMaterial({ color: mut, dashSize: b2 / 60, gapSize: b2 / 90 }));
+    e.computeLineDistances(); bands.add(e);
+  });
+  scene.add(bands);
+}
+
+function setLayer(l) {
+  layer = l; try { localStorage.setItem('mmpa.p3layer', l); } catch (e) {}
+  document.querySelectorAll('#p3layer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === layer)));
+  if (layer !== 'form') need([wkKey]);
+  paint(); render();
+}
+function setState(k) {
+  wkKey = k; $id('p3state').value = k;
+  if (layer !== 'form') need([k]);
+  paint();
+  if (lastArgs) loadBands(lastArgs[0], lastArgs[1]);
+  render();
+}
+function stopFilm() {
+  clearInterval(filmTimer); filmTimer = null;
+  $id('p3film').textContent = '▶ Abriss-Film';
+}
+function playFilm() {
+  if (filmTimer) { stopFilm(); return; }
+  if (layer === 'form') setLayer('bl');
+  const list = wkStates.filter(q => q.film);
+  if (!list.length) return;
+  need(list.map(q => q.key));
+  filmIdx = 0;
+  $id('p3film').textContent = '■ Stopp';
+  setState(list[0].key);
+  filmTimer = setInterval(() => {
+    if (!frames.has(list[filmIdx].key)) return; // warten, bis das Bild gerechnet ist
+    filmIdx++;
+    if (filmIdx >= list.length) { stopFilm(); return; }
+    setState(list[filmIdx].key);
+  }, 450);
+}
+$id('p3layer').addEventListener('click', e => { const b = e.target.closest('button[data-l]'); if (b) setLayer(b.dataset.l); });
+$id('p3state').addEventListener('change', e => { if (filmTimer) stopFilm(); setState(e.target.value); });
+$id('p3film').addEventListener('click', playFilm);
+$id('p3lastv').addEventListener('change', e => { showBands = e.target.checked; if (lastArgs) loadBands(lastArgs[0], lastArgs[1]); key(frames.get(wkKey)); render(); });
 
 // ---------- Importierte 3D-Dateien (3MF, OBJ, STL, STEP) ----------
 // Je Modell gespeichert in IndexedDB „mmpa-3d“ (nur dieses Gerät): Datei als Bytes und die gewählte Lage.

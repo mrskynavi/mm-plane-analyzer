@@ -391,6 +391,12 @@
       fuselage: { ...fus, fin: finA, dNP: xNP - xNP0 }, strips, tailStrips, segments: seg, stall, stallAt, hand,
       profiles: { wing: wingGeo.map(g => g && g.name), tail: tailGeo.map(g => g && g.name) },
       panels: sys.panels.length,
+      // Streifen-Ca linear in α und HLW-Einstellung: Ca = c0 + α·ca + iT·ci (für Druckbild und Abriss-Film)
+      load: {
+        surf: r0.strips.map(q => q.surf), y: r0.strips.map(q => q.y), z: r0.strips.map(q => q.z), chord: r0.strips.map(q => q.chord), width: r0.strips.map(q => q.width),
+        c0: r0.strips.map(q => q.cl), ca: ra.strips.map((q, i) => q.cl - r0.strips[i].cl), ci: ri.strips.map((q, i) => q.cl - r0.strips[i].cl),
+        CL0: r0.CL, CLa: cA, CLi: cI,
+      },
     };
   }
 
