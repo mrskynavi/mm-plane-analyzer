@@ -74,6 +74,13 @@ test('Lastfälle: Auftrieb = n · Gewicht, Momente plausibel, Verbinder, Anlenku
   assert.strictEqual(a.servo.filter(s => s.part === 'wing').length, 1);
   const s = a.servo[0]; assert.ok(Math.abs(s.moment) > 0); near(s.force, Math.abs(s.moment) * 1000 / s.horn, 1e-9); near(s.torque, s.force * s.arm / 10, 1e-9);
   assert.ok(s.momentDown > 0 && s.momentUp < s.momentDown, 'Klappe nach unten wird nach oben gedrückt');
+  // Trennstelle: zwei Ruder, zusammen das Ganze, das innere (tiefere) trägt mehr je Länge
+  m.wing.struct = { link: { cuts: [m.wing.stations[1].y] } };
+  const two = S.analyze(m, project.profiles, r, { project }).servo.filter(q => q.part === 'wing');
+  assert.strictEqual(two.length, 2);
+  near(two[0].momentDown + two[1].momentDown, s.momentDown, 1e-9, 'Summe der Stücke');
+  assert.ok(two[0].momentDown / (two[0].y1 - two[0].y0) > two[1].momentDown / (two[1].y1 - two[1].y0));
+  delete m.wing.struct;
   m.loads.vMax = 80;
   const s2 = S.analyze(m, project.profiles, r, { project }).servo[0];
   assert.ok(Math.abs(s2.moment) > 3 * Math.abs(s.moment));
