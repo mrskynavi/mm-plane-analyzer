@@ -3,11 +3,17 @@
 // Nachricht rein: { seq, model, profiles, nCrit }. Raus: { seq, result } oder { seq, error }.
 // Druckbild (W2): { kind: 'druck', seq, model, profiles, r, states, nCrit } → je Zustand { kind: 'frame', seq, i, frame },
 // zum Schluss { kind: 'done', seq }. Eine neue Druck-Anfrage bricht die laufende nach dem aktuellen Zustand ab.
-importScripts('profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js');
+importScripts('profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js', 'struktur.js');
 let druckSeq = 0;
 self.onmessage = e => {
   const d = e.data;
   if (d.kind === 'druck') { druck(d); return; }
+  // Festigkeit F1: { kind: 'struktur', seq, model, profiles, r, nCrit, materials } → { kind: 'struktur', seq, result | error }
+  if (d.kind === 'struktur') {
+    try { self.postMessage({ kind: 'struktur', seq: d.seq, result: self.MMPA.struktur.analyze(d.model, d.profiles, d.r, { nCrit: d.nCrit, project: { materials: d.materials } }) }); }
+    catch (err) { self.postMessage({ kind: 'struktur', seq: d.seq, error: err.message }); }
+    return;
+  }
   const { seq, model, profiles, nCrit } = d;
   const t0 = performance.now();
   try {
