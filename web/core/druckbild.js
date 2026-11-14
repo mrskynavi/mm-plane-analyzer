@@ -77,7 +77,7 @@
     return {
       bl: { x: ra.bl.x, upper: side('upper'), lower: side('lower') },
       xtrTop: ra.xtrTop + (rb.xtrTop - ra.xtrTop) * t, xtrBot: ra.xtrBot + (rb.xtrBot - ra.xtrBot) * t,
-      cl: ra.cl + (rb.cl - ra.cl) * t, cd: ra.cd + (rb.cd - ra.cd) * t, conf: Math.min(ra.conf, rb.conf),
+      cl: ra.cl + (rb.cl - ra.cl) * t, cd: ra.cd + (rb.cd - ra.cd) * t, cm: ra.cm + (rb.cm - ra.cm) * t, conf: Math.min(ra.conf, rb.conf),
     };
   }
   // Blase ab der Nase, die bis zur Endleiste nicht wieder anliegt, ist ein Abriss von vorn (geplatzte Blase)
@@ -91,17 +91,27 @@
     xtr: s.xtr, sep: s.sep, bubble: s.bubble,
   });
 
-  // Eine Fläche (0 Flügel, 1 HLW) in einem Flugzustand
-  function surface(model, profiles, r, surf, state, nCrit) {
+  // Scharniermoment-Beiwert einer Klappe ab xh: ∫ (Cp unten − Cp oben) · (x − xh) dx, bezogen auf q · Tiefe² · Breite.
+  // Positiv: die Luft drückt die Klappe nach oben.
+  function hinge(xs, up, lo, xh) {
+    const N = 24; let sum = 0;
+    for (let i = 0; i < N; i++) { const x = xh + (1 - xh) * (i + 0.5) / N; sum += (at(xs, lo, x) - at(xs, up, x)) * (x - xh); }
+    return sum * (1 - xh) / N;
+  }
+
+  // Eine Fläche (0 Flügel, 1 HLW) in einem Flugzustand. flapOf(Segmentstation, Index) überschreibt den Klappenausschlag
+  // (Profil mit dieser Klappe beim gleichen wirksamen Anstellwinkel wie ohne Überschreibung: ohne 3D-Entlastung, sichere Seite).
+  function surface(model, profiles, r, surf, state, nCrit, flapOf = null) {
     const S = surf === 0 ? model.wing : model.tail;
     const st = S.stations;
     const Pp = surf === 0 ? V.stationPoints(st) : V.stationPoints(st, model.tail.x, model.tail.z || 0);
     const yS = Pp.map(p => p.le[1]);
     // Stationen je Segment (Klappe des Segments gilt an beiden Enden)
-    const segSec = st.slice(0, -1).map((s, i) => {
-      const flap = surf === 0 && s.flapDepth > 0 && s.flap ? s.flap : 0;
-      return [stationSection(s, profiles, flap, s.flapDepth), stationSection(st[i + 1], profiles, flap, s.flapDepth)];
-    });
+    const pair = (s, i, flap) => [stationSection(s, profiles, flap, s.flapDepth), stationSection(st[i + 1], profiles, flap, s.flapDepth)];
+    const base = s => (surf === 0 && s.flapDepth > 0 && s.flap ? s.flap : 0);
+    const segSec = st.slice(0, -1).map((s, i) => pair(s, i, base(s)));
+    // mit überschriebener Klappe: nur wo sie vom Grundzustand abweicht
+    const segOver = flapOf ? st.slice(0, -1).map((s, i) => { const f = s.flapDepth > 0 ? flapOf(s, i) : null; return f != null && f !== base(s) ? pair(s, i, f) : null; }) : null;
     const L = r.load, out = [];
     for (let i = 0; i < L.surf.length; i++) {
       if (L.surf[i] !== surf) continue;
@@ -113,9 +123,14 @@
       const [sa, sb] = segSec[k - 1];
       if (!sa || !sb) continue;
       const run = sec => { const l = linear(sec, re, nCrit), a = l.a0 + cl / l.slope; return { a, r: sec.at(a, re, nCrit, sec.xtrTop, sec.xtrBot, true) }; };
-      const A = run(sa), B = run(sb);
-      const bl = K.boundaryLayer(blend(A.r, B.r, t));
-      out.push({ y, chord, cl, clProf: bl.cl, alphaEff: A.a + (B.a - A.a) * t, re, conf: bl.conf, upper: pack(bl.upper), lower: pack(bl.lower) });
+      let A = run(sa), B = run(sb);
+      const ov = segOver && segOver[k - 1];
+      if (ov && ov[0] && ov[1]) { const again = (sec, a) => ({ a, r: sec.at(a, re, nCrit, sec.xtrTop, sec.xtrBot, true) }); A = again(ov[0], A.a); B = again(ov[1], B.a); }
+      const mixed = blend(A.r, B.r, t), bl = K.boundaryLayer(mixed);
+      const q = { y, chord, width: L.width[i], seg: k - 1, cl, clProf: bl.cl, cm: mixed.cm, alphaEff: A.a + (B.a - A.a) * t, re, conf: bl.conf, upper: pack(bl.upper), lower: pack(bl.lower) };
+      const fd = st[k - 1].flapDepth;
+      if (fd > 0) q.ch = hinge(NF.BL_X, q.upper.cp, q.lower.cp, 1 - fd / 100);
+      out.push(q);
     }
     return out;
   }
@@ -154,7 +169,7 @@
     return arr[k];
   }
 
-  const api = { STATE, N_BL, states, compute, film, surface, linear, stationSection, stalled, at, stateAt };
+  const api = { STATE, N_BL, states, compute, film, surface, linear, stationSection, stalled, at, stateAt, hinge };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).druckbild = api;
 })(typeof self !== 'undefined' ? self : this);

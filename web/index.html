@@ -27,6 +27,7 @@
 <script src="core/sfw.js"></script>
 <script src="core/modell3d.js"></script>
 <script src="core/druckbild.js"></script>
+<script src="core/struktur.js"></script>
 <script src="core/import3d.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
@@ -288,6 +289,9 @@ tr.low td{color:var(--warn)}
 .cbox.zoomed .p3host{flex:1 1 auto;height:auto}
 .p3chk{display:inline-flex;gap:5px;align-items:center;font:.82rem var(--body);color:var(--fg)}
 .p3imp{display:grid;gap:6px}
+#festIn table input.num{width:5.6em}
+#festIn table td,#festIn table th{padding:5px 8px}
+#festIn select{max-width:100%;min-width:0;height:32px}
 .p3key{font:.8rem var(--body);color:var(--muted);line-height:1.5}
 .p3key .leg{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-top:2px}
 .p3key i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:4px}
@@ -531,7 +535,8 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
       <button type="button" role="tab" class="tab" data-theme="polar" title="Taste 3">Polaren</button>
       <button type="button" role="tab" class="tab" data-theme="flaps" title="Taste 4">Klappen <small id="mTpFlaps"></small></button>
       <button type="button" role="tab" class="tab" data-theme="opt" title="Taste 5">Optimierer</button>
-      <button type="button" role="tab" class="tab" data-theme="check" title="Taste 6">Excel <small id="mTpCheck"></small></button>
+      <button type="button" role="tab" class="tab" data-theme="fest" title="Taste 6">Festigkeit</button>
+      <button type="button" role="tab" class="tab" data-theme="check" title="Taste 7">Excel <small id="mTpCheck"></small></button>
     </nav>
     <div class="labbar" id="labBar" hidden><h2>Profil-Labor</h2><button type="button" class="btn ghost sm" id="labBack">← zurück zum Modell</button></div>
   </div>
@@ -807,6 +812,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
           <div class="progress" id="oBar" hidden><i></i></div>
           </section>
 </div>
+<div class="topic" data-topic="fest" id="festIn"></div>
 <div class="topic" data-topic="check">
 <section>
           <h2>Gegenprobe mit Deinem Excel-Blatt</h2>
@@ -825,6 +831,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <div class="p3key" id="p3key" hidden></div>
 <div class="p3imp" id="p3imp"></div></div></div></section>
 </div>
+<div class="rview" data-view="fest" id="festOut" hidden></div>
 <div class="rview" data-view="dist" hidden>
 <div class="charts">
           <div class="cbox"><div class="ct">Auftriebsverteilung <span><span id="mStallBadge" class="stallbadge"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="mDist"></canvas></div><div class="legend cleg" id="mDistLeg"></div></div>
@@ -2522,6 +2529,7 @@ function modelDone(m, seq, r, err, ms) {
   if (r) { lastModel = r; lastModelId = m.id; elevatorInfo(m); $('mStatus').textContent = `${r.panels} Panels · ${Math.round(ms)} ms`; }
   else { lastModel = null; lastModelId = null; $('mStatus').textContent = 'Rechnung nicht möglich: ' + err; }
   renderModelResults();
+  if (window.MMPAFest) window.MMPAFest.update();
   scheduleModes();
   scheduleTe();
 }
@@ -3281,6 +3289,7 @@ const THEMES = {
   polar: { topics: ['body'], views: ['polar'] },
   flaps: { topics: ['flaps'], views: ['flaps'] },
   opt: { topics: ['opt'], views: ['opt'] },
+  fest: { topics: ['fest'], views: ['fest'] },
   check: { topics: ['check'], views: [] },
 };
 const THEME_KEYS = Object.keys(THEMES);
@@ -3302,7 +3311,7 @@ function showTheme(k) {
   document.querySelectorAll('.rview').forEach(x => x.hidden = !T.views.includes(x.dataset.view));
   $('mBench').classList.toggle('solo', !T.views.length); $('mBench').classList.toggle('stack', !!T.stack);
   $('mOut').scrollTop = 0;
-  if (ui.tab === 'modell' && lastModel) { if (viewOn('plan')) drawPlan(curModel(), lastModel); if (viewOn('opt')) renderOptResult(); scheduleTe(); if (modeStale) scheduleModes(); }
+  if (ui.tab === 'modell' && lastModel) { if (viewOn('plan')) drawPlan(curModel(), lastModel); if (viewOn('opt')) renderOptResult(); if (viewOn('fest') && window.MMPAFest) window.MMPAFest.update(); scheduleTe(); if (modeStale) scheduleModes(); }
 }
 $('mThemes').addEventListener('click', e => { const b = e.target.closest('[data-theme]'); if (b) showTheme(b.dataset.theme); });
 $('planPart').addEventListener('click', e => {
@@ -3368,5 +3377,6 @@ renderAll();
 <script src="cloud-ui.js"></script>
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
+<script src="festigkeit-ui.js"></script>
 <script type="module" src="drei-ui.js"></script>
 
