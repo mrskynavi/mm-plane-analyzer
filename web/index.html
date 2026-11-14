@@ -25,6 +25,8 @@
 <script src="core/fusion.js"></script>
 <script src="core/verlauf.js"></script>
 <script src="core/sfw.js"></script>
+<script src="core/modell3d.js"></script>
+<script src="core/import3d.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -276,6 +278,25 @@ td .dash{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-al
 tr.low td{color:var(--warn)}
 .plan{position:relative;width:100%;height:260px}
 .plan canvas{position:absolute;inset:0;width:100%;height:100%}
+.plan3d{display:flex;flex-direction:column;gap:6px}
+.p3host{position:relative;width:100%;height:clamp(260px,46vh,560px);border-radius:6px;overflow:hidden;background:var(--bg)}
+.p3host canvas{position:absolute;inset:0;width:100%!important;height:100%!important;touch-action:none;display:block}
+.p3bar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.p3hint{font:.78rem var(--body);color:var(--muted)}
+.cbox.zoomed .plan3d{flex:1 1 auto;min-height:0}
+.cbox.zoomed .p3host{flex:1 1 auto;height:auto}
+.p3chk{display:inline-flex;gap:5px;align-items:center;font:.82rem var(--body);color:var(--fg)}
+.p3imp{display:grid;gap:6px}
+.p3imp:empty{display:none}
+.p3row{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--violet);border-radius:6px;padding:6px 8px;font:.82rem var(--body)}
+.p3row b{font-weight:600}
+.p3row small{color:var(--muted);font-family:var(--mono)}
+.p3row label{display:inline-flex;gap:4px;align-items:center;color:var(--muted)}
+.p3row select,.p3row input[type=number]{font:.82rem var(--body);padding:2px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--fg)}
+.p3row input[type=number]{width:72px}
+.p3row .x{margin-left:auto;border:0;background:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px}
+.p3row .err{color:var(--bad)}
+.p3msg{position:absolute;inset:0;display:grid;place-items:center;font:.85rem var(--body);color:var(--muted);text-align:center;padding:16px}
 .st-table td,.st-table th{padding:3px 3px}
 .st-table th{white-space:normal;line-height:1.15;vertical-align:bottom;font-size:.66rem;letter-spacing:.03em}
 .st-table input.num{width:6.4ch;height:28px;padding:2px 4px;font-size:.82rem}
@@ -790,7 +811,10 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
       <div class="bench-out" id="mOut">
 <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Breite der Ergebnisse" title="Ziehen ändert die Breite, Doppelklick stellt zurück" tabindex="0"></div>
 <div class="rview" data-view="plan" hidden>
-<section class="pol-box rv-sec"><div class="cbox"><div class="ct">Grundriss <span><span class="legend" id="planLegend"></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="plan"><canvas id="planCv" aria-label="Grundriss mit Neutralpunkt und Schwerpunkt"></canvas></div></div></section>
+<section class="pol-box rv-sec"><div class="cbox"><div class="ct">Grundriss <span><span class="legend" id="planLegend"></span> <span class="seg" id="planMode" role="group" aria-label="Ansicht"><button type="button" data-pm="plan" aria-pressed="true">Draufsicht</button><button type="button" data-pm="3d" aria-pressed="false">3D</button></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="plan"><canvas id="planCv" aria-label="Grundriss mit Neutralpunkt und Schwerpunkt"></canvas></div>
+<div class="plan3d" id="plan3d" hidden><div class="p3host" id="p3host" aria-label="3D-Ansicht des Modells: ziehen dreht, zwei Finger oder Mausrad zoomen"></div>
+<div class="p3bar"><span class="seg" id="p3view" role="group" aria-label="Blickrichtung"><button type="button" data-v="iso" aria-pressed="true">Schräg</button><button type="button" data-v="top" aria-pressed="false">Oben</button><button type="button" data-v="front" aria-pressed="false">Vorne</button><button type="button" data-v="side" aria-pressed="false">Seite</button></span><button type="button" class="btn ghost sm" id="p3load" title="Gebautes Teil aus dem CAD (3MF, OBJ, STL, STEP) neben das gerechnete Modell legen">3D-Datei laden …</button><input type="file" id="p3file" accept=".3mf,.obj,.stl,.step,.stp" multiple hidden><label class="p3chk"><input type="checkbox" id="p3model" checked> gerechnetes Modell</label><span class="p3hint" id="p3hint">Ziehen dreht · Mausrad oder zwei Finger zoomen · rechte Maustaste oder zwei Finger verschieben</span></div>
+<div class="p3imp" id="p3imp"></div></div></div></section>
 </div>
 <div class="rview" data-view="dist" hidden>
 <div class="charts">
@@ -2312,7 +2336,22 @@ document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click',
 }));
 
 // Grundriss von oben: beide Hälften, Klappen, l_μ, Neutralpunkt und Schwerpunkt
+// Grundriss als Draufsicht (Canvas) oder 3D (three.js, drei-ui.js); Wahl bleibt auf dem Gerät
+let planMode = (() => { try { return localStorage.getItem('mmpa.planMode') === '3d' ? '3d' : 'plan'; } catch (e) { return 'plan'; } })();
+function setPlanMode(v) {
+  planMode = v === '3d' ? '3d' : 'plan';
+  try { localStorage.setItem('mmpa.planMode', planMode); } catch (e) {}
+  drawPlan(curModel(), lastModel);
+}
+$('planMode').addEventListener('click', e => { const b = e.target.closest('button[data-pm]'); if (b) setPlanMode(b.dataset.pm); });
 function drawPlan(m, r) {
+  const box = $('planCv')?.closest('.cbox');
+  if (box) {
+    const d3 = planMode === '3d';
+    box.querySelectorAll('#planMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pm === planMode)));
+    box.querySelector('.plan').hidden = d3; $('plan3d').hidden = !d3; $('planLegend').hidden = d3;
+    if (d3) { if (box.offsetParent !== null || box.closest('.zoomed')) (window.MMPA3D ? window.MMPA3D.draw(m, r) : (window.MMPA3D_pending = true)); return; }
+  }
   const cv = $('planCv'); if (!cv || cv.offsetParent === null) return;
   const VL0 = window.MMPA.vlm, Pw = VL0.stationPoints(m.wing.stations), Pt = VL0.stationPoints(m.tail.stations, m.tail.x);
   const all = Pw.concat(Pt), w0 = cv.parentElement.clientWidth;
@@ -2465,14 +2504,53 @@ function drawPlan(m, r) {
 
 let lastModel = null, lastModelId = null, modelTimer = null;
 function scheduleModel() { clearTimeout(modelTimer); modelTimer = setTimeout(computeModel, 60); }
-function computeModel() {
-  const m = curModel(), t0 = performance.now();
-  try { lastModel = MD.analyze(m, project.profiles, { nCrit: lab.nCrit }); lastModelId = m.id; elevatorInfo(m); }
-  catch (err) { lastModel = null; lastModelId = null; $('mStatus').textContent = 'Rechnung nicht möglich: ' + err.message; }
-  if (lastModel) $('mStatus').textContent = `${lastModel.panels} Panels · ${Math.round(performance.now() - t0)} ms`;
+// Die Rechnung läuft in einem Web Worker (core/modell-worker.js). Rechnet er noch, wartet die neue Anfrage und geht
+// mit dem dann aktuellen Stand los; Ergebnisse überholter Anfragen werden verworfen.
+// Geht der Worker nicht (etwa als Datei geöffnet), rechnet die Seite selbst wie früher.
+let modelWorker = null, modelWorkerOk = typeof Worker !== 'undefined', modelSeq = 0, modelFlight = null;
+function modelDone(m, seq, r, err, ms) {
+  if (seq !== modelSeq) return;
+  if (r) { lastModel = r; lastModelId = m.id; elevatorInfo(m); $('mStatus').textContent = `${r.panels} Panels · ${Math.round(ms)} ms`; }
+  else { lastModel = null; lastModelId = null; $('mStatus').textContent = 'Rechnung nicht möglich: ' + err; }
   renderModelResults();
   scheduleModes();
   scheduleTe();
+}
+function computeInPage(m, seq) {
+  const t0 = performance.now();
+  let r = null, err = '';
+  try { r = MD.analyze(m, project.profiles, { nCrit: lab.nCrit }); } catch (e) { err = e.message; }
+  modelDone(m, seq, r, err, performance.now() - t0);
+}
+function modelPost() {
+  const m = curModel(), seq = modelSeq;
+  modelFlight = { seq, m };
+  try { modelWorker.postMessage({ seq, model: m, profiles: project.profiles, nCrit: lab.nCrit }); }
+  catch (e) { modelFlight = null; computeInPage(m, seq); return; }
+  // Hinweis nur, wenn es merklich dauert (erste Rechnung, neue Profile)
+  setTimeout(() => { if (modelFlight && modelFlight.seq === seq) $('mStatus').textContent = 'rechnet …'; }, 200);
+}
+function computeModel() {
+  const seq = ++modelSeq;
+  if (modelWorkerOk && !modelWorker) {
+    try {
+      modelWorker = new Worker('core/modell-worker.js');
+      modelWorker.onerror = e => {
+        // Worker lässt sich nicht laden: künftig auf der Seite rechnen, die offene Anfrage gleich hier
+        e.preventDefault(); modelWorker.terminate(); modelWorker = null; modelWorkerOk = false;
+        if (modelFlight) { modelFlight = null; computeInPage(curModel(), modelSeq); }
+      };
+      modelWorker.onmessage = e => {
+        const d = e.data, f = modelFlight;
+        modelFlight = null;
+        if (!f || f.seq !== d.seq) return;
+        if (d.seq === modelSeq) modelDone(f.m, d.seq, d.result, d.error, d.ms);
+        else modelPost(); // inzwischen geändert: gleich mit dem neuen Stand weiter
+      };
+    } catch (e) { modelWorker = null; modelWorkerOk = false; }
+  }
+  if (!modelWorker) { computeInPage(curModel(), seq); return; }
+  if (!modelFlight) modelPost();
 }
 // Endleiste: dasselbe Modell mit scharfer Endleiste zum Vergleich. Rechnet etwas später, damit die Eingabe flüssig bleibt.
 let teTimer = null, teCmp = null;
@@ -3281,4 +3359,5 @@ renderAll();
 <script src="cloud-ui.js"></script>
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
+<script type="module" src="drei-ui.js"></script>
 
