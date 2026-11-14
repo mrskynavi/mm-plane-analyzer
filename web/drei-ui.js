@@ -70,7 +70,8 @@ function build(m, r) {
     geo.setAttribute('position', new THREE.BufferAttribute(toThree(p.positions), 3));
     geo.setIndex(new THREE.BufferAttribute(p.indices, 1));
     geo.computeVertexNormals();
-    const see = imports.some(q => q.visible && q.out); // mit Importen durchscheinend, damit beide zu sehen sind
+    // mit Importen durchscheinend, damit beide zu sehen sind; mit Druck/Grenzschicht scheint der Import durch
+    const see = layer === 'form' && imports.some(q => q.visible && q.out);
     const mat = new THREE.MeshStandardMaterial({ color: C[p.kind] ?? 0xcccccc, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide, transparent: see, opacity: see ? 0.45 : 1, depthWrite: !see });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = p.name;
@@ -313,10 +314,14 @@ function loadBands(m, r) {
 }
 
 function setLayer(l) {
+  const was = layer;
   layer = l; try { localStorage.setItem('mmpa.p3layer', l); } catch (e) {}
+  // Farben liegen auf dem gerechneten Modell: einschalten, Importe durchscheinend
+  if (l !== 'form' && !showModel) { showModel = true; $id('p3model').checked = true; }
+  if ((was === 'form') !== (l === 'form') && imports.some(q => q.visible && q.out)) buildImpGroup();
+  else redraw();
   document.querySelectorAll('#p3layer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === layer)));
   if (layer !== 'form') need([wkKey]);
-  paint(); render();
 }
 function setState(k) {
   wkKey = k; $id('p3state').value = k;
@@ -416,7 +421,8 @@ function buildImpGroup() {
       geo.setAttribute('position', new THREE.BufferAttribute(toThree(p.positions), 3));
       geo.setIndex(new THREE.BufferAttribute(p.indices, 1));
       geo.computeVertexNormals();
-      impGroup.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, metalness: 0.05, side: THREE.DoubleSide })));
+      const ghost = layer !== 'form';
+      impGroup.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, metalness: 0.05, side: THREE.DoubleSide, transparent: ghost, opacity: ghost ? 0.25 : 1, depthWrite: !ghost })));
     });
   });
   scene.add(impGroup);
