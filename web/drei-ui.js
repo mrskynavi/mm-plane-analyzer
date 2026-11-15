@@ -594,7 +594,7 @@ function idb(mode, fn) {
   });
 }
 const req = r => new Promise((ok, ko) => { r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
-const saveImp = q => idb('readwrite', st => st.put({ id: q.id, model: q.model, name: q.name, buf: q.buf, place: q.place, visible: q.visible })).catch(() => {});
+const saveImp = q => idb('readwrite', st => st.put({ id: q.id, model: q.model, name: q.name, buf: q.buf, place: q.place, visible: q.visible, assign: q.assign || null })).catch(() => {});
 
 // STEP: OpenCascade im Worker, erst beim ersten STEP geladen
 let stepWorker = null;
@@ -627,6 +627,7 @@ async function parseImp(q) {
 function placeImp(q) {
   q.out = null;
   if (q.raw) { try { q.out = IM.place(q.raw.meshes, q.raw.unit, q.place); q.err = ''; } catch (e) { q.err = e.message; } }
+  if (take && take.id === q.id) { if (q.out) prepTake(q); else take = null; renderTake(); }
   buildImpGroup(); renderImpList();
 }
 function buildImpGroup() {
@@ -636,6 +637,7 @@ function buildImpGroup() {
   const col = new THREE.Color(cssVar('--violet') || '#7a45c4');
   imports.forEach(q => {
     if (!q.visible || !q.out) return;
+    if (take && take.id === q.id) { takeMeshes(q); return; }
     q.out.forEach(p => {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(toThree(p.positions), 3));
@@ -650,7 +652,7 @@ function buildImpGroup() {
 }
 
 async function loadImports(m) {
-  impModel = m.id; imports = [];
+  impModel = m.id; imports = []; take = null; renderTake();
   renderImpList(); buildImpGroup();
   let rows = [];
   try { rows = await idb('readonly', st => req(st.index('model').getAll(m.id))); } catch (e) { rows = []; }
@@ -697,6 +699,7 @@ function renderImpList() {
       <label>x <input type="number" step="1" data-k="dx" value="${+(p.dx || 0).toFixed(1)}"></label>
       <label>y <input type="number" step="1" data-k="dy" value="${+(p.dy || 0).toFixed(1)}"></label>
       <label>z <input type="number" step="1" data-k="dz" value="${+(p.dz || 0).toFixed(1)}"></label>
+      ${q.out ? `<button type="button" class="btn ghost sm" data-k="take" title="Rumpf, Flügel, HLW und SLW aus dieser Datei in die Rechnung übernehmen (jedes Bauteil einzeln)">Bauteile übernehmen …</button>` : ''}
       <button type="button" class="x" data-k="del" title="entfernen" aria-label="${esc(q.name)} entfernen">×</button></div>`;
   }).join('');
 }
@@ -722,7 +725,10 @@ $id('p3imp').addEventListener('change', e => {
   placeImp(q); saveImp(q);
 });
 $id('p3imp').addEventListener('click', e => {
+  const tk = e.target.closest('button[data-k="take"]'), rw = e.target.closest('.p3row');
+  if (tk && rw) { const q = imports.find(i => i.id === rw.dataset.id); if (q) openTake(q); return; }
   const b = e.target.closest('button[data-k="del"]'), row = e.target.closest('.p3row'); if (!b || !row) return;
+  if (take && take.id === row.dataset.id) closeTake();
   imports = imports.filter(i => i.id !== row.dataset.id);
   idb('readwrite', st => st.delete(row.dataset.id)).catch(() => {});
   buildImpGroup(); renderImpList(); redraw(true);
@@ -735,6 +741,231 @@ host.addEventListener('dragover', e => { e.preventDefault(); });
 host.addEventListener('drop', e => { e.preventDefault(); const f = [...(e.dataTransfer?.files || [])]; if (f.length) addFiles(f).catch(err => { console.error(err); toast('3D-Datei: ' + err.message); }); });
 
 $id('p3view').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setView(b.dataset.v); });
+
+// ---------- Bauteile aus dem Import übernehmen (Rumpf, Flügel, HLW, SLW je einzeln) ----------
+// Die Datei wird in Teile zerlegt (Körper, Schalen), jedes Teil einem Bauteil zugeordnet (Name, Form; im 3D antippen
+// wechselt), dann geschnitten (core/bauteile3d.js). Vergleich jetzt/neu je Bauteil, Übernahme in einem Schritt
+// (davor ein Zwischenstand im Verlauf, Rückgängig mit ↶).
+const B3 = window.MMPA.bauteile3d, FU = window.MMPA.rumpf;
+const KIND_COL = { fuse: '#e0863a', wing: '#3b82f6', tail: '#1f9d62', fin: '#a05bd6', none: '#9aa3ad' };
+const KIND_ORDER = ['fuse', 'wing', 'tail', 'fin', 'none'];
+const PART_NAME = { fuse: 'Rumpf', wing: 'Flügel', tail: 'Höhenleitwerk', fin: 'Seitenleitwerk' };
+const PROF_MODES = [['keep', 'Profil behalten'], ['dicke', 'Dicke + Wölbung'], ['neu', 'Profil aus Schnitt']];
+let take = null;
+const de = (v, d = 0) => Number.isFinite(v) ? v.toLocaleString('de-CH', { minimumFractionDigits: d, maximumFractionDigits: d }) : '–';
+
+function prepTake(q) {
+  const keep = take && take.id === q.id ? take : null;
+  const pieces = B3.pieces(IM.place(q.raw.meshes, q.raw.unit, { ...q.place, mirror: false }));
+  const auto = B3.classify(pieces, (q.place || {}).part);
+  const kinds = auto.map((k, i) => (q.assign && q.assign[i]) || k);
+  take = { id: q.id, q, pieces, auto, kinds, ex: null, use: keep ? keep.use : null, mode: keep ? keep.mode : { wing: 'dicke', tail: 'dicke' } };
+  calcTake();
+}
+function calcTake() {
+  const t = take;
+  try { t.ex = B3.extract(t.pieces, t.kinds); t.err = ''; } catch (e) { t.ex = null; t.err = e.message; console.error(e); }
+  const has = { fuse: !!t.ex?.fus, wing: !!t.ex?.wing, tail: !!t.ex?.tail, fin: !!t.ex?.fin };
+  t.use = Object.fromEntries(Object.keys(has).map(k => [k, has[k] && (t.use ? t.use[k] !== false : true)]));
+  t.has = has;
+}
+function openTake(q) {
+  if (!q.out || !q.raw) { toast('Die Datei ist noch nicht gelesen.'); return; }
+  if (!q.visible) { q.visible = true; saveImp(q); }
+  try { prepTake(q); } catch (e) { console.error(e); toast('3D-Datei: ' + e.message); return; }
+  renderTake(); buildImpGroup(); renderImpList();
+  $id('p3take').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function closeTake() { take = null; renderTake(); buildImpGroup(); }
+
+// Teile farbig nach Bauteil, gespiegelt wie die Lage es will; userData.piece für das Antippen
+function takeMeshes(q) {
+  const mirror = (q.place || {}).mirror;
+  take.pieces.forEach((p, i) => {
+    [1, mirror ? -1 : 0].forEach(sd => {
+      if (!sd) return;
+      let P = p.positions, I = p.indices;
+      if (sd < 0) { P = P.slice(); for (let k = 1; k < P.length; k += 3) P[k] = -P[k]; I = I.slice(); for (let k = 0; k < I.length; k += 3) { const x = I[k + 1]; I[k + 1] = I[k + 2]; I[k + 2] = x; } }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(toThree(P), 3));
+      geo.setIndex(new THREE.BufferAttribute(I, 1));
+      geo.computeVertexNormals();
+      const k = take.kinds[i], ghost = k === 'none';
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: new THREE.Color(KIND_COL[k]), roughness: 0.6, metalness: 0.05, side: THREE.DoubleSide, transparent: ghost, opacity: ghost ? 0.35 : 1, depthWrite: !ghost }));
+      mesh.userData = { piece: i };
+      impGroup.add(mesh);
+    });
+  });
+}
+function setKind(idx, k) {
+  const q = take.q; q.assign = q.assign || {};
+  idx.forEach(i => { take.kinds[i] = k; if (k === take.auto[i]) delete q.assign[i]; else q.assign[i] = k; });
+  saveImp(q); calcTake(); renderTake(); buildImpGroup();
+}
+// Antippen eines Teils im 3D wechselt sein Bauteil (nur wenn kaum bewegt, sonst war es Drehen)
+let tapAt = null;
+host.addEventListener('pointerdown', e => { tapAt = take ? [e.clientX, e.clientY] : null; });
+host.addEventListener('pointerup', e => {
+  if (!take || !tapAt || !impGroup || Math.hypot(e.clientX - tapAt[0], e.clientY - tapAt[1]) > 6) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), camera);
+  const hit = ray.intersectObjects(impGroup.children, false).find(h => h.object.userData.piece != null);
+  if (!hit) return;
+  const i = hit.object.userData.piece, k = take.kinds[i];
+  setKind([i], KIND_ORDER[(KIND_ORDER.indexOf(k) + 1) % KIND_ORDER.length]);
+  toast(`${take.pieces[i].name || 'Teil'}: ${B3.LABEL[take.kinds[i]]}`);
+});
+
+// Kleine Skizzen: alt gestrichelt, neu ausgefüllt
+const svgWrap = (w, h, body) => `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img">${body}</svg>`;
+function planSvg(oldSt, newSt) {
+  const outline = st => {
+    const P = VL.stationPoints(st);
+    return [...P.map(p => [p.le[1], p.le[0]]), ...P.slice().reverse().map(p => [p.le[1], p.le[0] + p.chord])];
+  };
+  const A = outline(oldSt), Bn = newSt ? outline(newSt) : [];
+  const all = A.concat(Bn), x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0])), y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
+  const W = 300, s = (W - 12) / Math.max(1, x1 - x0), H = Math.max(40, (y1 - y0) * s + 12);
+  const pts = L => L.map(p => `${(6 + (p[0] - x0) * s).toFixed(1)},${(6 + (p[1] - y0) * s).toFixed(1)}`).join(' ');
+  return svgWrap(W, H, `<polygon points="${pts(A)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 3" stroke-width="1.2"/>` + (Bn.length ? `<polygon points="${pts(Bn)}" fill="var(--accent-soft)" fill-opacity=".7" stroke="var(--accent)" stroke-width="1.5"/>` : ''));
+}
+function fuseOutline(m) {
+  try {
+    const sh = FU.shape(m), k = Math.sqrt(sh.width || 1);
+    return sh.pts.map(p => ({ x: p.x, w: 2 * (p.w ?? p.r * k), h: 2 * (p.h ?? p.r / k) }));
+  } catch (e) { return []; }
+}
+function fuseSvg(oldM, newM) {
+  const A = fuseOutline(oldM), Bn = newM ? fuseOutline(newM) : [];
+  const all = A.concat(Bn); if (!all.length) return '';
+  const x0 = Math.min(...all.map(p => p.x)), x1 = Math.max(...all.map(p => p.x)), hm = Math.max(...all.map(p => Math.max(p.h, p.w))) / 2;
+  const W = 300, s = (W - 12) / Math.max(1, x1 - x0), H = 2 * (hm * s) + 2 * hm * s + 24, cy1 = 6 + hm * s, cy2 = H - 6 - hm * s;
+  // oben Seitenansicht (Höhe), unten Draufsicht (Breite)
+  const poly = (L, key, cy) => [...L.map(p => [p.x, -p[key] / 2]), ...L.slice().reverse().map(p => [p.x, p[key] / 2])].map(([x, y]) => `${(6 + (x - x0) * s).toFixed(1)},${(cy + y * s).toFixed(1)}`).join(' ');
+  let b = '';
+  [['h', cy1], ['w', cy2]].forEach(([key, cy]) => {
+    b += `<polygon points="${poly(A, key, cy)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 3" stroke-width="1.2"/>`;
+    if (Bn.length) b += `<polygon points="${poly(Bn, key, cy)}" fill="var(--accent-soft)" fill-opacity=".7" stroke="var(--accent)" stroke-width="1.5"/>`;
+  });
+  const c = (oldM.wing.stations[0] || {}).chord || 0, wx = 6 + (0 - x0) * s;
+  b += `<rect x="${wx.toFixed(1)}" y="${(cy2 - 2).toFixed(1)}" width="${(c * s).toFixed(1)}" height="4" fill="var(--muted)" opacity=".5"><title>Flügelwurzel</title></rect>`;
+  return svgWrap(W, H, b);
+}
+function finShape(m, tailArea) {
+  const f = (m.fuselage || {}), area = FU.finArea(m, tailArea);
+  if (!(area > 0)) return null;
+  const g = f.finGeo;
+  if (g && g.root > 0) { const k = Math.sqrt(area * 1e4 / ((g.root + g.tip) / 2 * g.height)); return { area, root: g.root * k, tip: g.tip * k, height: g.height * k, sweep: g.sweep * k }; }
+  const cr = 1.15 * FU.finChord(area), ct = 0.6 * cr;
+  return { area, root: cr, tip: ct, height: 2 * area * 1e4 / (cr + ct), sweep: (cr - ct) * 0.7 };
+}
+function finSvg(a, b) {
+  const L = [a, b].filter(Boolean); if (!L.length) return '';
+  const quad = f => [[0, 0], [f.root, 0], [f.sweep + f.tip, f.height], [f.sweep, f.height]];
+  const all = L.flatMap(quad), w = Math.max(...all.map(p => p[0])), h = Math.max(...all.map(p => p[1]));
+  const W = 200, s = (W - 12) / Math.max(w, h * 0.8, 1), H = h * s + 12;
+  const pts = f => quad(f).map(([x, y]) => `${(6 + x * s).toFixed(1)},${(H - 6 - y * s).toFixed(1)}`).join(' ');
+  return svgWrap(W, H, (a ? `<polygon points="${pts(a)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 3" stroke-width="1.2"/>` : '') + (b ? `<polygon points="${pts(b)}" fill="var(--accent-soft)" fill-opacity=".7" stroke="var(--accent)" stroke-width="1.5"/>` : ''));
+}
+const rowT = (label, a, b, d = 0, unit = '') => {
+  const ch = Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) > 0.5 * 10 ** -d;
+  return `<tr><td>${label}</td><td>${de(a, d)}${unit}</td><td${ch ? ' class="ch"' : ''}>${de(b, d)}${unit}</td></tr>`;
+};
+
+function renderTake() {
+  const box = $id('p3take');
+  if (!take) { box.hidden = true; box.innerHTML = ''; return; }
+  const t = take, q = t.q, m = curModel(), ex = t.ex;
+  box.hidden = false;
+  // Gruppen: gleicher Name und gleiches Bauteil
+  const groups = new Map();
+  t.pieces.forEach((p, i) => { const key = (p.name || 'Körper') + '\u0001' + t.kinds[i]; const g = groups.get(key) || { name: p.name || 'Körper', kind: t.kinds[i], idx: [] }; g.idx.push(i); groups.set(key, g); });
+  const segKind = (g, n) => `<span class="seg" role="group" aria-label="Bauteil für ${esc(g.name)}">${KIND_ORDER.map(k => `<button type="button" data-g="${n}" data-kind="${k}" aria-pressed="${g.kind === k}"><i style="background:${KIND_COL[k]}"></i>${B3.LABEL[k]}</button>`).join('')}</span>`;
+  const gl = [...groups.values()];
+  let h = `<h3>Bauteile aus ${esc(q.name)} übernehmen <button type="button" class="x" data-t="close" aria-label="schliessen">×</button></h3>
+    <p class="hint">Jedes Teil der Datei gehört zu einem Bauteil (Farbe im 3D). Stimmt eine Zuordnung nicht, hier umstellen oder das Teil im 3D antippen. Die App schneidet die Teile wie Rippen und vergleicht mit dem Modell; übernommen wird nur, was angehakt ist.</p>
+    <div class="grp">${gl.map((g, n) => `<b title="${esc(g.name)}">${esc(g.name)}<small>${g.idx.length > 1 ? g.idx.length + ' Teile' : ''}</small></b>${segKind(g, n)}`).join('')}</div>`;
+  if (t.err) h += `<p class="hint" style="color:var(--bad)">Schneiden ging nicht: ${esc(t.err)}</p>`;
+  // Vorschau mit allen gefundenen Teilen (Profile nur gemessen)
+  const pv = ex ? B3.apply(m, ex, t.has, { wingMode: 'dicke', tailMode: 'dicke' }).model : m;
+  const card = (k, inner) => {
+    const has = t.has && t.has[k];
+    return `<div class="card${has && t.use[k] ? '' : ' off'}"><label><input type="checkbox" data-use="${k}"${has && t.use[k] ? ' checked' : ''}${has ? '' : ' disabled'}><i style="background:${KIND_COL[k]}"></i>${PART_NAME[k]} übernehmen</label>${has ? inner : `<span class="none">Keine Teile als ${B3.LABEL[k]} zugeordnet.</span>`}</div>`;
+  };
+  const surf = k => {
+    const S = ex && (k === 'wing' ? ex.wing : ex.tail); if (!S) return '';
+    const a = B3.surfStats(m[k].stations), b = B3.surfStats(pv[k].stations);
+    let tb = `<table><tr><th></th><th>jetzt</th><th>neu</th></tr>` + rowT('Spannweite mm', a?.span, b?.span) + rowT('Fläche dm²', a?.area, b?.area, 1) + rowT('Streckung', a?.aspect, b?.aspect, 1) +
+      rowT('Wurzeltiefe mm', a?.root, b?.root) + rowT('mittlere Tiefe mm', a?.mac, b?.mac) + rowT('V-Form max °', a?.dihMax, b?.dihMax, 1) + rowT('V-Form min °', a?.dihMin, b?.dihMin, 1) + rowT('Schränkung Spitze °', a?.twistTip, b?.twistTip, 1) + rowT('Stationen', a?.n, b?.n);
+    if (k === 'tail') tb += rowT('Lage x mm', m.tail.x, pv.tail.x) + rowT('Lage z mm', m.tail.z || 0, pv.tail.z);
+    tb += '</table>';
+    const seg = `<span class="seg" role="group" aria-label="Profile">${PROF_MODES.map(([v, l]) => `<button type="button" data-mode="${k}" data-v="${v}" aria-pressed="${t.mode[k] === v}">${l}</button>`).join('')}</span>`;
+    const st = pv[k].stations;
+    const det = `<details><summary>Stationen</summary><table><tr><th>y</th><th>Tiefe</th><th>Pfeil.</th><th>V °</th><th>Schr. °</th><th>Dicke %</th><th>Wölb. %</th></tr>${st.map(s => `<tr><td>${de(s.y, 1)}</td><td>${de(s.chord, 1)}</td><td>${de(s.offset, 1)}</td><td>${de(s.dihedral, 1)}</td><td>${de(s.twist, 1)}</td><td>${de(100 * s.thickness, 2)}</td><td>${de(100 * s.camber, 2)}</td></tr>`).join('')}</table></details>`;
+    const notes = [];
+    if (S.cut > 0) notes.push(`Ausschnitt an der Wurzel bis y ${de(S.cut)} mm überbrückt (volle Tiefe bis zur Mitte).`);
+    if (S.rows[0].yp > 1) notes.push(`Fläche beginnt bei y ${de(S.rows[0].yp)} mm, innen bis zur Mitte durchgezogen.`);
+    if (S.tipCut) notes.push('Spitze unter 10 % Tiefe weggelassen, die App rundet dort elliptisch weiter.');
+    return planSvg(m[k].stations, st) + tb + `<div>${seg}</div>` + (notes.length ? `<p class="hint">${notes.join(' ')}</p>` : '') + det;
+  };
+  const fuse = () => {
+    if (!ex || !ex.fus) return '';
+    const tbl = B3.fuseTable(ex.fus, ex.ref), o = fuseOutline(m), n = fuseOutline(pv);
+    const st = L => L.length ? { len: L[L.length - 1].x - L[0].x, nose: -L[0].x, w: Math.max(...L.map(p => p.w)), h: Math.max(...L.map(p => p.h)) } : {};
+    const a = st(o), b = st(n);
+    return fuseSvg(m, pv) + `<table><tr><th></th><th>jetzt</th><th>neu</th></tr>${rowT('Länge mm', a.len, b.len)}${rowT('Nase vor Flügel mm', a.nose, b.nose)}${rowT('grösste Breite mm', a.w, b.w)}${rowT('grösste Höhe mm', a.h, b.h)}</table>` +
+      `<p class="hint">Als Kontur mit ${tbl.length} Schnitten, Oberfläche ${(m.fuselage || {}).finish === 'oldtimer' || FU.of(m).type === 'oldtimer' ? 'Oldtimer' : 'modern'} (im Reiter Rumpf änderbar).</p>`;
+  };
+  const finC = () => {
+    if (!ex || !ex.fin) return '';
+    const ta = VL.planform(m.tail.stations).area, a = finShape(m, ta), b = finShape(pv, VL.planform(pv.tail.stations).area);
+    return finSvg(a, b) + `<table><tr><th></th><th>jetzt</th><th>neu</th></tr>${rowT('Fläche dm²', a?.area, b?.area, 2)}${rowT('Höhe mm', a?.height, b?.height)}${rowT('Wurzeltiefe mm', a?.root, b?.root)}${rowT('Endtiefe mm', a?.tip, b?.tip)}</table><p class="hint">Fläche über dem Rumpfrücken, Seitenansicht.</p>`;
+  };
+  h += `<div class="cards">${card('fuse', fuse())}${card('wing', surf('wing'))}${card('tail', surf('tail'))}${card('fin', finC())}</div>`;
+  const ew = ex && B3.ewd(ex);
+  const any = t.use && Object.values(t.use).some(Boolean);
+  h += `<div class="foot"><button type="button" class="btn sm" data-t="go"${any ? '' : ' disabled'}>Übernehmen</button><span class="hint">Mass in mm ab der Flügelnase an der Wurzel${ex && ex.wing ? ' (aus dieser Datei)' : ''}. Vorher wird ein Zwischenstand im Verlauf gesichert, ↶ macht es rückgängig.${Number.isFinite(ew) ? ` Einstellwinkeldifferenz in der Zeichnung ${de(ew, 1)}° (Flügelwurzel gegen HLW).` : ''}</span></div>`;
+  box.innerHTML = h;
+  box._groups = gl;
+}
+$id('p3take').addEventListener('click', e => {
+  if (!take) return;
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.t === 'close') { closeTake(); return; }
+  if (b.dataset.t === 'go') { applyTake(); return; }
+  if (b.dataset.kind) { const g = $id('p3take')._groups[+b.dataset.g]; if (g) setKind(g.idx, b.dataset.kind); return; }
+  if (b.dataset.mode) { take.mode[b.dataset.mode] = b.dataset.v; renderTake(); }
+});
+$id('p3take').addEventListener('change', e => {
+  const k = e.target.dataset.use; if (!take || !k) return;
+  take.use[k] = e.target.checked; renderTake();
+});
+
+function applyTake() {
+  const t = take, q = t.q, m = curModel();
+  if (!t.ex || !Object.values(t.use).some(Boolean)) return;
+  if (window.histMark) window.histMark('vor Übernahme aus ' + q.name);
+  const base = q.name.replace(/\.[^.]+$/, ''), made = [];
+  const profileFor = (sh, part, y) => {
+    const coords = B3.profileCoords(sh);
+    const hit = made.find(p => p.part === part && B3.sameShape(p.coords, coords));
+    if (hit) return hit.id;
+    const prof = window.MMPA.projekt.addProfile(project, { name: `${base} ${part === 'wing' ? 'Flügel' : 'HLW'} y ${Math.round(y)}`, coords, source: '3D-Import' });
+    made.push({ id: prof.id, coords, part });
+    return prof.id;
+  };
+  const r = B3.apply(m, t.ex, t.use, { wingMode: t.mode.wing, tailMode: t.mode.tail, profileFor });
+  m.wing = r.model.wing; m.tail = r.model.tail; m.fuselage = r.model.fuselage;
+  const done = Object.keys(t.use).filter(k => t.use[k]).map(k => PART_NAME[k]);
+  // Import an die Flügelnase des Modells schieben, damit er wieder über dem gerechneten Modell liegt
+  if (t.ex.wing && (Math.abs(t.ex.ref.x) > 0.05 || Math.abs(t.ex.ref.z) > 0.05)) q.place = { ...q.place, dx: (q.place.dx || 0) - t.ex.ref.x, dz: (q.place.dz || 0) - t.ex.ref.z };
+  saveImp(q);
+  persist(); syncModelForm(); stationTable('wing'); stationTable('tail'); scheduleModel();
+  if (made.length && typeof renderAll === 'function') renderAll();
+  placeImp(q);
+  toast(`Übernommen aus ${q.name}: ${done.join(', ')}` + (made.length ? ` · ${made.length} Profil${made.length > 1 ? 'e' : ''} angelegt` : ''));
+}
 
 window.MMPA3D = { draw, setView };
 // Der Grundriss stand schon auf 3D, bevor dieses Modul geladen war
