@@ -63,11 +63,25 @@
     const out = [{ key: 'trim', label: 'Trimm', alpha: r.trim.alpha, it: r.trim.tailIncidence, v: r.trim.speed, cl: r.trim.CL }];
     (r.table || []).forEach((t, k) => out.push({ key: 't' + k, label: 'Ca ' + t.cl.toFixed(2), alpha: t.alpha, it: inc - t.ewdCur, v: t.v, cl: t.cl, film: true }));
     const last = out[out.length - 1];
+    // Über Ca max rechnet das Wirbelgitter linear weiter (Ca 1,8 bei 30 km/h gibt es nicht). Der Flügel trägt
+    // dort höchstens Ca max je Streifen: clLin bleibt für die Grenzschicht, cl und v sind die begrenzten Werte.
     if (L && last) for (let k = 1; k <= extra; k++) {
-      const alpha = last.alpha + k, cl = L.CL0 + alpha * L.CLa + last.it * L.CLi;
-      out.push({ key: 'x' + k, label: 'α +' + k + '°', alpha, it: last.it, v: vOf(cl), cl, film: true, beyond: true });
+      const alpha = last.alpha + k, clLin = L.CL0 + alpha * L.CLa + last.it * L.CLi, cl = capped(L, alpha, last.it, clLin);
+      out.push({ key: 'x' + k, label: 'α +' + k + '°', alpha, it: last.it, v: vOf(cl), cl, clLin, film: true, beyond: true });
     }
     return out;
+  }
+
+  // Gesamt-Ca mit Streifen-Ca höchstens Ca max (Auftrieb über die Fläche, Leitwerk unverändert)
+  function capped(L, alpha, it, clLin) {
+    if (!L.clMax) return clLin;
+    let lin = 0, cap = 0;
+    for (let i = 0; i < L.surf.length; i++) {
+      if (L.surf[i] !== 0) continue;
+      const cl = L.c0[i] + alpha * L.ca[i] + it * L.ci[i], w = L.chord[i] * L.width[i], m = L.clMax[i];
+      lin += cl * w; cap += (Number.isFinite(m) ? Math.min(cl, m) : cl) * w;
+    }
+    return lin > 0 ? clLin * cap / lin : clLin;
   }
 
   // Grenzschicht zweier Stationen mischen (Anteil t der zweiten)
@@ -127,7 +141,7 @@
       const ov = segOver && segOver[k - 1];
       if (ov && ov[0] && ov[1]) { const again = (sec, a) => ({ a, r: sec.at(a, re, nCrit, sec.xtrTop, sec.xtrBot, true) }); A = again(ov[0], A.a); B = again(ov[1], B.a); }
       const mixed = blend(A.r, B.r, t), bl = K.boundaryLayer(mixed);
-      const q = { y, chord, width: L.width[i], seg: k - 1, cl, clProf: bl.cl, cm: mixed.cm, alphaEff: A.a + (B.a - A.a) * t, re, conf: bl.conf, upper: pack(bl.upper), lower: pack(bl.lower) };
+      const q = { y, chord, width: L.width[i], seg: k - 1, cl, clMax: L.clMax ? L.clMax[i] : NaN, clProf: bl.cl, cm: mixed.cm, alphaEff: A.a + (B.a - A.a) * t, re, conf: bl.conf, upper: pack(bl.upper), lower: pack(bl.lower) };
       const fd = st[k - 1].flapDepth;
       if (fd > 0) q.ch = hinge(NF.BL_X, q.upper.cp, q.lower.cp, 1 - fd / 100);
       out.push(q);
@@ -135,15 +149,24 @@
     return out;
   }
 
-  // Abriss: Streifen mit abgelöster Oberseite vor 80 % der Tiefe oder Profil-Ca deutlich unter dem Wirbelgitter-Ca
-  // (Randstreifen mit sehr kleiner Re zählen nicht, dort rechnet das Netz unsicher)
-  const stalled = q => q.re > 3e4 && ((q.upper.sep != null && q.upper.sep < 0.8) || (q.cl > 0.3 && q.clProf < 0.9 * q.cl));
-  const score = q => (q.upper.sep != null ? 1 - q.upper.sep : 0) + Math.max(0, 1 - q.clProf / Math.max(q.cl, 1e-6));
+  // Abriss wie in der Modellrechnung (Diagramm Auftriebsverteilung): ein Stück Flügel erreicht sein Ca max,
+  // Ausnutzung über ±3 % der Halbspannweite gemittelt (M.stallRatios). Die Grenzschichtfarben zeigen daneben,
+  // wo das Netz Ablösung sieht; an schmalen Randstreifen mit kleiner Re ist das oft laminare Ablösung an der
+  // Hinterkante, noch kein Abriss. Ohne Ca max (alte Rechnung) gilt das Netz allein.
+  const separated = q => q.re > 3e4 && ((q.upper.sep != null && q.upper.sep < 0.8) || (q.cl > 0.3 && q.clProf < 0.9 * q.cl));
+  const stalled = q => (Number.isFinite(q.ratio) ? q.ratio >= 1 : separated(q));
+  const score = q => (Number.isFinite(q.ratio) ? q.ratio : (q.upper.sep != null ? 1 - q.upper.sep : 0) + Math.max(0, 1 - q.clProf / Math.max(q.cl, 1e-6)));
   function summary(wing, span) {
+    const rat = M.stallRatios(wing.map(q => ({ y: q.y, cl: q.cl, clMax: q.clMax, chord: q.chord, width: q.width })), span);
+    const byY = new Map(rat.map(q => [q.y, q.ratio]));
+    wing.forEach(q => { q.ratio = byY.has(q.y) ? byY.get(q.y) : NaN; });
+    const sep = wing.filter(separated).length / (wing.length || 1);
+    const pool = wing.some(q => Number.isFinite(q.ratio)) ? wing.filter(q => Number.isFinite(q.ratio)) : wing;
+    const top = pool.reduce((m, q) => (!m || score(q) > score(m) ? q : m), null);
     const st = wing.filter(stalled);
-    if (!st.length) return { stalled: 0, first: null };
-    const first = st.reduce((m, q) => (score(q) > score(m) ? q : m));
-    return { stalled: st.length / wing.length, first: { y: first.y, eta: first.y / span, sep: first.upper.sep } };
+    const maxRatio = rat.reduce((m, q) => Math.max(m, q.ratio), 0);
+    if (!st.length) return { stalled: 0, first: null, sep, maxRatio, top: top && Number.isFinite(top.ratio) ? { y: top.y, eta: top.y / span } : null };
+    return { stalled: st.length / wing.length, first: { y: top.y, eta: top.y / span, sep: top.upper.sep }, sep, maxRatio };
   }
 
   function compute(model, profiles, r, state, { nCrit = 9 } = {}) {
@@ -169,7 +192,7 @@
     return arr[k];
   }
 
-  const api = { STATE, N_BL, states, compute, film, surface, linear, stationSection, stalled, at, stateAt, hinge };
+  const api = { STATE, N_BL, states, compute, film, surface, linear, stationSection, stalled, separated, capped, at, stateAt, hinge };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).druckbild = api;
 })(typeof self !== 'undefined' ? self : this);

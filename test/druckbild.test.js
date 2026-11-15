@@ -69,3 +69,18 @@ test('Interpolation über die Grenzschichtpunkte', () => {
   assert.strictEqual(DB.at([0, 0.5, 1], [0, 1, 3], -1), 0);
   assert.strictEqual(DB.stateAt([0, 0.5, 1], [0, 1, 3], 0.6), 1);
 });
+
+test('3D-Abriss und Diagramm: gleiches Kriterium, Ca über Ca max begrenzt', () => {
+  const { project, m, r } = setup();
+  assert.ok(r.load.clMax && r.load.clMax.length === r.load.y.length);
+  const S = DB.states(m, r), beyond = S.filter(q => q.beyond);
+  // über Ca max trägt der Flügel nicht linear weiter
+  const last = beyond[beyond.length - 1];
+  assert.ok(last.clLin > last.cl && last.cl < r.stallAt.cl + 0.2, JSON.stringify([last.clLin, last.cl, r.stallAt.cl]));
+  // Tabellenzustände unter dem Abrissbeginn: kein Abriss in 3D; darüber: Abriss in 3D
+  const below = S.filter(q => q.film && !q.beyond && q.cl < r.stallAt.cl - 0.06);
+  const f0 = DB.compute(m, project.profiles, r, below[below.length - 1]);
+  assert.strictEqual(f0.stall.first, null, 'unter dem Abrissbeginn kein Abriss');
+  const f1 = DB.compute(m, project.profiles, r, beyond[1]);
+  assert.ok(f1.stall.first, 'über dem Abrissbeginn Abriss');
+});
