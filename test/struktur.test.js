@@ -173,3 +173,17 @@ test('Holmgurt aus Rovings: Anzahl × tex, linear oder elliptisch', () => {
   const d = S.analyze(m, project.profiles, r, { project });
   assert.ok(!d.wing.plan && !d.wing.rov && d.wing.stations.length === m.wing.stations.length);
 });
+
+test('CFK-Schlauch über den Holm: entlastet den Steg, schliesst die D-Box, kostet Masse', () => {
+  const { project, m, r } = setup();
+  m.loads = { n: 20, vMax: 50 };
+  const run = (sleeve, box) => { m.wing.struct = { spar: { sleeve, sleeveG: 200 }, web: { mat: 'rohacell', t: 12 }, shell: { box } }; return S.analyze(m, project.profiles, r, { project }).wing; };
+  const a = run(0, 'dbox'), b = run(1, 'dbox'), c = run(2, 'dbox');
+  near(b.stations[0].tSleeve, S.fabricT('cfk-gewebe', 200), 1e-9);
+  assert.ok(b.use[1].reserve > 2 * a.use[1].reserve, 'Steg entlastet');
+  assert.ok(c.use[1].reserve > b.use[1].reserve);
+  assert.ok(b.stations[0].GJ > 5 * a.stations[0].GJ, 'D-Box mit Kohle geschlossen');
+  assert.ok(b.massCalc > a.massCalc && c.massCalc > b.massCalc);
+  assert.strictEqual(b.use[1].label, 'Steg und Holmschlauch');
+  assert.strictEqual(a.stations[0].gjSleeve, 0);
+});
