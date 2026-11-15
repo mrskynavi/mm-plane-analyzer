@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <script>try{ const t=localStorage.getItem('mmpa.theme'); if (t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script>window.MMPA_BUILD = '70'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
+<script>window.MMPA_BUILD = '71'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
 <script src="core/profil.js"></script>
 <script src="core/nf-gewichte.js"></script>
 <script src="core/neuralfoil.js"></script>
@@ -16,7 +16,7 @@
 <script src="core/bibliothek.js"></script>
 <script src="core/vlm.js"></script>
 <script src="core/rumpf.js"></script>
-<script src="core/modell.js?v=68"></script>
+<script src="core/modell.js?v=71"></script>
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
 <script src="core/ordner.js"></script>
@@ -26,12 +26,13 @@
 <script src="core/fusion.js"></script>
 <script src="core/verlauf.js"></script>
 <script src="core/sfw.js"></script>
-<script src="core/modell3d.js?v=68"></script>
-<script src="core/druckbild.js?v=68"></script>
-<script src="core/struktur.js?v=70"></script>
-<script src="core/aeroelastik.js?v=68"></script>
-<script src="core/nachlauf.js?v=68"></script>
+<script src="core/modell3d.js?v=71"></script>
+<script src="core/druckbild.js?v=71"></script>
+<script src="core/struktur.js?v=71"></script>
+<script src="core/aeroelastik.js?v=71"></script>
+<script src="core/nachlauf.js?v=71"></script>
 <script src="core/import3d.js"></script>
+<script src="core/bauteile3d.js?v=71"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
 :root{
@@ -317,6 +318,29 @@ tr.low td{color:var(--warn)}
 .p3row input[type=number]{width:72px}
 .p3row .x{margin-left:auto;border:0;background:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px}
 .p3row .err{color:var(--bad)}
+.p3take{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:6px;padding:10px 12px;display:grid;gap:10px;font:.84rem var(--body)}
+.p3take h3{margin:0;font:600 .95rem var(--body);display:flex;gap:8px;align-items:center}
+.p3take h3 .x{margin-left:auto;border:0;background:none;color:var(--muted);font-size:1.2rem;cursor:pointer}
+.p3take .grp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center}
+.p3take .grp b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p3take .grp small{color:var(--muted);font-family:var(--mono);margin-left:6px}
+.p3take .seg button{padding:3px 9px;font-size:.8rem}
+.p3take .seg button i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:0}
+.p3take .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}
+.p3take .card{border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:grid;gap:6px;align-content:start;min-width:0}
+.p3take .card.off{opacity:.55}
+.p3take .card > label{font-weight:600;display:flex;gap:6px;align-items:center}
+.p3take .card > label i{display:inline-block;width:10px;height:10px;border-radius:2px}
+.p3take table{border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%}
+.p3take td,.p3take th{padding:2px 6px;text-align:right;font-size:.8rem}
+.p3take td:first-child,.p3take th:first-child{text-align:left;color:var(--muted)}
+.p3take th{font-weight:600;color:var(--muted)}
+.p3take td.ch{color:var(--accent);font-weight:600}
+.p3take svg{width:100%;height:auto;display:block;background:var(--bg);border-radius:4px}
+.p3take details summary{cursor:pointer;color:var(--muted)}
+.p3take details table td{font-family:var(--mono);font-size:.74rem}
+.p3take .foot{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.p3take .none{color:var(--muted)}
 .p3msg{position:absolute;inset:0;display:grid;place-items:center;font:.85rem var(--body);color:var(--muted);text-align:center;padding:16px}
 .st-table td,.st-table th{padding:3px 3px}
 .st-table th{white-space:normal;line-height:1.15;vertical-align:bottom;font-size:.66rem;letter-spacing:.03em}
@@ -841,7 +865,8 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <div class="p3bar p3flow"><span class="p3lbl">Strömung</span><label class="p3chk" title="Freie Wirbel hinter Flügel und Leitwerk: die Wirbelschicht rollt sich am Randbogen ein und sinkt ab"><input type="checkbox" id="p3wake"> Nachlauf</label><label class="p3chk" title="Rauchfäden: Stromlinien durch einen Rechen vor dem Flügel"><input type="checkbox" id="p3smoke"> Rauch</label><span class="p3wkc" id="p3smokec" hidden><span class="seg" id="p3rake" role="group" aria-label="Rauchrechen"><button type="button" data-r="quer" aria-pressed="true" title="Reihe von Fäden über die Spannweite">quer</button><button type="button" data-r="hoch" aria-pressed="false" title="Stapel von Fäden an einer Stelle der Spannweite">hoch</button></span><label class="p3chk"><span id="p3rakel">Höhe</span> <input type="range" id="p3rakev" min="-60" max="60" step="2" value="6"> <output id="p3rakeo"></output></label></span><label class="p3chk" title="Schnitt quer zur Flugrichtung: Abwindwinkel hinter dem Flügel und Querströmung um den Randwirbel"><input type="checkbox" id="p3plane"> Abwind-Ebene</label><span class="p3wkc" id="p3planec" hidden><label class="p3chk">Lage <input type="range" id="p3planex" min="0" max="100" step="1" value="-1"> <output id="p3planeo"></output></label><button type="button" class="btn ghost sm" id="p3planet" title="Ebene an das Höhenleitwerk legen">am HLW</button></span></div>
 <div class="p3key" id="p3key" hidden></div>
 <div class="p3key" id="p3fkey" hidden></div>
-<div class="p3imp" id="p3imp"></div></div></div></section>
+<div class="p3imp" id="p3imp"></div>
+<div class="p3take" id="p3take" hidden></div></div></div></section>
 </div>
 <div class="rview" data-view="fest" id="festOut" hidden></div>
 <div class="rview" data-view="dist" hidden>
@@ -3390,6 +3415,6 @@ renderAll();
 <script src="cloud-ui.js"></script>
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
-<script src="festigkeit-ui.js?v=70"></script>
-<script type="module" src="drei-ui.js?v=68"></script>
+<script src="festigkeit-ui.js?v=71"></script>
+<script type="module" src="drei-ui.js?v=71"></script>
 

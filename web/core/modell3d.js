@@ -127,9 +127,18 @@
   // Endkante am Rumpfende, Profil NACA 0009 (12 % ist für Modellseitenleitwerke zu dick)
   function fin(model, fuse, area, opts = {}) {
     if (!(area > 0)) return null;
-    const cr = 1.15 * F.finChord(area), ct = 0.6 * cr, hgt = 2 * area * 1e4 / (cr + ct);
-    const x3 = fuse.shape.x3, xr = x3 - cr, top = fuse.hAt(xr + cr / 2);
-    const z0 = fuse.zAxis + top.h * 0.6, sweep = (cr - ct) * 0.7;
+    let cr = 1.15 * F.finChord(area), ct = 0.6 * cr, hgt = 2 * area * 1e4 / (cr + ct), sweep = (cr - ct) * 0.7;
+    const x3 = fuse.shape.x3;
+    let xr = x3 - cr;
+    // Umriss aus dem 3D-Import (Bauteile übernehmen): Form wie gemessen, auf die Fläche der Rechnung skaliert
+    const g = (model.fuselage || {}).finGeo;
+    if (g && g.root > 0 && g.height > 0) {
+      const k = Math.sqrt(area * 1e4 / ((g.root + (g.tip || 0)) / 2 * g.height));
+      cr = g.root * k; ct = (g.tip || 0) * k; hgt = g.height * k; sweep = (g.sweep || 0) * k;
+      xr = Number.isFinite(g.x) && g.x < x3 && g.x + cr > x3 - cr ? g.x : x3 - cr;
+    }
+    const top = fuse.hAt(Math.min(xr + cr / 2, x3));
+    const z0 = fuse.zAxis + top.h * 0.6;
     const n = opts.n || 16, xs = P.cosspace(n);
     const half = x => 0.09 / 0.2 * (0.2969 * Math.sqrt(x) - 0.126 * x - 0.3516 * x * x + 0.2843 * x ** 3 - 0.1036 * x ** 4);
     const prof = [...xs.slice().reverse().map(x => [x, half(x)]), ...xs.slice(1).map(x => [x, -half(x)])];
