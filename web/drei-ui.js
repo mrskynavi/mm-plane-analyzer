@@ -171,7 +171,7 @@ const CP_MIN = -1.5, CP_MAX = 1;
 
 function syncWk(m, r) {
   if (r !== wkR) {
-    wkR = r; frames.clear(); pending.clear(); druckSeq++;
+    wkR = r; frames.clear(); pending.clear(); druckSeq++; flowGen++;
     wkStates = r && r.load ? DBild.states(m, r) : [];
     if (!wkStates.some(q => q.key === wkKey)) wkKey = 'trim';
     const sel = $id('p3state');
@@ -180,6 +180,7 @@ function syncWk(m, r) {
   }
   document.querySelectorAll('#p3layer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === layer)));
   if (layer === 'def') needFest(); else if (layer !== 'form') need([wkKey]);
+  needFlow();
 }
 function need(keys) {
   const m = lastArgs && lastArgs[0];
@@ -397,6 +398,7 @@ function setState(k) {
   if (layer !== 'form') need([k]);
   paint();
   if (lastArgs) loadBands(lastArgs[0], lastArgs[1]);
+  needFlow(true);
   render();
 }
 function stopFilm() {
@@ -425,6 +427,127 @@ $id('p3film').addEventListener('click', playFilm);
 $id('p3case').addEventListener('change', e => { defCase = e.target.value; paint(); render(); });
 $id('p3scale').addEventListener('click', e => { const b = e.target.closest('button[data-s]'); if (!b) return; defScale = +b.dataset.s; document.querySelectorAll('#p3scale button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); paint(); render(); });
 $id('p3lastv').addEventListener('change', e => { showBands = e.target.checked; if (lastArgs) loadBands(lastArgs[0], lastArgs[1]); key(frames.get(wkKey)); render(); });
+
+// ---------- Strömung (W3): freier Nachlauf, Rauchfäden, Abwind-Ebene ----------
+// Gerechnet im eigenen Worker (core/modell-worker.js, Nachricht kind 'nachlauf'). Der Nachlauf bleibt dort je
+// Modellrechnung und Flugzustand stehen; Rechen und Ebene verschieben rechnet nur diese neu.
+const flow = { wake: false, smoke: false, plane: false, rake: 'quer', h: 6, eta: 50, px: null };
+let flowRes = null, flowGroup = null, flowWorker = null, flowSeq = 0, flowGen = 0, flowReq = '', flowTimer = null;
+const flowOn = () => flow.wake || flow.smoke || flow.plane;
+function planeRange() {
+  const m = lastArgs && lastArgs[0]; if (!m) return [0, 1];
+  const x0 = m.wing.stations[0].chord * 1.05, b2 = wkR ? wkR.wing.projSpan / 2 : 1000;
+  return [x0, Math.max((flowRes ? flowRes.xEnd : (m.tail.x || 0) + 200) + 0.6 * b2, x0 + b2)];
+}
+function needFlow(now) {
+  const m = lastArgs && lastArgs[0], st = wkStates.find(q => q.key === wkKey);
+  if (!flowOn() || !m || !wkR || !st) { flowReq = ''; flowRes = flowOn() ? flowRes : null; drawFlow(); return; }
+  const opts = { want: { wake: flow.wake, smoke: flow.smoke, plane: flow.plane }, rake: { mode: flow.rake, h: flow.h, eta: flow.eta / 100 }, planeX: flow.px };
+  const key = flowGen + ':' + wkKey, req = key + JSON.stringify(opts);
+  if (req === flowReq) return;
+  flowReq = req;
+  clearTimeout(flowTimer);
+  flowTimer = setTimeout(() => {
+    if (!flowWorker) {
+      try {
+        flowWorker = new Worker('core/modell-worker.js?v=' + (window.MMPA_BUILD || ''));
+        flowWorker.onmessage = e => {
+          const d = e.data; if (d.kind !== 'nachlauf' || d.seq !== flowSeq) return;
+          if (d.error) { flowKey('Strömung: ' + d.error); return; }
+          flowRes = d.result; drawFlow(); render();
+        };
+        flowWorker.onerror = e => { e.preventDefault(); flowWorker.terminate(); flowWorker = null; flowReq = ''; flowKey('Strömung konnte nicht gerechnet werden.'); };
+      } catch (e) { flowKey('Strömung braucht Web Worker.'); return; }
+    }
+    if (!flowRes) flowKey('Strömung rechnet …');
+    flowWorker.postMessage({ kind: 'nachlauf', seq: ++flowSeq, key, model: m, profiles: project.profiles, r: wkR, state: { key: st.key, alpha: st.alpha, it: st.it }, opts });
+  }, now ? 0 : 80);
+}
+function flowKey(t) { const k = $id('p3fkey'); k.hidden = !t; k.innerHTML = t || ''; }
+const epsColor = (e, s) => { const t = Math.max(-1, Math.min(1, e / s)); return t >= 0 ? lerpCol(CP_MID, CP_LO, Math.sqrt(t)) : lerpCol(CP_MID, CP_HI, Math.sqrt(-t)); };
+function drawFlow() {
+  if (flowGroup) { scene.remove(flowGroup); flowGroup.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); flowGroup = null; }
+  const R = flowRes;
+  if (!scene || !R || !flowOn()) { flowKey(''); return; }
+  flowGroup = new THREE.Group();
+  const acc = new THREE.Color(cssVar('--accent') || '#0b6bcb'), fg = new THREE.Color(cssVar('--fg') || '#222');
+  const lineOf = (pts, sd, mat) => {
+    const a = new Float32Array(pts.length);
+    for (let i = 0; i < pts.length; i += 3) { a[i] = pts[i + 1] * sd; a[i + 1] = pts[i + 2]; a[i + 2] = pts[i]; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a, 3));
+    return new THREE.Line(g, mat);
+  };
+  if (flow.wake && R.wake) {
+    const gMax = Math.max(...R.wake.map(f => Math.abs(f.g)), 1e-9);
+    R.wake.forEach(f => {
+      const mat = new THREE.LineBasicMaterial({ color: acc, transparent: true, opacity: 0.18 + 0.82 * Math.sqrt(Math.abs(f.g) / gMax) });
+      flowGroup.add(lineOf(f.pts, 1, mat), lineOf(f.pts, -1, mat.clone()));
+    });
+  }
+  if (flow.smoke && R.smoke) {
+    const mat = new THREE.LineBasicMaterial({ color: fg, transparent: true, opacity: 0.8 });
+    R.smoke.forEach(p => { flowGroup.add(lineOf(p, 1, mat.clone())); if (flow.rake === 'quer') flowGroup.add(lineOf(p, -1, mat.clone())); });
+  }
+  let scale = 1;
+  if (flow.plane && R.plane) {
+    const P = R.plane, ny = P.ys.length, nz = P.zs.length;
+    scale = Math.max(1, Math.ceil(2 * Math.abs(R.info.epsTail || 0)));
+    [1, -1].forEach(sd => {
+      const pos = new Float32Array(ny * nz * 3), col = new Float32Array(ny * nz * 3), idx = [];
+      for (let j = 0; j < nz; j++) for (let i = 0; i < ny; i++) {
+        const k = j * ny + i, c = epsColor(P.eps[k], scale);
+        pos[k * 3] = P.ys[i] * sd; pos[k * 3 + 1] = P.zs[j]; pos[k * 3 + 2] = P.x;
+        col[k * 3] = c[0]; col[k * 3 + 1] = c[1]; col[k * 3 + 2] = c[2];
+        if (i && j) idx.push(k - ny - 1, k - ny, k, k - ny - 1, k, k - 1);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
+      flowGroup.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false })));
+      // Querströmung als Striche: Länge nach der Geschwindigkeit, bei schneller Strömung am Wirbelkern gekappt
+      const dy = P.ys[2] - P.ys[0], cap = 0.12, seg = [];
+      for (let j = 0; j < nz; j += 2) for (let i = 0; i < ny; i += 2) {
+        const k = j * ny + i, v = Math.hypot(P.vy[k], P.vz[k]), f = dy * 0.9 / cap * (v > cap ? cap / v : 1);
+        const y = P.ys[i] * sd, z = P.zs[j];
+        seg.push(y, z, P.x, y + P.vy[k] * f * sd, z + P.vz[k] * f, P.x);
+      }
+      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(seg), 3));
+      flowGroup.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: fg, transparent: true, opacity: 0.55 })));
+      const dots = new THREE.BufferGeometry(); dots.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(seg.filter((_, q) => q % 6 < 3)), 3));
+      flowGroup.add(new THREE.Points(dots, new THREE.PointsMaterial({ color: fg, size: 2.5, sizeAttenuation: false, transparent: true, opacity: 0.7 })));
+    });
+  }
+  scene.add(flowGroup);
+  // Erklärung
+  const I = R.info, de = n => n.toLocaleString('de-CH', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const st = wkStates.find(q => q.key === R.state.key);
+  let t = `<div><b>Strömung${st ? ' · ' + st.label : ''}</b> · Abwind am Höhenleitwerk ${de(I.epsTail)}° (gerader Nachlauf ${de(I.epsStraight)}°)`;
+  if (I.core) t += ` · Randwirbel am HLW bei ${Math.round(100 * I.core.y / R.semi)} % der Halbspannweite`;
+  t += '</div><div class="leg">';
+  if (flow.plane && R.plane) t += `<span>Aufwind −${scale}° <span class="bar" style="background:linear-gradient(90deg,rgb(217,64,51),rgb(237,237,235),rgb(31,84,217))"></span> +${scale}° Abwind</span><span>Ebene ${Math.round(R.plane.x)} mm hinter der Flügelnase, Striche = Querströmung</span>`;
+  t += '<span>reibungsfrei, ohne Rumpf und ohne Ablösung</span></div>';
+  flowKey(t);
+  const [x0, x1] = planeRange(), px = flow.px ?? R.tailX;
+  $id('p3planex').value = String(Math.round(100 * (px - x0) / (x1 - x0)));
+  $id('p3planeo').textContent = Math.round(px) + ' mm';
+}
+function flowUi() {
+  $id('p3smokec').hidden = !flow.smoke; $id('p3planec').hidden = !flow.plane;
+  const hoch = flow.rake === 'hoch', sl = $id('p3rakev');
+  $id('p3rakel').textContent = hoch ? 'bei' : 'Höhe';
+  sl.min = hoch ? 0 : -60; sl.max = hoch ? 110 : 60; sl.step = hoch ? 5 : 2; sl.value = hoch ? flow.eta : flow.h;
+  $id('p3rakeo').textContent = hoch ? flow.eta + ' % Halbspannweite' : (flow.h > 0 ? '+' : '') + flow.h + ' mm';
+  document.querySelectorAll('#p3rake button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.r === flow.rake)));
+}
+[['p3wake', 'wake'], ['p3smoke', 'smoke'], ['p3plane', 'plane']].forEach(([id, k]) => $id(id).addEventListener('change', e => {
+  flow[k] = e.target.checked;
+  if (flowOn() && !showModel) { showModel = true; $id('p3model').checked = true; redraw(); }
+  flowUi(); needFlow(true); render();
+}));
+$id('p3rake').addEventListener('click', e => { const b = e.target.closest('button[data-r]'); if (!b) return; flow.rake = b.dataset.r; flowUi(); needFlow(true); });
+$id('p3rakev').addEventListener('input', e => { if (flow.rake === 'hoch') flow.eta = +e.target.value; else flow.h = +e.target.value; flowUi(); needFlow(); });
+$id('p3planex').addEventListener('input', e => { const [x0, x1] = planeRange(); flow.px = x0 + (x1 - x0) * e.target.value / 100; $id('p3planeo').textContent = Math.round(flow.px) + ' mm'; needFlow(); });
+$id('p3planet').addEventListener('click', () => { flow.px = null; needFlow(true); });
+flowUi();
 
 // ---------- Importierte 3D-Dateien (3MF, OBJ, STL, STEP) ----------
 // Je Modell gespeichert in IndexedDB „mmpa-3d“ (nur dieses Gerät): Datei als Bytes und die gewählte Lage.
