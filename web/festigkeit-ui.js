@@ -18,6 +18,18 @@
   };
   const matField = (label, k, v, mats) => `<label class="field"><span>${label}</span>${matSel(k, v, mats)}</label>`;
 
+  // Gurt aus Rovings: Anzahl je Gurt an Wurzel und Rand, Roving aus dem Handel, Faseranteil, Abnahme
+  function sparRov(sp) {
+    const list = S.texList(sp.mat), has = list.some(([t]) => t === +sp.tex);
+    const r = S.rovOf(sp, S.materials(project));
+    return `${num('Rovings je Gurt Wurzel', 'spar.n0', sp.n0, 'Stk', 1, 'min="1"')}
+    ${num('… am Rand mindestens', 'spar.n1', sp.n1, 'Stk', 1, 'min="1" title="So viele Rovings laufen bis zum Rand durch"')}
+    <label class="field"><span>Roving</span><select data-k="spar.tex" data-num>${(has ? list : [[+sp.tex, sp.tex + ' tex'], ...list]).map(([t, l]) => `<option value="${t}"${t === +sp.tex ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="field"><span>Faseranteil</span><span class="row"><input type="range" min="35" max="65" step="1" data-k="spar.phi" value="${sp.phi}" aria-label="Faseranteil" style="flex:1;min-width:0"><output data-out="spar.phi" style="white-space:nowrap;min-width:3.2em;text-align:right">${sp.phi} %</output></span></label>
+    ${seg('Abnahme der Rovings', 'spar.taper', sp.taper, [['linear', 'linear'], ['ellipse', 'elliptisch']])}
+    <p class="hint" style="grid-column:1/-1;margin:0">Ein Roving gibt ${fmt(r.a1, 2)} mm² Laminat, bei ${fmt(sp.b, 1)} mm Gurtbreite ${fmt(r.a1 / Math.max(sp.b, 0.1), 2)} mm Dicke. Wurzel ${fmt(sp.n0 * r.a1 / Math.max(sp.b, 0.1), 2)} mm. Handlaminat liegt bei 45 bis 55 % Faser. „elliptisch“ verteilt die Rovings so, dass sich der Flügel unter Last als Ellipsenbogen biegt.</p>`;
+  }
+
   function renderIn() {
     const m = curModel(); if (!m) return;
     const mats = S.materials(project), L = S.loadsOf(m), st = S.structOf(m, part), j = st.joiner;
@@ -50,10 +62,12 @@
     ${num('Holmlage', 'spar.pos', st.spar.pos, '% Tiefe', 1, 'min="5" max="70"')}
     ${matField('Gurt Material', 'spar.mat', st.spar.mat, mats)}
     ${num('Gurtbreite', 'spar.b', st.spar.b, 'mm', 0.5, 'min="0"')}
-    ${num('Gurtdicke Wurzel', 'spar.t0', st.spar.t0, 'mm', 0.1, 'min="0"')}
-    ${num('Gurtdicke Rand', 'spar.t1', st.spar.t1, 'mm', 0.1, 'min="0"')}
+    ${seg('Gurt angeben als', 'spar.input', st.spar.input, [['dicke', 'Dicke'], ['roving', 'Rovings']])}
+    ${st.spar.input === 'roving' ? sparRov(st.spar) : num('Gurtdicke Wurzel', 'spar.t0', st.spar.t0, 'mm', 0.1, 'min="0"') + num('Gurtdicke Rand', 'spar.t1', st.spar.t1, 'mm', 0.1, 'min="0"')}
     ${matField('Steg Material', 'web.mat', st.web.mat, mats)}
-    ${num('Stegdicke', 'web.t', st.web.t, 'mm', 0.5, 'min="0"')}
+    ${num('Stegbreite', 'web.t', st.web.t, 'mm', 0.5, 'min="0" title="Mass des Stegs in Flügeltiefe (Flugrichtung). Die Höhe ergibt sich aus der Profildicke an der Stelle minus Schale und Gurte."')}
+    ${seg('CFK-Schlauch über den Holm', 'spar.sleeve', String(S.sleeveOf(st.spar).layers), [['0', 'ohne'], ['1', '1 Lage'], ['2', '2 Lagen']])}
+    ${S.sleeveOf(st.spar).layers ? num('Schlauch Flächengewicht', 'spar.sleeveG', S.sleeveOf(st.spar).g, 'g/m²', 10, 'min="20" title="Flächengewicht des flach gelegten Geflechts, trocken. Gerechnet als ±45° um Gurte und Steg."') + `<p class="hint" style="grid-column:1/-1;margin:0">Der Schlauch liegt um Gurte und Steg: ${fmt(S.fabricT(S.SLEEVE_MAT, S.sleeveOf(st.spar).g), 2)} mm Laminat je Lage. Er trägt Querkraft mit (der Steg wird entlastet), schliesst den Holm zu einem Kasten und bei der D-Box die Rückwand mit Kohle.</p>` : ''}
     ${seg('Torsionskasten', 'shell.box', st.shell.box, [['voll', 'ganze Schale'], ['dbox', 'D-Box bis Holm']])}
     ${seg('Füllung', 'fill', st.fill, [['hohl', 'hohl'], ['styro', 'Styro'], ['rippen', 'Rippen']])}
     ${num('Masse gewogen', 'mass', st.mass ?? '', 'g', 10, 'min="0" placeholder="gerechnet" title="Beide Hälften. Leer = aus dem Aufbau gerechnet"')}
@@ -116,6 +130,19 @@
       if (!m[part].struct.joiner) delete m[part].struct.joiner;
       if (!m[part].struct.link) delete m[part].struct.link;
       if (m[part].struct.mass == null) delete m[part].struct.mass;
+    } else if (a === 'spar' && (b === 'sleeve' || b === 'sleeveG')) {
+      s.spar = { ...(s.spar || {}), [b]: +v };
+      if (b === 'sleeve' && !(+v > 0)) delete s.spar.sleeve;
+    } else if (a === 'spar' && b === 'input') {
+      // Wechsel auf Rovings: Anzahl aus der bisherigen Gurtdicke, Material Kohle-Rovings falls bisher Holz oder Stab
+      const cur = S.structOf(m, part).spar;
+      s.spar = { ...(s.spar || {}), input: v };
+      if (v === 'roving') {
+        if (!(S.MATERIALS[cur.mat] && S.MATERIALS[cur.mat].rovRho)) s.spar.mat = 'cfk-roving';
+        if (!(s.spar.n0 >= 1)) { const r = S.sparOf({ ...cur, mat: s.spar.mat || cur.mat, n0: null, n1: null }); s.spar.n0 = r.n0; s.spar.n1 = r.n1; }
+      }
+    } else if (a === 'spar' && b === 'mat' && S.structOf(m, part).spar.input === 'roving' && S.texList(v) !== S.texList(S.structOf(m, part).spar.mat)) {
+      s.spar = { ...(s.spar || {}), mat: v, tex: S.texList(v) === S.TEX.glas ? 1200 : 1600 };
     } else if (b) { s[a] = { ...(s[a] || {}), [b]: v }; }
     else if (v === '' || v == null || (a === 'mass' && !(+v > 0))) delete s[a];
     else s[a] = v;
@@ -125,7 +152,7 @@
   IN.addEventListener('change', e => {
     const t = e.target, m = curModel();
     if (t.dataset.k) {
-      const k = t.dataset.k, isNum = t.type === 'number', v = isNum ? (t.value === '' ? '' : +t.value) : t.value;
+      const k = t.dataset.k, isNum = t.type === 'number' || t.type === 'range' || t.dataset.num != null, v = isNum ? (t.value === '' ? '' : +t.value) : t.value;
       if (isNum && v !== '' && !Number.isFinite(v)) return;
       if (k.startsWith('loads.')) {
         const f = k.slice(6); m.loads = { ...(m.loads || {}) };
@@ -134,7 +161,7 @@
         changed(false);
       } else if (k === 'link.cuts') {
         setStruct(k, t.value.split(/[;,\s]+/).map(x => parseFloat(x)).filter(x => Number.isFinite(x) && x > 0).sort((a, b) => a - b)); changed(true);
-      } else { setStruct(k, v); changed(k === 'joiner.form' || k.startsWith('layer.')); }
+      } else { setStruct(k, v); changed(k === 'joiner.form' || k.startsWith('layer.') || k.startsWith('spar.')); }
     } else if (t.dataset.mk) {
       const [id, f] = t.dataset.mk.split('.');
       project.materials = project.materials || {};
@@ -142,6 +169,7 @@
       changed(f === 'name' || !!S.MATERIALS[id]);
     }
   });
+  IN.addEventListener('input', e => { const o = e.target.dataset.k && IN.querySelector(`output[data-out="${e.target.dataset.k}"]`); if (o) o.textContent = e.target.value + ' %'; });
   IN.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     const m = curModel();
@@ -213,6 +241,12 @@
   <div class="cbox"><div class="ct">Reserve <span>min. <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festR"></canvas></div><div class="legend cleg" id="festRLeg"></div></div>
   <div class="cbox"><div class="ct">Steifigkeit <span>EI und GJ in N·m² <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festEI"></canvas></div><div class="legend cleg" id="festEILeg"></div></div>
 </div>
+<section class="pol-box rv-sec" id="festRov" hidden><div class="pol-head"><h3 class="sub">Holmgurt: Aufteilung der Rovings</h3><span class="status" id="festRovMeta"></span></div>
+  <p class="hint" id="festRovHint"></p><div class="tablewrap"><table id="festRovTab"></table></div><p class="hint" id="festRovNote"></p></section>
+<div class="charts" id="festRovCharts" hidden>
+  <div class="cbox"><div class="ct">Biegelinie <span>w in mm <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festRovW"></canvas></div><div class="legend cleg" id="festRovWLeg"></div></div>
+  <div class="cbox"><div class="ct">Rovings je Gurt <span>Anzahl <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festRovN"></canvas></div><div class="legend cleg" id="festRovNLeg"></div></div>
+</div>
 <section class="pol-box rv-sec" id="festAero"><div class="pol-head"><h3 class="sub">Aeroelastik Flügel</h3><span class="status" id="festAeroMeta"></span></div>
   <div class="tablewrap"><table id="festAeroLim"></table></div><p class="hint" id="festAeroHint"></p>
   <div class="tablewrap"><table id="festAeroSweep"></table></div><p class="hint" id="festAeroNote"></p></section>
@@ -263,6 +297,7 @@
     chart('festEI', 'y in mm', 'N·m²', [plain('EI Biegung', 0, P.EI), plain('GJ Torsion', 2, P.GJ)]);
     $('festEILeg').innerHTML = `<span><i style="background:${col(0)}"></i>EI Biegung</span><span><i style="background:${col(2)}"></i>GJ Torsion</span>`;
 
+    renderRov(P);
     renderAero(a, P);
 
     const j = P.joiner;
@@ -276,8 +311,44 @@
     $('festServoHint').textContent = sv.length ? `Bei ${fmt(me.loads.vMax * 3.6, 0)} km/h, je Hälfte und Ruder, der grössere Wert aus Ausschlag nach oben und unten. Ruderhorn, Servoarm und Trennstellen aus „Anlenkung“: jede Zeile ist ein Ruder mit einem Servo. Ein Servo sollte etwa das Doppelte halten.` : '';
 
     $('festSt').innerHTML = `<thead><tr><th>y mm</th><th>Tiefe mm</th><th>Holmhöhe mm</th><th>Gurtdicke mm</th><th>Gurtfläche mm²</th><th>Steghöhe mm</th><th>Schale mm</th><th>EI N·m²</th><th>GJ N·m²</th><th>Masse g/m</th></tr></thead><tbody>` +
-      P.stations.map(s => `<tr><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td${s.hOut < 2 * s.tCap ? ' class="warn" title="Gurte passen nicht in die Profilhöhe"' : ''}>${fmt(s.hOut, 1)}</td><td>${fmt(s.tCap, 2)}</td><td>${fmt(s.aCap, 1)}</td><td>${fmt(s.hWeb, 1)}</td><td>${fmt(s.tShell, 2)}</td><td>${fmt(s.EI / 1e6, 1)}</td><td>${fmt(s.GJ / 1e6, 1)}</td><td>${fmt(s.massPerM * P.scale, 0)}</td></tr>`).join('') + '</tbody>';
+      P.stations.filter(s => s.st !== false).map(s => `<tr><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td${s.capCut ? ' class="warn" title="Gurte passen nicht in die Profilhöhe"' : ''}>${fmt(s.hOut, 1)}</td><td>${s.n != null ? s.n + ' Stk · ' : ''}${fmt(s.tCap, 2)}</td><td>${fmt(s.aCap, 1)}</td><td>${fmt(s.hWeb, 1)}</td><td>${fmt(s.tShell, 2)}</td><td>${fmt(s.EI / 1e6, 1)}</td><td>${fmt(s.GJ / 1e6, 1)}</td><td>${fmt(s.massPerM * P.scale, 0)}</td></tr>`).join('') + '</tbody>';
     $('festMass').textContent = `${NAME[part]} beide Hälften: ${fmt(P.massCalc, 0)} g aus dem Aufbau gerechnet${P.struct.mass ? `, gewogen ${fmt(P.struct.mass, 0)} g (Verteilung darauf skaliert)` : ''}, ohne Verbinder, Servos und Harz für Verklebungen.`;
+  }
+
+  // Holmgurt aus Rovings: wo welcher Roving endet, Biegelinie gegen den Ellipsenbogen und gegen die andere Abnahme
+  function renderRov(P) {
+    const R = P.rov, pl = P.plan, show = !!(R && pl);
+    $('festRov').hidden = !show; $('festRovCharts').hidden = !show;
+    if (!show) return;
+    const ell = pl.mode === 'ellipse', oth = R.other, name = q => (q.mode === 'ellipse' ? 'elliptisch' : 'linear');
+    const texName = (S.texList(P.struct.spar.mat).find(([t]) => t === pl.tex) || [0, pl.tex + ' tex'])[1];
+    $('festRovMeta').textContent = `${name(pl)} · ${texName} · ${fmt(pl.phi * 100, 0)} % Faser`;
+    $('festRovHint').textContent = `Je Gurt (oben und unten gleich), je Flügelhälfte, y ab Rumpfmitte. ${pl.n0} Rovings an der Wurzel, ${pl.n1} laufen bis zum Rand durch. Die Enden sind auf 5 mm gerundet.`;
+    const rows = [...pl.ends].sort((x, y) => x.y - y.y || y.k - x.k);
+    let left = pl.n0;
+    $('festRovTab').innerHTML = `<thead><tr><th>Roving</th><th>endet bei y mm</th><th>Länge mm</th><th>danach im Gurt</th><th>Gurtdicke dort mm</th></tr></thead><tbody>` +
+      rows.map(e => { left--; const st = P.stations.find(q => q.y > e.y + 0.4) || P.stations[P.stations.length - 1]; return `<tr><td>Nr. ${e.k}</td><td>${fmt(e.y, 0)}</td><td>${fmt(e.y - pl.y0, 0)}</td><td>${left}</td><td>${fmt(st.tCap, 2)}</td></tr>`; }).join('') +
+      `<tr><td>Nr. 1–${pl.n1}</td><td>Rand ${fmt(pl.yEnd, 0)}</td><td>${fmt(pl.yEnd - pl.y0, 0)}</td><td>–</td><td>${fmt(P.stations[P.stations.length - 1].tCap, 2)}</td></tr></tbody>`;
+    const d = R.fiberOther.g - R.fiber.g;
+    $('festRovNote').textContent = [`Rovings zusammen ${fmt(R.fiber.len / 1000, 2)} m je Gurt und Hälfte, ${fmt(R.fiber.g, 0)} g Faser trocken für beide Hälften (${name(oth)}: ${fmt(R.fiberOther.g, 0)} g, ${d >= 0 ? 'also ' + fmt(d, 0) + ' g mehr' : fmt(-d, 0) + ' g weniger'}).`,
+      `Biegelinie im Lastfall „${R.caseLabel}“, nach dem auch die elliptische Aufteilung gerechnet ist.`,
+      ell ? 'Kein Gurt wird dabei stärker gedehnt als an der Wurzel. Wo aussen nur noch die Mindestzahl liegt, ist der Flügel etwas steifer als die Ellipse.' : 'Bei linearer Abnahme biegt sich der Innenflügel stärker, aussen bleibt er fast gerade.',
+      ...(pl.notes || [])].join(' ');
+    const col = i => css(COLS[i % COLS.length]);
+    const pts = arr => P.ys.map((y, k) => ({ x: y, y: arr[k] }));
+    const ds = [
+      { label: name(pl), data: pts(R.w), showLine: true, borderColor: col(0), backgroundColor: col(0), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 },
+      { label: name(oth), data: pts(R.wOther), showLine: true, borderColor: col(2), backgroundColor: col(2), borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, pointHoverRadius: 4 },
+    ];
+    if (R.target) ds.push({ label: 'Ellipsenbogen', data: pts(R.target), showLine: true, borderColor: css('--muted'), backgroundColor: css('--muted'), borderWidth: 1.2, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 4 });
+    chart('festRovW', 'y in mm', 'w in mm', ds);
+    $('festRovWLeg').innerHTML = ds.map(q => `<span><i style="background:${q.borderColor}"></i>${esc(q.label)}</span>`).join('');
+    const steps = q => { const out = [{ x: q.y0, y: q.n0 }]; let n = q.n0; [...q.ends].sort((x, y) => x.y - y.y).forEach(e => { out.push({ x: e.y, y: n }); n--; out.push({ x: e.y, y: n }); }); out.push({ x: q.yEnd, y: n }); return out; };
+    chart('festRovN', 'y in mm', 'Rovings', [
+      { label: name(pl), data: steps(pl), showLine: true, borderColor: col(0), backgroundColor: col(0), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 },
+      { label: name(oth), data: steps(oth), showLine: true, borderColor: col(2), backgroundColor: col(2), borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, pointHoverRadius: 4 },
+    ], { y: { min: 0 } });
+    $('festRovNLeg').innerHTML = `<span><i style="background:${col(0)}"></i>${name(pl)}</span><span><i style="background:${col(2)}"></i>${name(oth)}</span>`;
   }
 
   // Aeroelastik (F3): Grenzen, Verwindung im Flug, Ruderwirksamkeit, Eichung an der Messung

@@ -133,3 +133,57 @@ test('Gewebe: Flächengewicht statt Dicke', () => {
   assert.equal(L[2].g, 48);                       // alte Projekte mit Dicke: Gewicht wird daraus bestimmt
   assert.ok(Math.abs(L[2].t - 0.05) < 0.002);
 });
+
+test('Holmgurt aus Rovings: Anzahl × tex, linear oder elliptisch', () => {
+  const { project, m, r } = setup();
+  m.loads = { n: 20, vMax: 50 };
+  // 24k-Roving 1600 tex bei 50 % Faser: 1600 / 1780 / 0,5 = 1,80 mm² Laminat
+  const sp = S.sparOf(S.TEMPLATES.schale.spar, { input: 'roving', tex: 1600, phi: 50 });
+  assert.ok(Math.abs(S.rovOf(sp).a1 - 1600 / 1780 / 0.5) < 1e-9);
+  assert.strictEqual(sp.n0, Math.round(12 * 1.2 / S.rovOf(sp).a1)); // aus der bisherigen Gurtdicke
+  assert.strictEqual(S.texList('gfk-roving'), S.TEX.glas);
+  const res = {};
+  for (const taper of ['linear', 'ellipse']) {
+    m.wing.struct = { spar: { input: 'roving', tex: 800, phi: 50, taper, n0: 24, n1: 2 } };
+    const a = S.analyze(m, project.profiles, r, { project }), P = a.wing, pl = P.plan;
+    assert.strictEqual(pl.mode, taper);
+    assert.strictEqual(pl.ends.length, 22);
+    // Stationen tragen die Anzahl, nach aussen nie mehr, an der Wurzel n0, am Rand n1
+    const ns = P.stations.map(q => q.n);
+    for (let i = 1; i < ns.length; i++) assert.ok(ns[i] <= ns[i - 1]);
+    assert.strictEqual(ns[0], 24); assert.strictEqual(ns[ns.length - 1], 2);
+    assert.strictEqual(S.countAt(pl, 0), 24);
+    // Gurtfläche = n · Roving, solange er in die Profilhöhe passt
+    const q = P.stations[0]; if (!q.capCut) near(q.aCap, 24 * 800 / 1780 / 0.5, 1e-6);
+    assert.ok(P.rov && P.rov.w.length === P.ys.length && P.rov.fiber.g > 0);
+    assert.strictEqual(P.stations.filter(x => x.st).length, m.wing.stations.length);
+    res[taper] = { P, n: P.ys.length };
+  }
+  // linear biegt sich innen stärker, elliptisch mehr nach aussen hin und spart Rovings
+  const mid = x => x.P.rov.w[x.n >> 1] / x.P.rov.w[x.n - 1];
+  assert.ok(mid(res.ellipse) < mid(res.linear), `${mid(res.ellipse)} < ${mid(res.linear)}`);
+  assert.ok(res.ellipse.P.rov.fiber.g < res.linear.P.rov.fiber.g);
+  // elliptisch: kein Gurt stärker gedehnt als an der Wurzel (2 % Rundung), Biegelinie nahe am Ellipsenbogen
+  const P = res.ellipse.P, c = P.cases.find(x => x.key === P.rov.caseKey);
+  c.eps.forEach(e => assert.ok(e <= c.eps[0] * 1.05, `Dehnung ${e} > ${c.eps[0]}`));
+  const tip = P.rov.target[res.ellipse.n - 1];
+  assert.ok(Math.abs(P.rov.w[res.ellipse.n - 1] - tip) < 0.25 * tip, `Rand ${P.rov.w[res.ellipse.n - 1]} vs Ellipse ${tip}`);
+  // Dickenangabe bleibt wie bisher
+  m.wing.struct = { spar: { t0: 1.2, t1: 0.3 } };
+  const d = S.analyze(m, project.profiles, r, { project });
+  assert.ok(!d.wing.plan && !d.wing.rov && d.wing.stations.length === m.wing.stations.length);
+});
+
+test('CFK-Schlauch über den Holm: entlastet den Steg, schliesst die D-Box, kostet Masse', () => {
+  const { project, m, r } = setup();
+  m.loads = { n: 20, vMax: 50 };
+  const run = (sleeve, box) => { m.wing.struct = { spar: { sleeve, sleeveG: 200 }, web: { mat: 'rohacell', t: 12 }, shell: { box } }; return S.analyze(m, project.profiles, r, { project }).wing; };
+  const a = run(0, 'dbox'), b = run(1, 'dbox'), c = run(2, 'dbox');
+  near(b.stations[0].tSleeve, S.fabricT('cfk-gewebe', 200), 1e-9);
+  assert.ok(b.use[1].reserve > 2 * a.use[1].reserve, 'Steg entlastet');
+  assert.ok(c.use[1].reserve > b.use[1].reserve);
+  assert.ok(b.stations[0].GJ > 5 * a.stations[0].GJ, 'D-Box mit Kohle geschlossen');
+  assert.ok(b.massCalc > a.massCalc && c.massCalc > b.massCalc);
+  assert.strictEqual(b.use[1].label, 'Steg und Holmschlauch');
+  assert.strictEqual(a.stations[0].gjSleeve, 0);
+});
