@@ -284,6 +284,8 @@ function needFest() {
     if (layer === 'def') { paint(); render(); }
   });
 }
+// wie lin, aber über das letzte Stück hinaus mit dessen Steigung weiter (Randbogen ausserhalb der letzten Station)
+const linX = (xs, arr, x) => { const n = xs.length; if (n > 1 && x > xs[n - 1]) return arr[n - 1] + (arr[n - 1] - arr[n - 2]) / ((xs[n - 1] - xs[n - 2]) || 1) * (x - xs[n - 1]); return lin(xs, arr, x); };
 const lin = (xs, arr, x) => { if (x <= xs[0]) return arr[0]; for (let i = 1; i < xs.length; i++) if (x <= xs[i]) { const t = (x - xs[i - 1]) / (xs[i] - xs[i - 1]); return arr[i - 1] + (arr[i] - arr[i - 1]) * t; } return arr[arr.length - 1]; };
 function reserveColor(r) {
   const t = Math.min(1, Math.max(0, r - 1)); // 1 → rot, 2 → grün
@@ -311,7 +313,7 @@ function deform() {
     const res = Pt.ys.map((_, i) => Math.min(c.rCap[i], c.rWeb[i], c.rShell[i], c.rTors[i]) / fN);
     for (let i = 0; i < n; i++) {
       const x = A[i * 3], y = A[i * 3 + 1], z = A[i * 3 + 2], ya = Math.abs(y);
-      const w = lin(Pt.ys, c.w, ya) * defScale * fN, ph = lin(Pt.ys, c.phi, ya) * defScale * fN * Math.PI / 180, xs = lin(yS, xS, ya);
+      const w = linX(Pt.ys, c.w, ya) * defScale * fN, ph = linX(Pt.ys, c.phi, ya) * defScale * fN * Math.PI / 180, xs = lin(yS, xS, ya);
       // Verwindung um die Holmachse (Nase hoch positiv), dann Durchbiegung nach oben
       out[i * 3] = xs + (x - xs) * Math.cos(ph); out[i * 3 + 1] = y; out[i * 3 + 2] = z - (x - xs) * Math.sin(ph) + w;
       const cc = reserveColor(lin(Pt.ys, res, ya));

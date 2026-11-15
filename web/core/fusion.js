@@ -101,9 +101,10 @@
     });
     // Randbogen: aus den letzten zwei Stationen hochrechnen, wo die Tiefe null wird (Ellipse: c² fällt
     // linear zur Spitze hin), und den Punkt in der Profilmitte dort als Ende des Lofts.
+    // tipShape 'gerade': Fläche endet an der letzten Station (abgeschnitten wie beim Vorbild), sonst Ellipse hinaus
     let tip = null;
     const a = out[out.length - 2], b = out[out.length - 1], cMax = Math.max(...out.map(q => q.chord));
-    if (a && b && b.chord < a.chord && b.chord < 0.5 * cMax && b.y > a.y) {
+    if ((model[part] || {}).tipShape !== 'gerade' && a && b && b.chord < a.chord && b.chord < 0.5 * cMax && b.y > a.y) {
       const dy = b.y - a.y, d = Math.min(dy, b.chord * b.chord / ((a.chord * a.chord - b.chord * b.chord) / dy));
       const mid = q => {
         const iLe = q.pts.reduce((m, p, j) => (p[0] < q.pts[m][0] ? j : m), 0), xs = q.pts[iLe][0] + q.chord / 2;
