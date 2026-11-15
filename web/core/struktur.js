@@ -197,7 +197,7 @@
       const hIn = Math.max(0, hOut - 2 * tS);                                // Platz im Schlauch
       const tCap = Math.max(0, Math.min(want, hIn / 2));
       const aCap = S.spar.b * tCap;                                          // je Gurt
-      const hWeb = Math.max(0, hIn - 2 * tCap), tWeb = +S.web.t || 0;
+      const hWeb = Math.max(0, hIn - 2 * tCap), tWeb = Math.max(0, (+S.web.t || 0) + ((S.web.t1 === '' || S.web.t1 == null ? +S.web.t || 0 : +S.web.t1) - (+S.web.t || 0)) * f);
       const per = (S.shell.box === 'dbox' ? c.perBox : c.per) * c0;
       const aProf = c.area * c0 * c0;
       const Ec = mc ? mc.E * (rov ? rov.kE : 1) : 0;
