@@ -104,6 +104,8 @@
       joiner: { ...JOINER[part], ...(s.joiner || {}) },
       link: { ...LINK, ...(s.link || {}) },
       mass: Number.isFinite(s.mass) && s.mass > 0 ? s.mass : null, // gewogene Masse beider Hälften in g
+      // Aeroelastik: Schwerpunkt des Flügelschnitts in % Tiefe; Messung am eingespannten Flügel (Gewicht bei y → Durchbiegung, Moment bei y → Verdrehung)
+      aero: { ...(s.aero || {}), cg: s.aero && +s.aero.cg > 0 ? +s.aero.cg : 40 },
     };
   }
   const loadsOf = model => ({ ...LOADS, ...(model.loads || {}) });
@@ -186,7 +188,7 @@
       const y = ys[i], g = k => lerpSt(rows, y, k);
       const EI = Math.max(g('EI'), 1), GJ = g('GJ'), Mb = c.M[i] * 1000, T = c.T[i] * 1000, Q = c.Q[i];
       const k = Mb / EI;                                   // Krümmung 1/mm
-      kap.push(k); tw.push(GJ > 0 ? T / GJ : 0);
+      kap.push(k / (rows.kEI || 1)); tw.push(GJ > 0 ? T / (GJ * (rows.kGJ || 1)) : 0); // Verformung mit der geeichten Steifigkeit
       // Gurte: Dehnung am äusseren Rand
       const eT = -k * g('zCapT'), eB = -k * g('zCapB');    // oben, unten (positiv = Zug)
       const lim = e => (e >= 0 ? mc.sigT : mc.sigC) / mc.E;
@@ -225,6 +227,25 @@
     const a = rows[i - 1], b = rows[i], t = Math.min(1, Math.max(0, (y - a.y) / ((b.y - a.y) || 1)));
     return a[k] + (b[k] - a[k]) * t;
   };
+  // Eichung an einer Messung: Flügelhälfte an der Wurzel eingespannt, Gewicht (g) bei y → Durchbiegung dort (mm);
+  // Moment (N·cm) bei y → Verdrehung dort (°). Faktor = gerechnete / gemessene Verformung, gilt für EI bzw. GJ.
+  function calib(rows, aero) {
+    const out = { kEI: 1, kGJ: 1 }, num = v => (Number.isFinite(+v) && +v > 0 ? +v : 0), N = 200;
+    const yEnd = rows[rows.length - 1].y;
+    const P = num(aero.bendMass) / 1000 * G0, yb = Math.min(num(aero.bendY) || yEnd, yEnd), wm = num(aero.bendW);
+    if (P && wm) {
+      let w = 0; const dy = yb / N;
+      for (let i = 0; i <= N; i++) { const y = i * dy, f = P * (yb - y) ** 2 / Math.max(lerpSt(rows, y, 'EI'), 1); w += f * (i === 0 || i === N ? 0.5 : 1) * dy; }
+      out.bend = { calc: w, meas: wm, y: yb }; out.kEI = w / wm;
+    }
+    const T = num(aero.torsM) * 10, yt = Math.min(num(aero.torsY) || yEnd, yEnd), pm = num(aero.torsPhi);
+    if (T && pm) {
+      let ph = 0, ok = true; const dy = yt / N;
+      for (let i = 0; i <= N; i++) { const g = lerpSt(rows, i * dy, 'GJ'); if (!(g > 0)) { ok = false; break; } ph += T / g * (i === 0 || i === N ? 0.5 : 1) * dy; }
+      if (ok) { out.tors = { calc: ph * 180 / Math.PI, meas: pm, y: yt }; out.kGJ = out.tors.calc / pm; }
+    }
+    return out;
+  }
   // Masse beider Hälften in g (Trapezregel über die Stationen), ohne Verbinder
   function massOf(rows) {
     let m = 0;
@@ -306,7 +327,8 @@
       const str = structOf(model, part), rows = stations(model, profiles, part, mats);
       const calc = massOf(rows), scale = str.mass && calc > 0 ? str.mass / calc : 1;
       const yEnd = rows[rows.length - 1].y, N = 40, ys = Array.from({ length: N + 1 }, (_, i) => yEnd * i / N);
-      parts[part] = { struct: str, stations: rows, massCalc: calc, mass: str.mass || calc, ys, cases: [], surf, scale };
+      const cal = calib(rows, str.aero); rows.kEI = cal.kEI; rows.kGJ = cal.kGJ;
+      parts[part] = { struct: str, stations: rows, massCalc: calc, mass: str.mass || calc, ys, cases: [], surf, scale, calib: cal };
     }
 
     for (const c of cases) {
@@ -337,8 +359,8 @@
     // Kleinste Reserve je Bauteil über alle Lastfälle, und EI/GJ auf dem Raster
     for (const part of ['wing', 'tail']) {
       const Pt = parts[part];
-      Pt.EI = Pt.ys.map(y => lerpSt(Pt.stations, y, 'EI') / 1e6);   // N·m²
-      Pt.GJ = Pt.ys.map(y => lerpSt(Pt.stations, y, 'GJ') / 1e6);
+      Pt.EI = Pt.ys.map(y => lerpSt(Pt.stations, y, 'EI') * Pt.calib.kEI / 1e6);   // N·m², mit Eichung
+      Pt.GJ = Pt.ys.map(y => lerpSt(Pt.stations, y, 'GJ') * Pt.calib.kGJ / 1e6);
       Pt.use = [['rCap', 'Holmgurte'], ['rWeb', 'Steg'], ['rShell', 'Schale Biegung'], ['rTors', 'Schale Torsion']].map(([k, label]) => {
         let best = { reserve: Infinity, y: null, case: '' };
         const env = Pt.ys.map((y, i) => { let m = Infinity; for (const c of Pt.cases) { if (c[k][i] < m) m = c[k][i]; if (c[k][i] < best.reserve) best = { reserve: c[k][i], y, case: c.label }; } return m; });
@@ -391,11 +413,15 @@
       });
     }
 
-    return { wing: parts.wing, tail: parts.tail, servo, meta: { clMax, vS, vA, nReach, nGust, loads: Ld, mass } };
+    const out = { wing: parts.wing, tail: parts.tail, servo, meta: { clMax, vS, vA, nReach, nGust, loads: Ld, mass } };
+    // F3: Aeroelastik des Flügels
+    const AE = isNode ? require('./aeroelastik.js') : root.MMPA.aeroelastik;
+    if (AE) { try { out.aero = AE.analyze(model, profiles, r, out, { nCrit }); } catch (e) { out.aero = { ok: false, notes: ['Aeroelastik: ' + e.message] }; } }
+    return out;
   }
   function fmt(v, d = 1) { return Number(v).toFixed(d).replace('.', ','); }
 
-  const api = { MATERIALS, MAT_FIELDS, fabric, fabricT, fabricG, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, structOf, loadsOf, stations, stress, massOf, trimLine, stateFor, beam, flapGroups, analyze };
+  const api = { MATERIALS, MAT_FIELDS, fabric, fabricT, fabricG, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, structOf, loadsOf, stations, stress, calib, massOf, trimLine, stateFor, beam, flapGroups, analyze };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).struktur = api;
 })(typeof self !== 'undefined' ? self : this);
