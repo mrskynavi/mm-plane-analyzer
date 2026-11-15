@@ -5,8 +5,8 @@
 // zum Schluss { kind: 'done', seq }. Eine neue Druck-Anfrage bricht die laufende nach dem aktuellen Zustand ab.
 // Die Seite hängt ?v=<Stand> an: so holt der Browser nach einem Update auch die Rechenkerne neu statt aus dem Zwischenspeicher.
 const VQ = self.location.search || '';
-importScripts(...['profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js', 'struktur.js'].map(f => f + VQ));
-let druckSeq = 0;
+importScripts(...['profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js', 'struktur.js', 'nachlauf.js'].map(f => f + VQ));
+let druckSeq = 0, wakeCache = null;
 self.onmessage = e => {
   const d = e.data;
   if (d.kind === 'druck') { druck(d); return; }
@@ -14,6 +14,17 @@ self.onmessage = e => {
   if (d.kind === 'struktur') {
     try { self.postMessage({ kind: 'struktur', seq: d.seq, result: self.MMPA.struktur.analyze(d.model, d.profiles, d.r, { nCrit: d.nCrit, project: { materials: d.materials } }) }); }
     catch (err) { self.postMessage({ kind: 'struktur', seq: d.seq, error: err.message }); }
+    return;
+  }
+  // Nachlauf W3: { kind: 'nachlauf', seq, key, model, profiles, r, state, opts } → { kind: 'nachlauf', seq, result | error }.
+  // Der Nachlauf bleibt je key (Modellrechnung + Zustand) stehen: Rauchrechen und Ebene verschieben rechnet nur diese neu.
+  if (d.kind === 'nachlauf') {
+    try {
+      const hit = wakeCache && wakeCache.key === d.key ? wakeCache.W : null;
+      const { W, out } = self.MMPA.nachlauf.compute(d.model, d.profiles, d.r, d.state, d.opts, hit);
+      wakeCache = { key: d.key, W };
+      self.postMessage({ kind: 'nachlauf', seq: d.seq, result: out });
+    } catch (err) { self.postMessage({ kind: 'nachlauf', seq: d.seq, error: err.message }); }
     return;
   }
   const { seq, model, profiles, nCrit } = d;
