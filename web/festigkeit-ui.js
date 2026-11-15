@@ -66,6 +66,8 @@
     ${st.spar.input === 'roving' ? sparRov(st.spar) : num('Gurtdicke Wurzel', 'spar.t0', st.spar.t0, 'mm', 0.1, 'min="0"') + num('Gurtdicke Rand', 'spar.t1', st.spar.t1, 'mm', 0.1, 'min="0"')}
     ${matField('Steg Material', 'web.mat', st.web.mat, mats)}
     ${num('Stegbreite', 'web.t', st.web.t, 'mm', 0.5, 'min="0" title="Mass des Stegs in Flügeltiefe (Flugrichtung). Die Höhe ergibt sich aus der Profildicke an der Stelle minus Schale und Gurte."')}
+    ${seg('CFK-Schlauch über den Holm', 'spar.sleeve', String(S.sleeveOf(st.spar).layers), [['0', 'ohne'], ['1', '1 Lage'], ['2', '2 Lagen']])}
+    ${S.sleeveOf(st.spar).layers ? num('Schlauch Flächengewicht', 'spar.sleeveG', S.sleeveOf(st.spar).g, 'g/m²', 10, 'min="20" title="Flächengewicht des flach gelegten Geflechts, trocken. Gerechnet als ±45° um Gurte und Steg."') + `<p class="hint" style="grid-column:1/-1;margin:0">Der Schlauch liegt um Gurte und Steg: ${fmt(S.fabricT(S.SLEEVE_MAT, S.sleeveOf(st.spar).g), 2)} mm Laminat je Lage. Er trägt Querkraft mit (der Steg wird entlastet), schliesst den Holm zu einem Kasten und bei der D-Box die Rückwand mit Kohle.</p>` : ''}
     ${seg('Torsionskasten', 'shell.box', st.shell.box, [['voll', 'ganze Schale'], ['dbox', 'D-Box bis Holm']])}
     ${seg('Füllung', 'fill', st.fill, [['hohl', 'hohl'], ['styro', 'Styro'], ['rippen', 'Rippen']])}
     ${num('Masse gewogen', 'mass', st.mass ?? '', 'g', 10, 'min="0" placeholder="gerechnet" title="Beide Hälften. Leer = aus dem Aufbau gerechnet"')}
@@ -128,6 +130,9 @@
       if (!m[part].struct.joiner) delete m[part].struct.joiner;
       if (!m[part].struct.link) delete m[part].struct.link;
       if (m[part].struct.mass == null) delete m[part].struct.mass;
+    } else if (a === 'spar' && (b === 'sleeve' || b === 'sleeveG')) {
+      s.spar = { ...(s.spar || {}), [b]: +v };
+      if (b === 'sleeve' && !(+v > 0)) delete s.spar.sleeve;
     } else if (a === 'spar' && b === 'input') {
       // Wechsel auf Rovings: Anzahl aus der bisherigen Gurtdicke, Material Kohle-Rovings falls bisher Holz oder Stab
       const cur = S.structOf(m, part).spar;
