@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <script>try{ const t=localStorage.getItem('mmpa.theme'); if (t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script>window.MMPA_BUILD = '65'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
+<script>window.MMPA_BUILD = '66'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
 <script src="core/profil.js"></script>
 <script src="core/nf-gewichte.js"></script>
 <script src="core/neuralfoil.js"></script>
@@ -16,7 +16,7 @@
 <script src="core/bibliothek.js"></script>
 <script src="core/vlm.js"></script>
 <script src="core/rumpf.js"></script>
-<script src="core/modell.js?v=65"></script>
+<script src="core/modell.js?v=66"></script>
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
 <script src="core/ordner.js"></script>
@@ -26,11 +26,11 @@
 <script src="core/fusion.js"></script>
 <script src="core/verlauf.js"></script>
 <script src="core/sfw.js"></script>
-<script src="core/modell3d.js?v=65"></script>
-<script src="core/druckbild.js?v=65"></script>
-<script src="core/struktur.js?v=65"></script>
-<script src="core/aeroelastik.js?v=65"></script>
-<script src="core/nachlauf.js?v=65"></script>
+<script src="core/modell3d.js?v=66"></script>
+<script src="core/druckbild.js?v=66"></script>
+<script src="core/struktur.js?v=66"></script>
+<script src="core/aeroelastik.js?v=66"></script>
+<script src="core/nachlauf.js?v=66"></script>
 <script src="core/import3d.js"></script>
 <style>
 /* Layout wie MM Flight Analyzer: Kopfzeile, Tabs, links Liste (Profile/Polaren), rechts Kennzahlen und Diagramme */
@@ -297,7 +297,8 @@ tr.low td{color:var(--warn)}
 #festIn select{max-width:100%;min-width:0;height:32px}
 .p3lbl{font:600 .8rem var(--body);color:var(--muted)}
 .p3flow input[type=range]{width:110px;vertical-align:middle}
-#p3state{width:clamp(140px,22vw,300px);vertical-align:middle}
+#p3state,#p3n{width:clamp(140px,22vw,300px);vertical-align:middle}
+#p3no{min-width:5em;font-variant-numeric:tabular-nums}
 #p3stateo{min-width:9.5em;font-variant-numeric:tabular-nums}
 .p3def,.p3wkc{display:contents}
 .p3def[hidden],.p3wkc[hidden]{display:none}
@@ -836,7 +837,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <section class="pol-box rv-sec"><div class="cbox"><div class="ct">Grundriss <span><span class="legend" id="planLegend"></span> <span class="seg" id="planMode" role="group" aria-label="Ansicht"><button type="button" data-pm="plan" aria-pressed="true">Draufsicht</button><button type="button" data-pm="3d" aria-pressed="false">3D</button></span> <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="plan"><canvas id="planCv" aria-label="Grundriss mit Neutralpunkt und Schwerpunkt"></canvas></div>
 <div class="plan3d" id="plan3d" hidden><div class="p3host" id="p3host" aria-label="3D-Ansicht des Modells: ziehen dreht, zwei Finger oder Mausrad zoomen"></div>
 <div class="p3bar"><span class="seg" id="p3view" role="group" aria-label="Blickrichtung"><button type="button" data-v="iso" aria-pressed="true">Schräg</button><button type="button" data-v="top" aria-pressed="false">Oben</button><button type="button" data-v="front" aria-pressed="false">Vorne</button><button type="button" data-v="side" aria-pressed="false">Seite</button></span><button type="button" class="btn ghost sm" id="p3load" title="Gebautes Teil aus dem CAD (3MF, OBJ, STL, STEP, Rhino 3DM) neben das gerechnete Modell legen">3D-Datei laden …</button><input type="file" id="p3file" multiple hidden><label class="p3chk"><input type="checkbox" id="p3model" checked> gerechnetes Modell</label><span class="p3hint" id="p3hint">Ziehen dreht · Mausrad oder zwei Finger zoomen · rechte Maustaste oder zwei Finger verschieben</span></div>
-<div class="p3bar p3wk"><span class="seg" id="p3layer" role="group" aria-label="Bild auf dem Modell"><button type="button" data-l="form" aria-pressed="true">Form</button><button type="button" data-l="cp" aria-pressed="false" title="Druckbeiwert Cp auf Ober- und Unterseite">Druck</button><button type="button" data-l="bl" aria-pressed="false" title="laminar, turbulent, Ablöseblase, abgelöst">Grenzschicht</button><button type="button" data-l="def" aria-pressed="false" title="Flügel unter Last: Durchbiegung, Verwindung und Reserve als Farbe (Reiter Festigkeit)">Biegung</button></span><span class="p3def" id="p3def" hidden><label class="p3chk">Lastfall <select id="p3case" aria-label="Lastfall"></select></label><span class="seg" id="p3scale" role="group" aria-label="Überhöhung"><button type="button" data-s="1" aria-pressed="true">×1</button><button type="button" data-s="2" aria-pressed="false">×2</button><button type="button" data-s="5" aria-pressed="false">×5</button><button type="button" data-s="10" aria-pressed="false">×10</button></span></span><span class="p3wkc" id="p3wkc"><label class="p3chk">Zustand <input type="range" id="p3state" min="0" max="0" step="1" value="0" aria-label="Flugzustand"> <output id="p3stateo"></output></label><button type="button" class="btn ghost sm" id="p3film" title="α hochfahren: wo reisst der Flügel zuerst ab?">▶ Abriss-Film</button><label class="p3chk"><input type="checkbox" id="p3lastv"> Lastverteilung</label></span></div>
+<div class="p3bar p3wk"><span class="seg" id="p3layer" role="group" aria-label="Bild auf dem Modell"><button type="button" data-l="form" aria-pressed="true">Form</button><button type="button" data-l="cp" aria-pressed="false" title="Druckbeiwert Cp auf Ober- und Unterseite">Druck</button><button type="button" data-l="bl" aria-pressed="false" title="laminar, turbulent, Ablöseblase, abgelöst">Grenzschicht</button><button type="button" data-l="def" aria-pressed="false" title="Flügel unter Last: Durchbiegung, Verwindung und Reserve als Farbe (Reiter Festigkeit)">Biegung</button></span><span class="p3def" id="p3def" hidden><label class="p3chk">Lastfall <select id="p3case" aria-label="Lastfall"></select></label><label class="p3chk" title="Lastvielfaches von 1 bis zum Wert des Lastfalls. Lasten und Verformung wachsen linear mit n.">Last <input type="range" id="p3n" min="1" max="1" step="0.1" value="1" aria-label="Lastvielfaches"> <output id="p3no"></output></label><span class="seg" id="p3scale" role="group" aria-label="Überhöhung"><button type="button" data-s="1" aria-pressed="true">×1</button><button type="button" data-s="2" aria-pressed="false">×2</button><button type="button" data-s="5" aria-pressed="false">×5</button><button type="button" data-s="10" aria-pressed="false">×10</button></span></span><span class="p3wkc" id="p3wkc"><label class="p3chk">Zustand <input type="range" id="p3state" min="0" max="0" step="1" value="0" aria-label="Flugzustand"> <output id="p3stateo"></output></label><button type="button" class="btn ghost sm" id="p3film" title="α hochfahren: wo reisst der Flügel zuerst ab?">▶ Abriss-Film</button><label class="p3chk"><input type="checkbox" id="p3lastv"> Lastverteilung</label></span></div>
 <div class="p3bar p3flow"><span class="p3lbl">Strömung</span><label class="p3chk" title="Freie Wirbel hinter Flügel und Leitwerk: die Wirbelschicht rollt sich am Randbogen ein und sinkt ab"><input type="checkbox" id="p3wake"> Nachlauf</label><label class="p3chk" title="Rauchfäden: Stromlinien durch einen Rechen vor dem Flügel"><input type="checkbox" id="p3smoke"> Rauch</label><span class="p3wkc" id="p3smokec" hidden><span class="seg" id="p3rake" role="group" aria-label="Rauchrechen"><button type="button" data-r="quer" aria-pressed="true" title="Reihe von Fäden über die Spannweite">quer</button><button type="button" data-r="hoch" aria-pressed="false" title="Stapel von Fäden an einer Stelle der Spannweite">hoch</button></span><label class="p3chk"><span id="p3rakel">Höhe</span> <input type="range" id="p3rakev" min="-60" max="60" step="2" value="6"> <output id="p3rakeo"></output></label></span><label class="p3chk" title="Schnitt quer zur Flugrichtung: Abwindwinkel hinter dem Flügel und Querströmung um den Randwirbel"><input type="checkbox" id="p3plane"> Abwind-Ebene</label><span class="p3wkc" id="p3planec" hidden><label class="p3chk">Lage <input type="range" id="p3planex" min="0" max="100" step="1" value="-1"> <output id="p3planeo"></output></label><button type="button" class="btn ghost sm" id="p3planet" title="Ebene an das Höhenleitwerk legen">am HLW</button></span></div>
 <div class="p3key" id="p3key" hidden></div>
 <div class="p3key" id="p3fkey" hidden></div>
@@ -3388,6 +3389,6 @@ renderAll();
 <script src="cloud-ui.js"></script>
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
-<script src="festigkeit-ui.js?v=65"></script>
-<script type="module" src="drei-ui.js?v=65"></script>
+<script src="festigkeit-ui.js?v=66"></script>
+<script type="module" src="drei-ui.js?v=66"></script>
 
