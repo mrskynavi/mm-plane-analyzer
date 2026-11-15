@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <script>try{ const t=localStorage.getItem('mmpa.theme'); if (t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script>window.MMPA_BUILD = '71'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
+<script>window.MMPA_BUILD = '72'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
 <script src="core/profil.js"></script>
 <script src="core/nf-gewichte.js"></script>
 <script src="core/neuralfoil.js"></script>
@@ -16,7 +16,7 @@
 <script src="core/bibliothek.js"></script>
 <script src="core/vlm.js"></script>
 <script src="core/rumpf.js"></script>
-<script src="core/modell.js?v=71"></script>
+<script src="core/modell.js?v=72"></script>
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
 <script src="core/ordner.js"></script>
@@ -27,7 +27,7 @@
 <script src="core/verlauf.js"></script>
 <script src="core/sfw.js"></script>
 <script src="core/modell3d.js?v=71"></script>
-<script src="core/druckbild.js?v=71"></script>
+<script src="core/druckbild.js?v=72"></script>
 <script src="core/struktur.js?v=71"></script>
 <script src="core/aeroelastik.js?v=71"></script>
 <script src="core/nachlauf.js?v=71"></script>
@@ -2817,21 +2817,25 @@ function renderModelResults() {
     const s = r.strips, half = Math.ceil(r.wing.projSpan / 200) * 100;
     const both = arr => arr.map(p => ({ x: -p.x, y: p.y })).reverse().concat(arr);
     const line = (label, data, col, o = {}) => ({ label, data, showLine: true, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, ...o });
-    // Abriss: Stelle mit der höchsten Ausnutzung, Ampel nach ihrer Lage; Streifen nahe daran als Abrisszone
+    // Abriss: beim Hochziehen erreicht zuerst ein Stück Flügel sein Ca max (Modellrechnung stallAt, gleich wie in
+    // der 3D-Ansicht). Gezeigt wird die Verteilung in diesem Moment, Ampel nach der Lage; Streifen nahe daran als Abrisszone.
     const sa = r.stallAt, stCol = sa ? css(sa.rating === 'kritisch' ? '--bad' : sa.rating === 'neutral' ? '--warn' : '--good') : null;
-    const zone = sa ? s.filter(p => Number.isFinite(p.clMax) && p.cl / p.clMax >= sa.ratio - 0.015) : [];
+    const on = sa && sa.strips ? sa.strips : s.map(p => ({ ...p, ratio: p.cl / p.clMax }));
+    const zone = sa ? on.filter(p => Number.isFinite(p.ratio) && p.ratio >= sa.ratio - 0.015) : [];
+    const atY = sa ? on.reduce((m, p) => (Math.abs(p.y - sa.y) < Math.abs(m.y - sa.y) ? p : m), on[0]) : null;
     const stallSets = sa ? [
+      ...(sa.strips ? [line(`Ca örtlich bei Abrissbeginn (Ca ${fmt(sa.cl, 2)})`, both(on.map(p => ({ x: p.y, y: p.cl }))), stCol, { borderDash: [3, 3], borderWidth: 1.5 })] : []),
       line('Abrisszone', both(zone.map(p => ({ x: p.y, y: p.cl }))), stCol, { showLine: false, pointRadius: 2.5, pointHoverRadius: 5 }),
-      line('Abriss beginnt', [{ x: sa.y, y: 0 }, { x: sa.y, y: s.find(p => p.y === sa.y).clMax }], stCol, { borderDash: [2, 3], borderWidth: 1.5 }),
-      line('Abriss beginnt', [{ x: -sa.y, y: 0 }, { x: -sa.y, y: s.find(p => p.y === sa.y).clMax }], stCol, { borderDash: [2, 3], borderWidth: 1.5 }),
+      line('Abriss beginnt', [{ x: sa.y, y: 0 }, { x: sa.y, y: atY.clMax }], stCol, { borderDash: [2, 3], borderWidth: 1.5 }),
+      line('Abriss beginnt', [{ x: -sa.y, y: 0 }, { x: -sa.y, y: atY.clMax }], stCol, { borderDash: [2, 3], borderWidth: 1.5 }),
     ] : [];
     const badge = $('mStallBadge');
     badge.className = 'stallbadge ' + (sa ? sa.rating : '');
-    badge.textContent = sa ? `Abriss bei ${fmt(sa.eta * 100, 0)} % · ${sa.rating}` : '';
-    badge.title = sa ? `Der Abriss beginnt bei ${fmt(sa.eta * 100, 0)} % der Halbspannweite, dort fliegt der Flügel ${fmt(sa.ratio * 100, 0)} % seines Ca max. ` + 'Gutmütig: Abriss beginnt innen (bis 50 % der Halbspannweite), das Modell nickt nur. Kritisch: Abriss beginnt aussen (ab 75 %), das Modell kippt eher über den Flügel.' : '';
+    badge.textContent = sa ? `Abriss bei ${fmt(sa.eta * 100, 0)} %${sa.cl ? ', Ca ' + fmt(sa.cl, 2) : ''} · ${sa.rating}` : '';
+    badge.title = sa ? (sa.cl ? `Zieht man das Modell hoch, erreicht bei Ca ${fmt(sa.cl, 2)} (${fmt(sa.v * 3.6, 0)} km/h) zuerst der Flügel bei ${fmt(sa.eta * 100, 0)} % der Halbspannweite sein Ca max (gemittelt über ±3 % der Halbspannweite). ` : `Der Abriss beginnt bei ${fmt(sa.eta * 100, 0)} % der Halbspannweite, dort fliegt der Flügel ${fmt(sa.ratio * 100, 0)} % seines Ca max. `) + 'Gutmütig: Abriss beginnt innen (bis 50 % der Halbspannweite), das Modell nickt nur. Kritisch: Abriss beginnt aussen (ab 75 %), das Modell kippt eher über den Flügel. Neutral: aussen fast gleich hoch ausgenutzt.' : '';
     const leg = (col, label, cls = '') => `<span style="color:${col}"><i class="${cls}" style="background:${col}"></i><span style="color:var(--muted)">${label}</span></span>`;
     $('mDistLeg').innerHTML = [leg(PALETTE[0], 'Ca örtlich Flügel'), leg(css('--bad'), 'Ca max Profil', 'dashc'), leg(PALETTE[3], 'Ca Leitwerk'),
-      ...(sa ? [leg(stCol, 'Abrisszone', 'dot'), leg(stCol, 'Abriss beginnt', 'vline')] : [])].join('');
+      ...(sa ? [...(sa.strips ? [leg(stCol, `Ca örtlich bei Abrissbeginn (Ca ${fmt(sa.cl, 2)})`, 'dashc')] : []), leg(stCol, 'Abrisszone', 'dot'), leg(stCol, 'Abriss beginnt', 'vline')] : [])].join('');
     liveChart('mDist', 'y [mm]', 'Ca', [
       line('Ca örtlich', both(s.map(p => ({ x: p.y, y: p.cl }))), PALETTE[0]),
       ...stallSets,
@@ -3416,5 +3420,5 @@ renderAll();
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
 <script src="festigkeit-ui.js?v=71"></script>
-<script type="module" src="drei-ui.js?v=71"></script>
+<script type="module" src="drei-ui.js?v=72"></script>
 
