@@ -216,3 +216,28 @@ test('Mehrere Verbinder mit Lage y, Platz im Holm', () => {
   m.wing.struct = { joiners: [{ y: 0, form: 'rund', d: 50 }] };
   assert.strictEqual(S.analyze(m, project.profiles, r, { project }).wing.joiners[0].fits, false);
 });
+
+test('Schalenlagen je Bereich und abgestuft über die Spannweite', () => {
+  const { project, m, r } = setup(), mats = S.materials(project);
+  const base = [{ mat: 'gfk-gewebe', g: 49, angle: 45 }, { mat: 'balsa', t: 1, angle: 0 }];
+  m.wing.struct = { shell: { layers: base } };
+  const a = S.stations(m, project.profiles, 'wing', mats);
+  // ohne Bereich/Ende wie bisher: Summe vorne + hinten = ganze Schale
+  m.wing.struct = { shell: { layers: [...base, { mat: 'cfk-gewebe', g: 160, angle: 45, zone: 'dbox' }] } };
+  const b = S.stations(m, project.profiles, 'wing', mats);
+  assert.ok(b[0].GJ > a[0].GJ && b[0].massPerM > a[0].massPerM && b[0].gtBack === a[0].gtBack && b[0].gtShell > a[0].gtShell);
+  // Lage hinten: Masse hinten, D-Box unverändert
+  m.wing.struct = { shell: { layers: [...base, { mat: 'gfk-gewebe', g: 80, angle: 45, zone: 'hinten' }] } };
+  const c = S.stations(m, project.profiles, 'wing', mats);
+  assert.ok(c[0].gtBack > a[0].gtBack && c[0].gtShell === a[0].gtShell && c[0].tShell === a[0].tShell);
+  // Lage endet bei 500 mm: innen dicker, aussen wie ohne
+  m.wing.struct = { shell: { layers: [...base, { mat: 'gfk-gewebe', g: 80, angle: 45, y1: 500 }] } };
+  const d = S.stations(m, project.profiles, 'wing', mats);
+  assert.ok(d.length > m.wing.stations.length, 'feines Raster um das Ende');
+  const at = (rows, y) => rows.reduce((p, q) => (Math.abs(q.y - y) < Math.abs(p.y - y) ? q : p));
+  assert.ok(at(d, 400).massPerM > S.stations({ ...m, wing: { ...m.wing, struct: { shell: { layers: base } } } }, project.profiles, 'wing', mats).find(q => q.y >= 400).massPerM * 0.9);
+  near(at(d, 1000).tShell, a[0].tShell, 1e-9);
+  assert.ok(at(d, 400).tShell > a[0].tShell);
+  const res = S.analyze(m, project.profiles, r, { project });
+  assert.ok(Number.isFinite(res.wing.worst.reserve));
+});

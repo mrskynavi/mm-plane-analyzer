@@ -98,9 +98,15 @@
     ${num('Masse gewogen', 'mass', st.mass ?? '', 'g', 10, 'min="0" placeholder="gerechnet" title="Beide Hälften. Leer = aus dem Aufbau gerechnet"')}
   </div>
   <h3 class="sub">Schale, Lagen von aussen nach innen</h3>
-  <div class="tablewrap"><table><thead><tr><th>Material</th><th>Gewicht / Dicke</th><th>Faser</th><th></th></tr></thead><tbody>
-    ${st.shell.layers.map((l, i) => `<tr><td>${matSel('layer.' + i + '.mat', l.mat, mats)}</td><td>${S.fabric(l.mat) ? `<span class="row"><input class="num" type="number" step="1" min="0" data-k="layer.${i}.g" value="${l.g}" title="Flächengewicht des trockenen Gewebes"><span class="u">g/m²</span></span><span class="hint" style="display:block">= ${fmt(l.t, 2)} mm Laminat</span>` : `<span class="row"><input class="num" type="number" step="0.1" min="0" data-k="layer.${i}.t" value="${l.t}"><span class="u">mm</span></span>`}</td><td><select data-k="layer.${i}.angle"><option value="0"${+l.angle === 0 ? ' selected' : ''}>0/90°</option><option value="45"${+l.angle === 45 ? ' selected' : ''}>±45°</option></select></td><td><button type="button" class="iconbtn sm" data-del="${i}" aria-label="Lage löschen">×</button></td></tr>`).join('')}
-  </tbody></table></div>
+  ${st.shell.layers.map((l, i) => `<div class="form" style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px">
+    ${matField('Lage ' + (i + 1), 'layer.' + i + '.mat', l.mat, mats)}
+    ${S.fabric(l.mat) ? num('Flächengewicht', 'layer.' + i + '.g', l.g, 'g/m²', 1, 'min="0" title="Flächengewicht des trockenen Gewebes, = ' + fmt(l.t, 2) + ' mm Laminat"') : num('Dicke', 'layer.' + i + '.t', l.t, 'mm', 0.1, 'min="0"')}
+    <label class="field"><span>Faser</span><select data-k="layer.${i}.angle"><option value="0"${+l.angle === 0 ? ' selected' : ''}>0/90°</option><option value="45"${+l.angle === 45 ? ' selected' : ''}>±45°</option></select></label>
+    ${seg('Bereich', 'layer.' + i + '.zone', S.zoneOf(l), [['alles', 'ganze Schale'], ['dbox', 'D-Box'], ['hinten', 'hinter Holm']])}
+    ${num('endet bei y', 'layer.' + i + '.y1', +l.y1 > 0 ? l.y1 : '', 'mm', 10, 'min="0" placeholder="Rand" title="Die Lage endet hier (Abstand von der Rumpfmitte). Leer = bis zum Rand."')}
+    <div class="field"><span>&nbsp;</span><button type="button" class="btn ghost sm" data-del="${i}">Lage löschen</button></div>
+  </div>`).join('')}
+  <p class="hint">Bereich: ganz = um das ganze Profil, D-Box = Nase bis Holm, hinten = Holm bis Endleiste${st.shell.box === 'dbox' ? ' (beim Torsionskasten „D-Box bis Holm“ zählen Lagen hinten nicht)' : ''}. Für eine Abstufung von innen nach aussen gibst du bei den zusätzlichen Lagen ein, wo sie enden.</p>
   <div class="btnrow"><button type="button" class="btn ghost" data-add>+ Lage</button></div>
   <h3 class="sub">Verbinder</h3>
   ${st.joiners.map((j, i) => joinerForm(j, i, mats, st.joiners.length)).join('')}
@@ -139,7 +145,9 @@
     if (a === 'layer') {
       const cur = S.structOf(m, part).shell.layers;
       const l = cur[+b], was = !!S.fabric(l.mat);
-      l[c] = c === 'mat' ? v : +v;
+      if (c === 'y1' && !(+v > 0)) delete l.y1;
+      else l[c] = c === 'mat' || c === 'zone' ? v : +v;
+      if (c === 'zone' && v === 'alles') delete l.zone;
       if (c === 'mat' && was !== !!S.fabric(v)) { if (was) { delete l.g; l.t = 1; } else l.g = 49; } // Gewebe ↔ Holz: sinnvoller Startwert
       s.shell = { ...(s.shell || {}), layers: cur };
     } else if (a === 'template') {

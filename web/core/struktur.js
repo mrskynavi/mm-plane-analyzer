@@ -153,14 +153,14 @@
       const a = geo[i - 1], b = geo[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]), inBox = (a[0] + b[0]) / 2 <= pos;
       per += d; area += a[0] * b[1] - b[0] * a[1];
       if (inBox) { perBox += d; areaBox += a[0] * b[1] - b[0] * a[1]; }
-      if (box !== 'dbox' || inBox) { segs.push([(a[1] + b[1]) / 2, d]); sz += (a[1] + b[1]) / 2 * d; sl += d; }
+      if (box !== 'dbox' || inBox) { segs.push([(a[1] + b[1]) / 2, d, inBox]); sz += (a[1] + b[1]) / 2 * d; sl += d; }
     }
     // Schale als dünne Linie: Schwerpunkt, Flächenmoment je Dicke und Randabstände (bezogen auf Tiefe 1)
     const zs = sl ? sz / sl : 0;
-    let iz = 0, zTop = 0, zBot = 0;
-    for (const [z, d] of segs) { iz += (z - zs) ** 2 * d; zTop = Math.max(zTop, z - zs); zBot = Math.min(zBot, z - zs); }
+    let iz = 0, izF = 0, zTop = 0, zBot = 0;
+    for (const [z, d, f] of segs) { const v = (z - zs) ** 2 * d; iz += v; if (f) izF += v; zTop = Math.max(zTop, z - zs); zBot = Math.min(zBot, z - zs); }
     const tc = P.thicknessCamber(geo, [pos]);
-    return { per, perBox, area: Math.abs(area) / 2, areaBox: Math.abs(areaBox) / 2, t: tc.t[0], zc: tc.c[0], zs, iz, zTop, zBot };
+    return { per, perBox, area: Math.abs(area) / 2, areaBox: Math.abs(areaBox) / 2, t: tc.t[0], zc: tc.c[0], zs, iz, izF, izB: iz - izF, zTop, zBot };
   }
 
   // Dehn- und Schubsteifigkeit einer Lage je Faserrichtung
@@ -170,17 +170,28 @@
   // Querschnitt, Steifigkeit und Masse je Meter an beliebiger Stelle y einer Fläche (Profil zwischen den Stationen linear).
   // EI um die Querachse durch den Schwerpunkt der Schale (Gurte, Steg, Schale), GJ nach Bredt für den geschlossenen Kasten
   // (ganze Schale, oder Nase bis Holm mit dem Steg als Rückwand). Bei Rovings: n = Anzahl je Gurt.
-  const GEO_KEYS = ['per', 'perBox', 'area', 'areaBox', 't', 'zc', 'zs', 'iz', 'zTop', 'zBot'];
-  const GEO_DEF = { per: 2.05, perBox: 0.65, area: 0.07, areaBox: 0.02, t: 0.1, zc: 0, zs: 0, iz: 0.002, zTop: 0.06, zBot: -0.04 };
+  const GEO_KEYS = ['per', 'perBox', 'area', 'areaBox', 't', 'zc', 'zs', 'iz', 'izF', 'izB', 'zTop', 'zBot'];
+  const GEO_DEF = { per: 2.05, perBox: 0.65, area: 0.07, areaBox: 0.02, t: 0.1, zc: 0, zs: 0, iz: 0.002, izF: 0.0008, izB: 0.0012, zTop: 0.06, zBot: -0.04 };
+  // Schalenlage: Bereich der Profiltiefe (alles | dbox = Nase bis Holm | hinten = Holm bis Endleiste) und Ende bei y (mm, leer = bis Rand)
+  const zoneOf = l => (l.zone === 'dbox' || l.zone === 'hinten' ? l.zone : 'alles');
+  const layerAt = (l, y) => !(+l.y1 > 0) || y < +l.y1 - 1e-9;
+  // Summen der Lagen an der Stelle y, vorne (bis Holm) und hinten getrennt
+  function shellAt(L, y, mats, box) {
+    const rho = id => (mats[id] ? mats[id].rho : 0);
+    const z = () => ({ t: 0, m: 0, et: 0, gt: 0 }), F = z(), B = z();
+    for (const l of L) {
+      if (!layerAt(l, y)) continue;
+      const t = +l.t || 0, zo = zoneOf(l), add = q => { q.t += t; q.m += t * rho(l.mat); q.et += t * eOf(mats[l.mat], l.angle); q.gt += t * gOf(mats[l.mat], l.angle); };
+      if (zo !== 'hinten') add(F);
+      if (zo !== 'dbox' && box !== 'dbox') add(B);
+    }
+    return { F, B };
+  }
   function sectionBuilder(model, profiles, part, mats) {
     const S = structOf(model, part), st = model[part].stations;
     const yEnd = st[st.length - 1].y || 1;
     const rho = id => (mats[id] ? mats[id].rho : 0);
     const L = S.shell.layers;
-    const tShell = L.reduce((a, l) => a + (+l.t || 0), 0);
-    const mShell = L.reduce((a, l) => a + (+l.t || 0) * rho(l.mat), 0); // g/m² je mm·kg/m³ = g/m²
-    const etShell = L.reduce((a, l) => a + (+l.t || 0) * eOf(mats[l.mat], l.angle), 0); // N/mm
-    const gtShell = L.reduce((a, l) => a + (+l.t || 0) * gOf(mats[l.mat], l.angle), 0);
     const mc = mats[S.spar.mat], mw = mats[S.web.mat];
     // CFK-Schlauch über den ganzen Holm (Gurte + Steg), geflochten ±45°: Dicke je Lage aus dem Flächengewicht
     const sl = sleeveOf(S.spar), ms = mats[SLEEVE_MAT];
@@ -199,20 +210,22 @@
     function at(y, n) {
       const { c, c0 } = geoAt(y);
       const f = Math.min(1, Math.max(0, y / yEnd));
+      // Schale an dieser Stelle: vorne (Nase bis Holm) und hinten; am Holm liegen die vorderen Lagen
+      const sh = shellAt(L, y, mats, S.shell.box), tShell = sh.F.t, gtShell = sh.F.gt, gtBack = sh.B.gt;
       const hOut = c.t * c0 - 2 * tShell;                                    // Holmhöhe aussen (unter der Schale)
       const want = rov ? n * rov.a1 / Math.max(+S.spar.b || 0, 0.1) : S.spar.t0 + (S.spar.t1 - S.spar.t0) * f;
       const hIn = Math.max(0, hOut - 2 * tS);                                // Platz im Schlauch
       const tCap = Math.max(0, Math.min(want, hIn / 2));
       const aCap = S.spar.b * tCap;                                          // je Gurt
       const hWeb = Math.max(0, hIn - 2 * tCap), tWeb = Math.max(0, (+S.web.t || 0) + ((S.web.t1 === '' || S.web.t1 == null ? +S.web.t || 0 : +S.web.t1) - (+S.web.t || 0)) * f);
-      const per = (S.shell.box === 'dbox' ? c.perBox : c.per) * c0;
+      const perF = c.perBox * c0, perB = S.shell.box === 'dbox' ? 0 : (c.per - c.perBox) * c0, per = perF + perB;
       const aProf = c.area * c0 * c0;
       const Ec = mc ? mc.E * (rov ? rov.kE : 1) : 0;
       // Lage der Gurte über der Biegeachse (mm): Holmmitte liegt auf der Skelettlinie
       const z0 = (c.zc - c.zs) * c0, zCapT = z0 + hIn / 2 - tCap / 2, zCapB = z0 - hIn / 2 + tCap / 2;
       const eiCap = Ec * (aCap * (zCapT * zCapT + zCapB * zCapB) + 2 * S.spar.b * tCap ** 3 / 12);
       const eiWeb = mw ? mw.E * (tWeb * hWeb ** 3 / 12 + tWeb * hWeb * z0 * z0) : 0;
-      const eiShell = etShell * c.iz * c0 ** 3;
+      const eiShell = (sh.F.et * c.izF + sh.B.et * c.izB) * c0 ** 3;
       // Schlauch: zwei Seitenwände über die Holmhöhe, oben und unten über die Gurtbreite (E bei ±45°)
       const bS = +S.spar.b || 0, Es = tS > 0 && ms ? eOf(ms, 45) : 0, zsT = z0 + hOut / 2 - tS / 2, zsB = z0 - hOut / 2 + tS / 2;
       const eiSleeve = Es * (2 * (tS * hOut ** 3 / 12 + tS * hOut * z0 * z0) + bS * tS * (zsT * zsT + zsB * zsB));
@@ -220,18 +233,21 @@
       // Schub aus der Querkraft: Steg und Schlauchwände teilen sich nach G·t
       const gtWeb = mw && tWeb > 0 ? mw.G * tWeb : 0, gtSleeve = tS > 0 && ms ? 2 * gOf(ms, 45) * tS : 0;
       // Bredt: GJ = 4·A² / ∮ ds/(G·t)
-      const aCell = (S.shell.box === 'dbox' ? c.areaBox : c.area) * c0 * c0;
-      let flex = gtShell > 0 ? per / gtShell : Infinity;
-      if (S.shell.box === 'dbox') flex += gtWeb + gtSleeve > 0 && hWeb > 0 ? hOut / (gtWeb + gtSleeve) : Infinity;
+      // ganze Schale als Kasten, wenn hinten Lagen liegen; sonst die D-Box mit Steg (und Schlauch) als Rückwand
+      const dbox = S.shell.box === 'dbox' || !(gtBack > 0);
+      const aCell = (dbox ? c.areaBox : c.area) * c0 * c0;
+      let flex = gtShell > 0 ? perF / gtShell : Infinity;
+      if (dbox) flex += gtWeb + gtSleeve > 0 && hWeb > 0 ? hOut / (gtWeb + gtSleeve) : Infinity;
+      else flex += perB / gtBack;
       let GJ = Number.isFinite(flex) && flex > 0 ? 4 * aCell * aCell / flex : 0;
       // der Schlauch ist selbst ein geschlossener Kasten um den Holm
       const gjSleeve = gtSleeve > 0 ? 4 * (bS * hOut) ** 2 / (2 * (bS + hOut) / (gtSleeve / 2)) : 0;
       GJ += gjSleeve;
       // Masse je Meter Spannweite in g/m: mm² · kg/m³ = mg/m
-      let mm = (2 * aCap * (rov ? rov.rho : rho(S.spar.mat)) + hWeb * tWeb * rho(S.web.mat) + 2 * (bS + hOut) * tS * rho(SLEEVE_MAT)) / 1000 + per / 1000 * mShell;
+      let mm = (2 * aCap * (rov ? rov.rho : rho(S.spar.mat)) + hWeb * tWeb * rho(S.web.mat) + 2 * (bS + hOut) * tS * rho(SLEEVE_MAT)) / 1000 + (perF * sh.F.m + perB * sh.B.m) / 1000;
       if (S.fill === 'styro') mm += aProf * rho('styro') / 1000;
       if (S.fill === 'rippen') mm += aProf * 0.6 * S.ribT / Math.max(10, S.ribs) * rho('balsa') / 1000;
-      const out = { y, chord: c0, tCap, hOut, hWeb, aCap, perimeter: per, tShell, massPerM: mm, EI, GJ, eiCap, eiWeb, eiShell, eiSleeve, gjSleeve, aCell, gtShell, gtWeb, gtSleeve, tSleeve: tS,
+      const out = { y, chord: c0, tCap, hOut, hWeb, aCap, perimeter: per, tShell, massPerM: mm, EI, GJ, eiCap, eiWeb, eiShell, eiSleeve, gjSleeve, aCell, gtShell, gtBack, gtWeb, gtSleeve, tSleeve: tS,
         zCapT: zCapT + tCap / 2, zCapB: zCapB - tCap / 2, zTop: c.zTop * c0, zBot: c.zBot * c0, hShear: Math.max(1e-6, hIn - tCap), capCut: want > hIn / 2 + 1e-9 };
       if (rov) out.n = n;
       return out;
@@ -321,15 +337,17 @@
   // Zeilen für die Rechnung: an jeder Station, bei Rovings zusätzlich ein feines Raster und beidseits jedes Roving-Endes
   function stations(model, profiles, part, mats, plan) {
     const B = sectionBuilder(model, profiles, part, mats);
-    if (!B.rov) return B.st.map(q => ({ ...B.at(q.y), st: true }));
-    plan = plan || rovingPlan(B, 'linear');
+    const cuts = B.S.shell.layers.map(l => +l.y1).filter(v => v > B.st[0].y && v < B.yEnd);
+    if (!B.rov && !cuts.length) return B.st.map(q => ({ ...B.at(q.y), st: true }));
+    if (B.rov) plan = plan || rovingPlan(B, 'linear');
+    else plan = { n1: undefined, ends: [] };
     const y0 = B.st[0].y, yE = B.yEnd;
     let ys = B.st.map(q => q.y);
     for (let i = 0; i <= 100; i++) ys.push(y0 + (yE - y0) * i / 100);
-    plan.ends.forEach(e => { ys.push(Math.max(y0, e.y - 0.5), Math.min(yE, e.y + 0.5)); });
+    [...plan.ends.map(e => e.y), ...cuts].forEach(v => { ys.push(Math.max(y0, v - 0.5), Math.min(yE, v + 0.5)); });
     const isSt = y => B.st.some(q => Math.abs(q.y - y) < 1e-6);
     ys = ys.sort((a, b) => a - b).filter((y, i, a) => i === 0 || y - a[i - 1] > 1e-6);
-    return ys.map(y => { const q = B.st.find(t => Math.abs(t.y - y) < 1e-6), yy = q ? q.y : y; return { ...B.at(yy, countAt(plan, yy)), st: isSt(y) }; });
+    return ys.map(y => { const q = B.st.find(t => Math.abs(t.y - y) < 1e-6), yy = q ? q.y : y; return { ...B.at(yy, B.rov ? countAt(plan, yy) : undefined), st: isSt(y) }; });
   }
 
   // Spannungen, Reserve und Verformung einer Halbfläche in einem Lastfall. ys in mm, M/T in Nm, Q in N.
@@ -361,10 +379,12 @@
       const rw = Math.min(rwW, rwS);
       rWeb.push(rw); if (Number.isFinite(rw)) note(rw, rwS < rwW ? 'Holmschlauch Schub' : 'Steg Schub', y);
       // Schale: Biegedehnung am Rand je Lage, Schubfluss aus der Torsion
-      const eS = [-k * g('zTop'), -k * g('zBot')], qT = g('aCell') > 0 ? Math.abs(T) / (2 * g('aCell')) : 0, gam = g('gtShell') > 0 ? qT / g('gtShell') : 0;
+      const eS = [-k * g('zTop'), -k * g('zBot')], qT = g('aCell') > 0 ? Math.abs(T) / (2 * g('aCell')) : 0;
+      const gtF = g('gtShell'), gtB = rows[0].gtBack == null ? gtF : g('gtBack');
       let rs = Infinity, rt = Infinity, ls = '', lt = '';
       for (const l of str.shell.layers) {
-        const m = mats[l.mat]; if (!m || !(+l.t > 0)) continue;
+        const m = mats[l.mat]; if (!m || !(+l.t > 0) || !layerAt(l, y)) continue;
+        const gt = zoneOf(l) === 'hinten' ? gtB : gtF, gam = gt > 0 ? qT / gt : 0;
         const E = eOf(m, l.angle), G = gOf(m, l.angle);
         for (const e of eS) { const r = (e >= 0 ? m.sigT : m.sigC) / Math.max(E * Math.abs(e), 1e-12); if (r < rs) { rs = r; ls = m.name; } }
         const r2 = m.tau / Math.max(G * gam, 1e-12); if (r2 < rt) { rt = r2; lt = m.name; }
@@ -635,7 +655,7 @@
   };
   function fmt(v, d = 1) { return Number(v).toFixed(d).replace('.', ','); }
 
-  const api = { MATERIALS, MAT_FIELDS, fabric, fabricT, fabricG, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, TEX, texList, rovOf, sparOf, sleeveOf, SLEEVE_MAT, sectionBuilder, rovingPlan, countAt, ellipseW, structOf, loadsOf, stations, stress, calib, massOf, trimLine, stateFor, beam, flapGroups, analyze };
+  const api = { MATERIALS, MAT_FIELDS, fabric, fabricT, fabricG, FORMS, TEMPLATES, JOINER, LINK, LOADS, materials, section, rovingArea, TEX, texList, rovOf, sparOf, sleeveOf, SLEEVE_MAT, sectionBuilder, rovingPlan, countAt, ellipseW, structOf, loadsOf, zoneOf, layerAt, shellAt, stations, stress, calib, massOf, trimLine, stateFor, beam, flapGroups, analyze };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).struktur = api;
 })(typeof self !== 'undefined' ? self : this);
