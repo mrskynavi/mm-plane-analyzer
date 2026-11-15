@@ -157,18 +157,28 @@
     const lo = pol.pts.reduce((m, p) => (p.cl < m.cl ? p : m));
     return cl < lo.cl ? lo.cd : NaN;
   };
+  // Über Ca max (nur Flügel, für einzelne Streifen): Cw bei Ca max, je Prozent Überschreitung 4 % mehr.
+  // Ein schmaler Randstreifen über seinem Ca max beendet so die Polare nicht; das tut erst der Abriss
+  // eines Stücks Flügel (stallRatios).
+  const cdOver = (pol, cl) => {
+    const cd = cdOf(pol, cl);
+    if (Number.isFinite(cd) || !pol || !(pol.clMax > 0) || cl < pol.clMax) return cd;
+    const top = cdOf(pol, pol.clMax - 1e-6);
+    return Number.isFinite(top) ? top * (1 + 4 * (cl / pol.clMax - 1)) : NaN;
+  };
 
   // Profilwiderstand einer Fläche aus den Streifen: Cw zwischen den Stationen linear verteilt.
   // seg[i] = [Polare innen, Polare aussen] des Segments i (mit dessen Klappe)
   // corr(cd, cl, re) optional: Zuschlag kleine Re je Streifen, v = Fluggeschwindigkeit in m/s für die Re
-  function profileDrag(strips, stations, seg, sRef, corr = null, v = 0) {
+  function profileDrag(strips, stations, seg, sRef, corr = null, v = 0, over = false) {
+    const cdF = over ? cdOver : cdOf;
     const P0 = V.stationPoints(stations);
     let D = 0;
     for (const s of strips) {
       let i = 1;
       while (i < P0.length - 1 && s.y > P0[i].le[1]) i++;
       const y0 = P0[i - 1].le[1], y1 = P0[i].le[1], t = Math.min(1, Math.max(0, (s.y - y0) / (y1 - y0 || 1)));
-      let cd = cdOf(seg[i - 1][0], s.cl) * (1 - t) + cdOf(seg[i - 1][1], s.cl) * t;
+      let cd = cdF(seg[i - 1][0], s.cl) * (1 - t) + cdF(seg[i - 1][1], s.cl) * t;
       if (corr) cd = corr(cd, s.cl, v * s.chord / 1000 / NU);
       D += cd * s.chord * s.width;
     }
@@ -386,10 +396,10 @@
       const reT = v * tail.mac / 1000 / NU;
       const tpols = T.stations.map(q => tailPolar(q, profiles, reT, nCrit));
       const cdi = V.trefftz(r.strips, wing.area);
-      const cdw = profileDrag(sw, W.stations, seg, wing.area, lowRe, v), cdt = profileDrag(st, T.stations, tpols.slice(0, -1).map((q, i) => [q, tpols[i + 1]]), wing.area);
+      const cdw = profileDrag(sw, W.stations, seg, wing.area, lowRe, v, true), cdt = profileDrag(st, T.stations, tpols.slice(0, -1).map((q, i) => [q, tpols[i + 1]]), wing.area);
       const cdf = F.drag(fus, v, wing.area), cdv = F.finDrag(finA, v, wing.area, finCd0);
       const x = F.withExtras(model, wing.area, { cdi, cdw, cdt, cdf, cdv }, al), cd = x.cd, E = cl / cd;
-      if (lowRe) x.base += profileDrag(sw, W.stations, seg, wing.area) - cdw; // „ohne Zuschläge“ auch ohne Blasenzuschlag
+      if (lowRe) x.base += profileDrag(sw, W.stations, seg, wing.area, null, 0, true) - cdw; // „ohne Zuschläge“ auch ohne Blasenzuschlag
       const stall = over || !Number.isFinite(cdw); // Ca einer Station über ihrem Ca max
       if (!onset && rat.length && (stall || k === 28)) onset = onsetBetween(prevRat, rat, prevRat ? table[table.length - 1].cl : cl, cl, v);
       prevRat = rat;

@@ -183,4 +183,8 @@ test('Modell: ein schmaler Randstreifen mit kleiner Re allein ist noch kein Abri
   // gemittelte Ausnutzung: Nachbarn im Fenster dämpfen den Ausreisser
   const q = M.stallRatios([{ y: 0, cl: 1, clMax: 1.2, chord: 200, width: 50 }, { y: 1000, cl: 1, clMax: 1.2, chord: 200, width: 50 }, { y: 1020, cl: 0.8, clMax: 0.5, chord: 20, width: 10 }], 1050);
   assert.ok(q[2].own > 1.5 && q[2].ratio < 1, JSON.stringify(q));
+  // die Polare endet nicht, bloss weil die Spitze über ihrem Ca max liegt: erst beim Abriss eines Stücks Flügel
+  const end = r.table[r.table.length - 1];
+  assert.ok(end.cl >= r.stallAt.cl - 1e-9, JSON.stringify([end.cl, r.stallAt.cl]));
+  assert.ok(r.table.filter(t => !t.stall).every(t => Number.isFinite(t.E)));
 });
