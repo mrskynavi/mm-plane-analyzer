@@ -164,7 +164,9 @@ let layer = 'form', wkR = null, wkStates = [], wkKey = 'trim', frames = new Map(
 let druckWorker = null, druckSeq = 0, filmTimer = null, filmIdx = -1, showBands = false, bands = null;
 try { const v = localStorage.getItem('mmpa.p3layer'); if (v === 'cp' || v === 'bl') layer = v; } catch (e) {}
 // Biegung (F2): Ergebnis aus dem Reiter Festigkeit, Lastfall und Überhöhung
-let festRes = null, defCase = '', defScale = 1, ghost = null;
+let festRes = null, defCase = '', defScale = 1, defN = null, ghost = null;
+// Lastvielfaches am Schieber: Lasten und Verformung wachsen linear mit n (Auftrieb und Massenkräfte), die Reserve fällt mit 1/n
+const nFactor = c => (defN == null || !(c.n > 0) ? 1 : Math.min(defN, c.n) / c.n);
 const STATE_COL = ['--accent', '--good', '--warn', '--bad'];
 const STATE_TXT = ['laminar', 'turbulent', 'Ablöseblase', 'abgelöst'];
 const CP_MIN = -1.5, CP_MAX = 1;
@@ -278,6 +280,7 @@ function needFest() {
     const sel = $id('p3case'), cs = res ? res.wing.cases : [];
     if (!cs.some(c => c.key === defCase)) defCase = cs[0] ? cs[0].key : '';
     sel.innerHTML = cs.map(c => `<option value="${c.key}"${c.key === defCase ? ' selected' : ''}>${c.label} · n ${c.n.toFixed(1)}</option>`).join('');
+    nUi();
     if (layer === 'def') { paint(); render(); }
   });
 }
@@ -304,10 +307,11 @@ function deform() {
     const SP = tail ? VL.stationPoints(S.stations, m.tail.x, m.tail.z || 0) : VL.stationPoints(S.stations);
     const yS = SP.map(p => p.le[1]), xS = SP.map((p, i) => p.le[0] + pos * S.stations[i].chord);
     const A = u.app, n = A.length / 3, out = new Float32Array(A.length), col = new Float32Array(A.length);
-    const res = Pt.ys.map((_, i) => Math.min(c.rCap[i], c.rWeb[i], c.rShell[i], c.rTors[i]));
+    const fN = nFactor(festRes.wing.cases.find(q => q.key === c.key) || c);
+    const res = Pt.ys.map((_, i) => Math.min(c.rCap[i], c.rWeb[i], c.rShell[i], c.rTors[i]) / fN);
     for (let i = 0; i < n; i++) {
       const x = A[i * 3], y = A[i * 3 + 1], z = A[i * 3 + 2], ya = Math.abs(y);
-      const w = lin(Pt.ys, c.w, ya) * defScale, ph = lin(Pt.ys, c.phi, ya) * defScale * Math.PI / 180, xs = lin(yS, xS, ya);
+      const w = lin(Pt.ys, c.w, ya) * defScale * fN, ph = lin(Pt.ys, c.phi, ya) * defScale * fN * Math.PI / 180, xs = lin(yS, xS, ya);
       // Verwindung um die Holmachse (Nase hoch positiv), dann Durchbiegung nach oben
       out[i * 3] = xs + (x - xs) * Math.cos(ph); out[i * 3 + 1] = y; out[i * 3 + 2] = z - (x - xs) * Math.sin(ph) + w;
       const cc = reserveColor(lin(Pt.ys, res, ya));
@@ -329,8 +333,8 @@ function keyDef() {
   if (!festRes) { k.innerHTML = 'rechnet …'; return; }
   const P = festRes.wing, c = P.cases.find(q => q.key === defCase) || P.cases[0];
   if (!c) { k.innerHTML = ''; return; }
-  const w = c.worst, bar = 'linear-gradient(90deg,rgb(214,56,51),rgb(237,184,51),rgb(56,168,97))';
-  k.innerHTML = `<div><b>${c.label}</b> · n ${c.n.toFixed(1)} · Rand ${Math.round(c.tipW)} mm · Verwindung ${c.tipPhi.toFixed(1)}°${defScale > 1 ? ' · ' + defScale + '-fach überhöht' : ''}${Number.isFinite(w.reserve) ? ` · <span class="${w.reserve < 1 ? 'warn' : ''}">kleinste Reserve ${w.reserve.toFixed(2)} (${w.what}, y ${Math.round(w.y)} mm)</span>` : ''}</div><div class="leg"><span>Reserve 1 <span class="bar" style="background:${bar}"></span> 2 und mehr</span><span>Aufbau und Lasten im Reiter Festigkeit</span></div>`;
+  const f = nFactor(c), n = c.n * f, w = { ...c.worst, reserve: c.worst.reserve / f }, bar = 'linear-gradient(90deg,rgb(214,56,51),rgb(237,184,51),rgb(56,168,97))';
+  k.innerHTML = `<div><b>${c.label}</b> · n ${n.toFixed(1)}${f < 1 ? ' von ' + c.n.toFixed(1) : ''} · Rand ${Math.round(c.tipW * f)} mm · Verwindung ${(c.tipPhi * f).toFixed(1)}°${defScale > 1 ? ' · ' + defScale + '-fach überhöht' : ''}${Number.isFinite(w.reserve) ? ` · <span class="${w.reserve < 1 ? 'warn' : ''}">kleinste Reserve ${w.reserve.toFixed(2)} (${w.what}, y ${Math.round(w.y)} mm)</span>` : ''}</div><div class="leg"><span>Reserve 1 <span class="bar" style="background:${bar}"></span> 2 und mehr</span><span>Aufbau und Lasten im Reiter Festigkeit</span></div>`;
 }
 
 function keyInfo(t) { const k = $id('p3key'); k.hidden = false; k.innerHTML = t; }
@@ -430,7 +434,21 @@ function playFilm() {
 $id('p3layer').addEventListener('click', e => { const b = e.target.closest('button[data-l]'); if (b) setLayer(b.dataset.l); });
 $id('p3state').addEventListener('input', e => { if (filmTimer) stopFilm(); const q = wkStates[+e.target.value]; if (q) setState(q.key); });
 $id('p3film').addEventListener('click', playFilm);
-$id('p3case').addEventListener('change', e => { defCase = e.target.value; paint(); render(); });
+function nUi() {
+  const sl = $id('p3n'), c = festRes && (festRes.wing.cases.find(q => q.key === defCase) || festRes.wing.cases[0]);
+  if (!c) return;
+  const lo = Math.min(1, c.n), hi = c.n;
+  sl.min = String(lo); sl.max = String(hi); sl.step = String(Math.max(0.1, Math.round((hi - lo) / 60 * 10) / 10) || 0.1);
+  const n = defN == null ? hi : Math.min(Math.max(defN, lo), hi);
+  sl.value = String(n); sl.disabled = hi <= lo;
+  $id('p3no').textContent = 'n ' + n.toFixed(1) + ' g';
+}
+$id('p3case').addEventListener('change', e => { defCase = e.target.value; defN = null; nUi(); paint(); render(); });
+$id('p3n').addEventListener('input', e => {
+  const c = festRes && (festRes.wing.cases.find(q => q.key === defCase) || festRes.wing.cases[0]); if (!c) return;
+  const v = +e.target.value; defN = v >= c.n - 1e-9 ? null : v; $id('p3no').textContent = 'n ' + v.toFixed(1) + ' g';
+  paint(); render();
+});
 $id('p3scale').addEventListener('click', e => { const b = e.target.closest('button[data-s]'); if (!b) return; defScale = +b.dataset.s; document.querySelectorAll('#p3scale button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); paint(); render(); });
 $id('p3lastv').addEventListener('change', e => { showBands = e.target.checked; if (lastArgs) loadBands(lastArgs[0], lastArgs[1]); key(frames.get(wkKey)); render(); });
 
