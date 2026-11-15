@@ -198,3 +198,21 @@ test('Stegbreite Wurzel und Rand', () => {
   near(b[n].gtWeb, mats.rohacell.G * 4, 1e-9);
   near(a[n].gtWeb, mats.rohacell.G * 10, 1e-9);
 });
+
+test('Mehrere Verbinder mit Lage y, Platz im Holm', () => {
+  const { project, m, r } = setup();
+  const one = S.analyze(m, project.profiles, r, { project }).wing;
+  assert.strictEqual(one.joiners.length, 1); assert.strictEqual(one.joiners[0].y, 0); // alte Projekte: ein Verbinder in der Mitte
+  m.wing.struct = { joiners: [{ y: 600, mat: 'cfk-stab', form: 'rund', d: 6 }, { y: 0, form: 'rund', d: 8 }] };
+  const P = S.analyze(m, project.profiles, r, { project }).wing;
+  assert.deepStrictEqual(P.joiners.map(j => j.y), [0, 600]);
+  near(P.joiners[0].M, one.joiners[0].M, 1e-9, 'Mitte wie bisher');
+  assert.ok(P.joiners[1].M < 0.7 * P.joiners[0].M && P.joiners[1].M > 0, 'aussen weniger Moment');
+  const c = P.cases.find(x => x.label === P.joiners[1].case), i = P.ys.findIndex(y => y >= 600);
+  assert.ok(Math.abs(P.joiners[1].M - Math.abs(c.M[i])) < 0.1 * P.joiners[1].M);
+  const room = P.joiners[1].room;
+  assert.ok(room.hIn > 0 && room.hIn < room.hOut && room.b === 12);
+  assert.strictEqual(P.joiners[1].fits, 6 <= room.hIn);
+  m.wing.struct = { joiners: [{ y: 0, form: 'rund', d: 50 }] };
+  assert.strictEqual(S.analyze(m, project.profiles, r, { project }).wing.joiners[0].fits, false);
+});

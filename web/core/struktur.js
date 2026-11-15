@@ -110,19 +110,21 @@
     const S = model[part] || {}, s = S.struct || {};
     const tpl = TEMPLATES[s.template] ? s.template : (S.build && S.build.type === 'rippen' ? 'rippen' : part === 'tail' ? 'styro' : 'schale');
     const T = TEMPLATES[tpl];
-    return {
+    const out = {
       template: tpl,
       spar: sparOf(T.spar, s.spar),
       web: { ...T.web, ...(s.web || {}) },
       shell: { box: (s.shell && s.shell.box) || T.shell.box, layers: (s.shell && Array.isArray(s.shell.layers) ? s.shell.layers : T.shell.layers).map(layerOf) },
       fill: s.fill || T.fill,
       ribs: s.ribs ?? (S.build && S.build.ribs) ?? 60, ribT: s.ribT ?? 2,
-      joiner: { ...JOINER[part], ...(s.joiner || {}) },
+      joiners: joinersOf(part, s),
       link: { ...LINK, ...(s.link || {}) },
       mass: Number.isFinite(s.mass) && s.mass > 0 ? s.mass : null, // gewogene Masse beider Hälften in g
       // Aeroelastik: Schwerpunkt des Flügelschnitts in % Tiefe; Messung am eingespannten Flügel (Gewicht bei y → Durchbiegung, Moment bei y → Verdrehung)
       aero: { ...(s.aero || {}), cg: s.aero && +s.aero.cg > 0 ? +s.aero.cg : 40 },
     };
+    out.joiner = out.joiners[0];
+    return out;
   }
   // CFK-Schlauch über den Holm: Anzahl Lagen (0 = ohne) und Flächengewicht des Geflechts (g/m², trocken)
   const SLEEVE_MAT = 'cfk-gewebe';
@@ -135,6 +137,11 @@
     if (!(+sp.n1 >= 1)) sp.n1 = Math.round(b * (+sp.t1 || 0) / a1);
     sp.n0 = Math.max(1, Math.round(+sp.n0)); sp.n1 = Math.max(1, Math.min(sp.n0, Math.round(+sp.n1)));
     return sp;
+  }
+  // Verbinder: beliebig viele, je mit Lage y (0 = Mitte der beiden Hälften). Alte Projekte: ein Verbinder struct.joiner bei y 0
+  function joinersOf(part, s) {
+    const list = Array.isArray(s.joiners) && s.joiners.length ? s.joiners : [{ y: 0, ...(s.joiner || {}) }];
+    return list.map(j => ({ ...JOINER[part], y: 0, ...j, y: Math.max(0, +j.y || 0) })).sort((a, b) => a.y - b.y);
   }
   const loadsOf = model => ({ ...LOADS, ...(model.loads || {}) });
 
@@ -561,18 +568,28 @@
       Pt.worst = Pt.cases.reduce((m, c) => (c.worst.reserve < m.reserve ? c.worst : m), { reserve: Infinity });
     }
 
-    // Verbinder: Nennspannung im ungünstigsten Lastfall
+    // Verbinder: Nennspannung im ungünstigsten Lastfall an der Stelle y, dazu der Platz im Holm dort
     for (const part of ['wing', 'tail']) {
-      const Pt = parts[part], j = Pt.struct.joiner, sec = section(j), mat = mats[j.mat] || mats.federstahl, n = Math.max(1, j.n || 1);
-      const worst = Pt.cases.reduce((m, c) => (Math.abs(c.rootM) > Math.abs(m.rootM) ? c : m), Pt.cases[0]);
-      const Mr = Math.abs(worst.rootM) * 1000, Qr = Math.abs(worst.rootQ);
-      const sigma = sec.W > 0 ? Mr / (n * sec.W) : Infinity, tau = sec.A > 0 ? Qr / (n * sec.A) : Infinity;
-      const allow = Math.min(mat.sigT, mat.sigC);
-      Pt.joiner = {
-        ...sec, mat: mat.name, sigma, tau, allow, reserve: allow / sigma, reserveTau: mat.tau / tau, case: worst.label, M: Mr / 1000, Q: Qr,
-        bearing: j.len > 0 ? (6 * Mr / (sec.width * j.len * j.len) + Qr / (sec.width * j.len)) / n : null, // Lochleibung an der Kastenkante, N/mm²
-        mass: n * sec.A * (j.len * 2) / 1e6 * mat.rho, // g, Länge beidseitig im Kasten
-      };
+      const Pt = parts[part], yEnd = Pt.ys[Pt.ys.length - 1];
+      Pt.joiners = Pt.struct.joiners.map(j => {
+        const y = Math.min(j.y, yEnd), sec = section(j), mat = mats[j.mat] || mats.federstahl, n = Math.max(1, j.n || 1);
+        const at = (c, k) => linX(Pt.ys, c[k], y);
+        const worst = Pt.cases.reduce((m, c) => (Math.abs(at(c, 'M')) > Math.abs(at(m, 'M')) ? c : m), Pt.cases[0]);
+        const Mr = Math.abs(at(worst, 'M')) * 1000, Qr = Math.abs(at(worst, 'Q'));
+        const sigma = sec.W > 0 ? Mr / (n * sec.W) : Infinity, tau = sec.A > 0 ? Qr / (n * sec.A) : Infinity;
+        const allow = Math.min(mat.sigT, mat.sigC);
+        // Platz: Holmhöhe unter der Schale, lichte Höhe zwischen den Gurten, Gurtbreite
+        const g = k => lerpSt(Pt.stations, y, k);
+        const room = { hOut: g('hOut'), hIn: g('hWeb'), b: +Pt.struct.spar.b || 0, chord: g('chord') };
+        const fits = sec.height <= room.hIn + 1e-6;
+        return {
+          ...sec, y, matId: j.mat, mat: mat.name, n, len: j.len, sigma, tau, allow, reserve: allow / sigma, reserveTau: mat.tau / tau, case: worst.label, M: Mr / 1000, Q: Qr,
+          bearing: j.len > 0 ? (6 * Mr / (sec.width * j.len * j.len) + Qr / (sec.width * j.len)) / n : null, // Lochleibung an der Kastenkante, N/mm²
+          mass: n * sec.A * (j.len * 2) / 1e6 * mat.rho, // g, Länge beidseitig im Kasten
+          room, fits,
+        };
+      });
+      Pt.joiner = Pt.joiners[0];
     }
 
     // Anlenkungen: Scharniermoment je Klappe bei V max mit vollem Ausschlag, beide Richtungen

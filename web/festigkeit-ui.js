@@ -30,6 +30,30 @@
     <p class="hint" style="grid-column:1/-1;margin:0">Ein Roving gibt ${fmt(r.a1, 2)} mm² Laminat, bei ${fmt(sp.b, 1)} mm Gurtbreite ${fmt(r.a1 / Math.max(sp.b, 0.1), 2)} mm Dicke. Wurzel ${fmt(sp.n0 * r.a1 / Math.max(sp.b, 0.1), 2)} mm. Handlaminat liegt bei 45 bis 55 % Faser. „elliptisch“ verteilt die Rovings so, dass sich der Flügel unter Last als Ellipsenbogen biegt.</p>`;
   }
 
+  // Ein Verbinder: Lage y, Material, Querschnitt, Länge, Anzahl. Darunter der Platz im Holm an der Stelle (nach der Rechnung)
+  function joinerForm(j, i, mats, count) {
+    const round = j.form === 'rund' || j.form === 'rohr', k = f => `joiners.${i}.${f}`;
+    return `<div class="form" style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px">
+    ${num('Lage y', k('y'), j.y, 'mm', 10, 'min="0" title="Abstand von der Rumpfmitte. 0 = Verbinder zwischen den beiden Hälften. Bei festem Mittelteil die Trennstelle, z. B. 800 mm."')}
+    ${matField('Material', k('mat'), j.mat, mats)}
+    <label class="field"><span>Form</span><select data-k="${k('form')}">${Object.entries(S.FORMS).map(([q, t]) => `<option value="${q}"${q === j.form ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+    ${round ? num('Durchmesser', k('d'), j.d, 'mm', 0.5, 'min="0"') : num('Breite', k('b'), j.b, 'mm', 0.5, 'min="0"') + num('Höhe', k('h'), j.h, 'mm', 0.5, 'min="0"')}
+    ${j.form === 'rohr' ? num('Innendurchmesser', k('di'), j.di, 'mm', 0.5, 'min="0"') : ''}
+    ${j.form === 'vierkantrohr' ? num('Wandstärke', k('t'), j.t, 'mm', 0.1, 'min="0"') : ''}
+    ${num('Länge je Seite', k('len'), j.len, 'mm', 5, 'min="0"')}
+    ${num('Anzahl', k('n'), j.n, '', 1, 'min="1"')}
+    ${count > 1 ? `<div class="field"><span>&nbsp;</span><button type="button" class="btn ghost sm" data-jdel="${i}">Verbinder löschen</button></div>` : ''}
+    <p class="hint" style="grid-column:1/-1;margin:0" data-jroom="${i}">${roomText(i)}</p>
+  </div>`;
+  }
+  function roomText(i) {
+    const J = last && last[part] && last[part].joiners && last[part].joiners[i];
+    if (!J) return '';
+    const r = J.room;
+    return `Platz bei y ${fmt(J.y, 0)} mm: Holm ${fmt(r.hOut, 1)} mm hoch unter der Schale, zwischen den Gurten ${fmt(r.hIn, 1)} mm, Gurtbreite ${fmt(r.b, 1)} mm. ` +
+      (J.fits ? `Verbinder ${fmt(J.height, 1)} mm hoch passt.` : `<b style="color:var(--bad)">Verbinder ${fmt(J.height, 1)} mm ist höher als der Platz zwischen den Gurten.</b>`);
+  }
+
   function renderIn() {
     const m = curModel(); if (!m) return;
     const mats = S.materials(project), L = S.loadsOf(m), st = S.structOf(m, part), j = st.joiner;
@@ -79,15 +103,8 @@
   </tbody></table></div>
   <div class="btnrow"><button type="button" class="btn ghost" data-add>+ Lage</button></div>
   <h3 class="sub">Verbinder</h3>
-  <div class="form">
-    ${matField('Material', 'joiner.mat', j.mat, mats)}
-    <label class="field"><span>Form</span><select data-k="joiner.form">${Object.entries(S.FORMS).map(([k, t]) => `<option value="${k}"${k === j.form ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-    ${round ? num('Durchmesser', 'joiner.d', j.d, 'mm', 0.5, 'min="0"') : num('Breite', 'joiner.b', j.b, 'mm', 0.5, 'min="0"') + num('Höhe', 'joiner.h', j.h, 'mm', 0.5, 'min="0"')}
-    ${j.form === 'rohr' ? num('Innendurchmesser', 'joiner.di', j.di, 'mm', 0.5, 'min="0"') : ''}
-    ${j.form === 'vierkantrohr' ? num('Wandstärke', 'joiner.t', j.t, 'mm', 0.1, 'min="0"') : ''}
-    ${num('Länge im Flügel', 'joiner.len', j.len, 'mm', 5, 'min="0"')}
-    ${num('Anzahl', 'joiner.n', j.n, '', 1, 'min="1"')}
-  </div>
+  ${st.joiners.map((j, i) => joinerForm(j, i, mats, st.joiners.length)).join('')}
+  <div class="btnrow"><button type="button" class="btn ghost" data-jadd>+ Verbinder</button></div>
   <h3 class="sub">Aeroelastik und Messung</h3>
   <div class="form">
     ${num('Schwerpunkt im Schnitt', 'aero.cg', st.aero.cg, '% Tiefe', 1, 'min="15" max="60" title="Massenschwerpunkt des Flügelschnitts in Tiefenrichtung, für den Flatter-Richtwert. Schalenflügel liegen bei 38 bis 45 %."')}
@@ -127,10 +144,15 @@
       s.shell = { ...(s.shell || {}), layers: cur };
     } else if (a === 'template') {
       // neue Vorlage: Holm, Steg, Schale und Füllung von dort, Verbinder und Anlenkung bleiben
-      m[part].struct = { template: v, joiner: s.joiner, link: s.link, mass: s.mass };
+      m[part].struct = { template: v, joiner: s.joiner, joiners: s.joiners, link: s.link, mass: s.mass };
       if (!m[part].struct.joiner) delete m[part].struct.joiner;
+      if (!m[part].struct.joiners) delete m[part].struct.joiners;
       if (!m[part].struct.link) delete m[part].struct.link;
       if (m[part].struct.mass == null) delete m[part].struct.mass;
+    } else if (a === 'joiners') {
+      const cur = S.structOf(m, part).joiners.map(j => ({ ...j }));
+      cur[+b][c] = c === 'mat' || c === 'form' ? v : (v === '' ? 0 : +v);
+      s.joiners = cur; delete s.joiner;
     } else if (a === 'spar' && (b === 'sleeve' || b === 'sleeveG')) {
       s.spar = { ...(s.spar || {}), [b]: +v };
       if (b === 'sleeve' && !(+v > 0)) delete s.spar.sleeve;
@@ -162,7 +184,7 @@
         changed(false);
       } else if (k === 'link.cuts') {
         setStruct(k, t.value.split(/[;,\s]+/).map(x => parseFloat(x)).filter(x => Number.isFinite(x) && x > 0).sort((a, b) => a - b)); changed(true);
-      } else { setStruct(k, v); changed(k === 'joiner.form' || k.startsWith('layer.') || k.startsWith('spar.')); }
+      } else { setStruct(k, v); changed(/^joiners\.\d+\.(form|y)$/.test(k) || k.startsWith('layer.') || k.startsWith('spar.')); }
     } else if (t.dataset.mk) {
       const [id, f] = t.dataset.mk.split('.');
       project.materials = project.materials || {};
@@ -178,6 +200,13 @@
     const sg = b.closest('[data-seg]');
     if (sg) { setStruct(sg.dataset.seg, b.dataset.v); changed(true); return; }
     if (b.dataset.finfo != null) { const p = $('festInfo'); p.hidden = !p.hidden; b.setAttribute('aria-expanded', String(!p.hidden)); return; }
+    if (b.dataset.jadd != null || b.dataset.jdel != null) {
+      const cur = S.structOf(m, part).joiners.map(j => ({ ...j }));
+      if (b.dataset.jdel != null) cur.splice(+b.dataset.jdel, 1);
+      else { const l = cur[cur.length - 1]; cur.push({ ...l, y: l.y > 0 ? Math.round(l.y * 1.5 / 10) * 10 : 800 }); }
+      const s = m[part].struct = m[part].struct || {}; s.joiners = cur; delete s.joiner;
+      changed(true); return;
+    }
     if (b.dataset.add != null || b.dataset.del != null) {
       const cur = S.structOf(m, part).shell.layers;
       if (b.dataset.del != null) cur.splice(+b.dataset.del, 1); else cur.push({ mat: 'gfk-gewebe', g: 49, angle: 45 });
@@ -301,9 +330,9 @@
     renderRov(P);
     renderAero(a, P);
 
-    const j = P.joiner;
-    $('festJoin').innerHTML = `<thead><tr><th>${esc(j.mat)}</th><th>W mm³</th><th>M Nm</th><th>σ N/mm²</th><th>zulässig</th><th>Reserve</th><th>τ N/mm²</th><th>Lochleibung N/mm²</th><th>Masse g</th></tr></thead>
-<tbody><tr><td>${esc(j.case)}</td><td>${fmt(j.W, 1)}</td><td>${fmt(j.M, 1)}</td><td>${fmt(j.sigma, 0)}</td><td>${fmt(j.allow, 0)}</td>${lamp(j.reserve)}<td>${fmt(j.tau, 1)}</td><td>${j.bearing == null ? '–' : fmt(j.bearing, 1)}</td><td>${fmt(j.mass, 0)}</td></tr></tbody>`;
+    $('festJoin').innerHTML = `<thead><tr><th>Lage y mm</th><th>Material</th><th>Platz h × b mm</th><th>Verbinder mm</th><th>M Nm</th><th>W mm³</th><th>σ N/mm²</th><th>zulässig</th><th>Reserve</th><th>τ N/mm²</th><th>Lochleibung N/mm²</th><th>Masse g</th><th style="text-align:left">Lastfall</th></tr></thead><tbody>` +
+      P.joiners.map(j => `<tr><td>${fmt(j.y, 0)}</td><td>${esc(j.mat)}${j.n > 1 ? ' × ' + j.n : ''}</td><td title="Lichte Höhe zwischen den Gurten × Gurtbreite, Holmhöhe unter der Schale ${fmt(j.room.hOut, 1)} mm">${fmt(j.room.hIn, 1)} × ${fmt(j.room.b, 1)}</td><td${j.fits ? '' : ' style="color:var(--bad);font-weight:600" title="höher als der Platz zwischen den Gurten"'}>${fmt(j.height, 1)} × ${fmt(j.width, 1)}</td><td>${fmt(j.M, 1)}</td><td>${fmt(j.W, 1)}</td><td>${fmt(j.sigma, 0)}</td><td>${fmt(j.allow, 0)}</td>${lamp(j.reserve)}<td>${fmt(j.tau, 1)}</td><td>${j.bearing == null ? '–' : fmt(j.bearing, 1)}</td><td>${fmt(j.mass, 0)}</td><td style="text-align:left">${esc(j.case)}</td></tr>`).join('') + '</tbody>';
+    P.joiners.forEach((j, i) => { const el = IN.querySelector(`[data-jroom="${i}"]`); if (el) el.innerHTML = roomText(i); });
 
     const sv = a.servo;
     $('festServo').innerHTML = sv.length ? `<thead><tr><th>Ruder</th><th>von–bis mm</th><th>Tiefe %</th><th>Ausschlag</th><th>Scharniermoment Nm</th><th>Kraft im Gestänge N</th><th>Servomoment Ncm</th><th>kg·cm</th></tr></thead><tbody>` +
