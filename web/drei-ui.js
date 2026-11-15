@@ -174,13 +174,19 @@ function syncWk(m, r) {
     wkR = r; frames.clear(); pending.clear(); druckSeq++; flowGen++;
     wkStates = r && r.load ? DBild.states(m, r) : [];
     if (!wkStates.some(q => q.key === wkKey)) wkKey = 'trim';
-    const sel = $id('p3state');
-    sel.innerHTML = wkStates.map(q => `<option value="${q.key}"${q.key === wkKey ? ' selected' : ''}>${q.label}${q.v ? ' · ' + Math.round(q.v * 3.6) + ' km/h' : ''}</option>`).join('');
+    stateUi();
     if (filmTimer) stopFilm();
   }
   document.querySelectorAll('#p3layer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === layer)));
   if (layer === 'def') needFest(); else if (layer !== 'form') need([wkKey]);
   needFlow();
+}
+// Schieber für den Flugzustand: Trimm, dann die Arbeitstabelle nach Ca, dann α darüber hinaus
+function stateUi() {
+  const sl = $id('p3state'), i = Math.max(0, wkStates.findIndex(q => q.key === wkKey)), q = wkStates[i];
+  sl.max = String(Math.max(0, wkStates.length - 1)); sl.value = String(i); sl.disabled = wkStates.length < 2;
+  $id('p3stateo').textContent = q ? q.label + (q.v ? ' · ' + Math.round(q.v * 3.6) + ' km/h' : '') : '';
+  sl.setAttribute('aria-valuetext', $id('p3stateo').textContent);
 }
 function need(keys) {
   const m = lastArgs && lastArgs[0];
@@ -394,11 +400,11 @@ function setLayer(l) {
   if (layer === 'def') { if (filmTimer) stopFilm(); needFest(); } else if (layer !== 'form') need([wkKey]);
 }
 function setState(k) {
-  wkKey = k; $id('p3state').value = k;
+  wkKey = k; stateUi();
   if (layer !== 'form') need([k]);
   paint();
   if (lastArgs) loadBands(lastArgs[0], lastArgs[1]);
-  needFlow(true);
+  needFlow(); // kurz warten: beim Ziehen am Schieber nur den letzten Zustand rechnen
   render();
 }
 function stopFilm() {
@@ -422,7 +428,7 @@ function playFilm() {
   }, 450);
 }
 $id('p3layer').addEventListener('click', e => { const b = e.target.closest('button[data-l]'); if (b) setLayer(b.dataset.l); });
-$id('p3state').addEventListener('change', e => { if (filmTimer) stopFilm(); setState(e.target.value); });
+$id('p3state').addEventListener('input', e => { if (filmTimer) stopFilm(); const q = wkStates[+e.target.value]; if (q) setState(q.key); });
 $id('p3film').addEventListener('click', playFilm);
 $id('p3case').addEventListener('change', e => { defCase = e.target.value; paint(); render(); });
 $id('p3scale').addEventListener('click', e => { const b = e.target.closest('button[data-s]'); if (!b) return; defScale = +b.dataset.s; document.querySelectorAll('#p3scale button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); paint(); render(); });
