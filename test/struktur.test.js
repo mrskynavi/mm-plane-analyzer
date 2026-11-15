@@ -187,3 +187,14 @@ test('CFK-Schlauch über den Holm: entlastet den Steg, schliesst die D-Box, kost
   assert.strictEqual(b.use[1].label, 'Steg und Holmschlauch');
   assert.strictEqual(a.stations[0].gjSleeve, 0);
 });
+
+test('Stegbreite Wurzel und Rand', () => {
+  const { project, m } = setup(), mats = S.materials(project);
+  m.wing.struct = { web: { mat: 'rohacell', t: 10 } };
+  const a = S.stations(m, project.profiles, 'wing', mats);
+  m.wing.struct = { web: { mat: 'rohacell', t: 10, t1: 4 } };
+  const b = S.stations(m, project.profiles, 'wing', mats), n = b.length - 1;
+  near(b[0].gtWeb, a[0].gtWeb, 1e-9);
+  near(b[n].gtWeb, mats.rohacell.G * 4, 1e-9);
+  near(a[n].gtWeb, mats.rohacell.G * 10, 1e-9);
+});
