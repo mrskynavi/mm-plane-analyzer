@@ -5,7 +5,7 @@
 // zum Schluss { kind: 'done', seq }. Eine neue Druck-Anfrage bricht die laufende nach dem aktuellen Zustand ab.
 // Die Seite hängt ?v=<Stand> an: so holt der Browser nach einem Update auch die Rechenkerne neu statt aus dem Zwischenspeicher.
 const VQ = self.location.search || '';
-importScripts(...['profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js', 'struktur.js', 'nachlauf.js'].map(f => f + VQ));
+importScripts(...['profil.js', 'nf-gewichte.js', 'neuralfoil.js', 'polare.js', 'projekt.js', 'vlm.js', 'rumpf.js', 'modell.js', 'kanal.js', 'druckbild.js', 'struktur.js', 'aeroelastik.js', 'nachlauf.js'].map(f => f + VQ));
 let druckSeq = 0, wakeCache = null;
 self.onmessage = e => {
   const d = e.data;

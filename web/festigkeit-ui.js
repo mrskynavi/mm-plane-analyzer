@@ -30,6 +30,7 @@
     <p>„Abfangen bei Ca max“ rechnet bei der Fahrt, ab der n gerade erreichbar ist. Ist n bis V max nicht erreichbar, weil der Flügel vorher abreisst, wird das erreichbare n genommen. Die Böe folgt n = 1 + ρ·V·U·a / (2·G/S).</p>
     <p>Anlenkungen: Scharniermoment der Klappe aus der Druckverteilung hinter der Scharnierlinie bei V max und vollem Ausschlag. Kraft im Gestänge = Moment / Ruderhornlänge, Servomoment = Kraft × Servoarm. Gerechnet je Streifen ohne 3D-Entlastung, also eher zu hoch.</p>
     <p>Steifigkeit: EI aus Gurten, Steg und Schale um die Biegeachse, GJ nach Bredt für den geschlossenen Kasten (ganze Schale oder D-Box mit dem Steg als Rückwand). Der Flügel ist ein Balken, an der Wurzel eingespannt. Daraus Durchbiegung, Verwindung und die Dehnung in jedem Bauteil. Reserve = zulässige durch vorhandene Spannung.</p>
+    <p>Aeroelastik: Das Moment um den Holm verdreht den Flügel, die Verdrehung ändert den Auftrieb und damit wieder das Moment. Gerechnet je Streifen mit der Drehsteifigkeit GJ. Divergenz ist der Staudruck, bei dem das keine Lösung mehr hat. Ruderwirksamkeit ist das Rollmoment des verdrehten Flügels im Verhältnis zum starren. Der Flatter-Richtwert folgt der Näherung von Theodorsen und Garrick aus der Torsionsfrequenz, der Masse und der Lage des Schwerpunkts im Schnitt. Rudermassen, Spiel in der Anlenkung und der Leitwerksträger sind nicht enthalten.</p>
     <p>Nicht geprüft sind Beulen der Schale, Knicken des Druckgurts, Klebungen und Krafteinleitungen. Die Materialwerte sind Richtwerte und lassen sich unten ändern.</p>
   </div>
   <div class="form">
@@ -71,6 +72,16 @@
     ${j.form === 'vierkantrohr' ? num('Wandstärke', 'joiner.t', j.t, 'mm', 0.1, 'min="0"') : ''}
     ${num('Länge im Flügel', 'joiner.len', j.len, 'mm', 5, 'min="0"')}
     ${num('Anzahl', 'joiner.n', j.n, '', 1, 'min="1"')}
+  </div>
+  <h3 class="sub">Aeroelastik und Messung</h3>
+  <div class="form">
+    ${num('Schwerpunkt im Schnitt', 'aero.cg', st.aero.cg, '% Tiefe', 1, 'min="15" max="60" title="Massenschwerpunkt des Flügelschnitts in Tiefenrichtung, für den Flatter-Richtwert. Schalenflügel liegen bei 38 bis 45 %."')}
+    ${num('Biegeprobe: Gewicht', 'aero.bendMass', st.aero.bendMass, 'g', 50, 'min="0" placeholder="–" title="Flügelhälfte an der Wurzel eingespannt, Gewicht angehängt"')}
+    ${num('… angehängt bei y', 'aero.bendY', st.aero.bendY, 'mm', 10, 'min="0" placeholder="Randbogen"')}
+    ${num('… Durchbiegung dort', 'aero.bendW', st.aero.bendW, 'mm', 1, 'min="0" placeholder="–"')}
+    ${num('Drehprobe: Moment', 'aero.torsM', st.aero.torsM, 'N·cm', 5, 'min="0" placeholder="–" title="Zum Beispiel 200 g an einem 100 mm langen Hebel = 19,6 N·cm"')}
+    ${num('… angesetzt bei y', 'aero.torsY', st.aero.torsY, 'mm', 10, 'min="0" placeholder="Randbogen"')}
+    ${num('… Verdrehung dort', 'aero.torsPhi', st.aero.torsPhi, '°', 0.1, 'min="0" placeholder="–"')}
   </div>
   <h3 class="sub">Anlenkung</h3>
   <div class="form">
@@ -202,6 +213,13 @@
   <div class="cbox"><div class="ct">Reserve <span>min. <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festR"></canvas></div><div class="legend cleg" id="festRLeg"></div></div>
   <div class="cbox"><div class="ct">Steifigkeit <span>EI und GJ in N·m² <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festEI"></canvas></div><div class="legend cleg" id="festEILeg"></div></div>
 </div>
+<section class="pol-box rv-sec" id="festAero"><div class="pol-head"><h3 class="sub">Aeroelastik Flügel</h3><span class="status" id="festAeroMeta"></span></div>
+  <div class="tablewrap"><table id="festAeroLim"></table></div><p class="hint" id="festAeroHint"></p>
+  <div class="tablewrap"><table id="festAeroSweep"></table></div><p class="hint" id="festAeroNote"></p></section>
+<div class="charts" id="festAeroCharts">
+  <div class="cbox"><div class="ct">Ruderwirksamkeit <span>Rollmoment elastisch / starr in % <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festEta"></canvas></div></div>
+  <div class="cbox"><div class="ct">Verwindung im Geradeausflug <span>θ in °, + Nase hoch <button type="button" class="zoom" aria-label="Diagramm gross" title="Gross / klein">⤢</button></span></div><div class="cv"><canvas id="festTw"></canvas></div><div class="legend cleg" id="festTwLeg"></div></div>
+</div>
 <section class="pol-box rv-sec"><h3 class="sub">Verbinder</h3><div class="tablewrap"><table id="festJoin"></table></div></section>
 <section class="pol-box rv-sec"><h3 class="sub">Anlenkungen: Kraft am Servo</h3><div class="tablewrap"><table id="festServo"></table></div><p class="hint" id="festServoHint"></p></section>
 <section class="pol-box rv-sec"><h3 class="sub">Aufbau und Masse je Station</h3><div class="tablewrap"><table id="festSt"></table></div><p class="hint" id="festMass"></p></section>`;
@@ -245,6 +263,8 @@
     chart('festEI', 'y in mm', 'N·m²', [plain('EI Biegung', 0, P.EI), plain('GJ Torsion', 2, P.GJ)]);
     $('festEILeg').innerHTML = `<span><i style="background:${col(0)}"></i>EI Biegung</span><span><i style="background:${col(2)}"></i>GJ Torsion</span>`;
 
+    renderAero(a, P);
+
     const j = P.joiner;
     $('festJoin').innerHTML = `<thead><tr><th>${esc(j.mat)}</th><th>W mm³</th><th>M Nm</th><th>σ N/mm²</th><th>zulässig</th><th>Reserve</th><th>τ N/mm²</th><th>Lochleibung N/mm²</th><th>Masse g</th></tr></thead>
 <tbody><tr><td>${esc(j.case)}</td><td>${fmt(j.W, 1)}</td><td>${fmt(j.M, 1)}</td><td>${fmt(j.sigma, 0)}</td><td>${fmt(j.allow, 0)}</td>${lamp(j.reserve)}<td>${fmt(j.tau, 1)}</td><td>${j.bearing == null ? '–' : fmt(j.bearing, 1)}</td><td>${fmt(j.mass, 0)}</td></tr></tbody>`;
@@ -258,6 +278,39 @@
     $('festSt').innerHTML = `<thead><tr><th>y mm</th><th>Tiefe mm</th><th>Holmhöhe mm</th><th>Gurtdicke mm</th><th>Gurtfläche mm²</th><th>Steghöhe mm</th><th>Schale mm</th><th>EI N·m²</th><th>GJ N·m²</th><th>Masse g/m</th></tr></thead><tbody>` +
       P.stations.map(s => `<tr><td>${fmt(s.y, 0)}</td><td>${fmt(s.chord, 0)}</td><td${s.hOut < 2 * s.tCap ? ' class="warn" title="Gurte passen nicht in die Profilhöhe"' : ''}>${fmt(s.hOut, 1)}</td><td>${fmt(s.tCap, 2)}</td><td>${fmt(s.aCap, 1)}</td><td>${fmt(s.hWeb, 1)}</td><td>${fmt(s.tShell, 2)}</td><td>${fmt(s.EI / 1e6, 1)}</td><td>${fmt(s.GJ / 1e6, 1)}</td><td>${fmt(s.massPerM * P.scale, 0)}</td></tr>`).join('') + '</tbody>';
     $('festMass').textContent = `${NAME[part]} beide Hälften: ${fmt(P.massCalc, 0)} g aus dem Aufbau gerechnet${P.struct.mass ? `, gewogen ${fmt(P.struct.mass, 0)} g (Verteilung darauf skaliert)` : ''}, ohne Verbinder, Servos und Harz für Verklebungen.`;
+  }
+
+  // Aeroelastik (F3): Grenzen, Verwindung im Flug, Ruderwirksamkeit, Eichung an der Messung
+  function renderAero(a, P) {
+    const A = a.aero, show = part === 'wing' && !!A;
+    $('festAero').hidden = !show; $('festAeroCharts').hidden = !show || !A.ok;
+    if (!show) return;
+    const kmh = v => fmt(v * 3.6, 0), vM = A.vMax;
+    const cal = P.calib || {}, calTxt = [];
+    if (cal.bend) calTxt.push(`Biegeprobe: gerechnet ${fmt(cal.bend.calc, 1)} mm, gemessen ${fmt(cal.bend.meas, 1)} mm → EI × ${fmt(cal.kEI, 2)}`);
+    if (cal.tors) calTxt.push(`Drehprobe: gerechnet ${fmt(cal.tors.calc, 2)}°, gemessen ${fmt(cal.tors.meas, 2)}° → GJ × ${fmt(cal.kGJ, 2)}`);
+    $('festAeroMeta').textContent = Number.isFinite(A.fh) ? `Eigenfrequenz Biegung ${fmt(A.fh, 1)} Hz${Number.isFinite(A.ft) ? ' · Torsion ' + fmt(A.ft, 0) + ' Hz' : ''}` : '';
+    const row = (name, v, note) => `<tr><td>${name}</td><td>${v ? kmh(v) : '–'}</td>${v ? lamp(v / vM) : '<td>–</td>'}<td style="text-align:left;white-space:normal">${note}</td></tr>`;
+    const ail = A.aileron;
+    $('festAeroLim').innerHTML = A.ok ? `<thead><tr><th>Grenze</th><th>km/h</th><th>÷ V max</th><th style="text-align:left">Bedeutung</th></tr></thead><tbody>` +
+      row('Divergenz', A.div && A.div.v, A.div ? 'Der Auftrieb dreht den Flügel schneller auf, als er sich wehrt. Holm weiter vorn oder mehr ±45°-Gewebe hilft.' : 'tritt nicht auf (Holm bei oder vor t/4)') +
+      row('Ruderumkehr', ail && ail.rev, ail ? (ail.rev ? `Ruder ${fmt(ail.y0, 0)}–${fmt(ail.y1, 0)} mm wirkt ab hier verkehrt.` : 'bis zum Dreifachen von V max keine Umkehr') + (ail.etaMax > 0 ? ` Bei V max bleiben ${fmt(100 * ail.etaMax, 0)} % der Wirkung.` : ' Bei V max wirkt es schon verkehrt.') : 'keine Klappe eingetragen') +
+      row('Flattern (Richtwert)', A.flutter && A.flutter.v, A.flutter && A.flutter.v ? `Biegung und Torsion schaukeln sich auf. Schnitt bei y ${fmt(A.flutter.y, 0)} mm, Schwerpunkt ${fmt(A.xcg * 100, 0)} % Tiefe.` : 'klassisches Biege-Torsions-Flattern tritt nicht auf (Schwerpunkt bei oder vor t/4)') + '</tbody>' : '';
+    $('festAeroHint').textContent = A.ok ? `Die Grenzen sollten mindestens das 1,2-Fache von V max (${kmh(vM)} km/h) erreichen. Elastische Achse = Holmlage ${fmt(A.xs * 100, 0)} % Tiefe.${calTxt.length ? ' ' + calTxt.join(' · ') + '.' : ' Ohne Messung gelten die gerechneten Steifigkeiten: eine Biege- und eine Drehprobe am gebauten Flügel (links unter „Aeroelastik und Messung“) eicht sie.'}` : '';
+    const sw = (A.sweep || []);
+    $('festAeroSweep').innerHTML = sw.length ? `<thead><tr><th>km/h</th><th>Ca</th><th>Verwindung Rand °</th><th>ohne Rückkopplung °</th><th>M Wurzel</th><th>Gleitzahl starr</th><th>verformt</th></tr></thead><tbody>` +
+      sw.map(q => q.diverged ? `<tr><td>${kmh(q.v)}</td><td>${fmt(q.cl, 2)}</td><td colspan="5" style="text-align:left;color:var(--bad)">über der Divergenz</td></tr>`
+        : `<tr><td>${kmh(q.v)}</td><td>${fmt(q.cl, 2)}</td><td${Math.abs(q.phi) > 8 ? ' style="color:var(--bad);font-weight:600"' : ''}>${fmt(q.phi, 2)}</td><td>${fmt(q.phiRigid, 2)}</td><td>${Math.abs(q.phi) > 8 ? '–' : (q.dM >= 0 ? '+' : '') + fmt(100 * q.dM, 0) + ' %'}</td><td>${Number.isFinite(q.E) ? fmt(q.E, 1) : '–'}</td><td>${Number.isFinite(q.E2) ? fmt(q.E2, 1) : '–'}</td></tr>`).join('') + '</tbody>' : '';
+    $('festAeroNote').textContent = [sw.length ? 'Geradeausflug mit n = 1. Negative Verwindung dreht die Nase aussen nach unten: der Auftrieb wandert nach innen, das Biegemoment sinkt, die Gleitzahl leidet über den induzierten Widerstand. Über etwa 8° ist die Rechnung nur noch ein Warnzeichen.' : '', ...(A.notes || [])].filter(Boolean).join(' ');
+    if (!A.ok) return;
+    const col = i => css(COLS[i % COLS.length]);
+    const ds = [];
+    if (ail) ds.push({ label: 'Ruderwirksamkeit', data: ail.curve.filter(q => Number.isFinite(q.eta) && q.eta > -1).map(q => ({ x: q.v * 3.6, y: 100 * q.eta })), showLine: true, borderColor: col(0), backgroundColor: col(0), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 });
+    ds.push({ label: 'V max', data: [{ x: vM * 3.6, y: 0 }, { x: vM * 3.6, y: 100 }], showLine: true, borderColor: css('--bad'), borderDash: [5, 4], borderWidth: 1.2, pointRadius: 0 });
+    chart('festEta', 'km/h', '%', ds, { y: { min: -100, max: 100 } });
+    const tw = sw.filter(q => !q.diverged && Math.abs(q.phi) < 30);
+    chart('festTw', 'y in mm', 'θ in °', tw.map((q, i) => ({ label: kmh(q.v) + ' km/h', data: A.ys.map((y, k) => ({ x: y, y: q.theta[k] })), showLine: true, borderColor: col(i), backgroundColor: col(i), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 })));
+    $('festTwLeg').innerHTML = tw.map((q, i) => `<span><i style="background:${col(i)}"></i>${kmh(q.v)} km/h</span>`).join('');
   }
 
   window.MMPAFest = {
