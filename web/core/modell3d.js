@@ -71,9 +71,12 @@
   }
 
   function surface(model, profiles, part, opts) {
-    const r = FX.sections(model, profiles, part, { all: true, n: opts.n || 24, passes: 1, step: 1e9 });
     const S = part === 'wing' ? model.wing : model.tail;
     const st = S.stations;
+    // Zwischenschnitte alle ~2 % der Halbspannweite (linear, Form bleibt gleich): sonst hat ein langes Segment
+    // nur Punkte an seinen Enden und der verbogene Flügel (Ebene Biegung) knickt an den Stationen
+    const semi = Math.max(1, st[st.length - 1].y - st[0].y);
+    const r = FX.sections(model, profiles, part, { all: true, n: opts.n || 24, passes: 1, step: opts.step || semi / 48 });
     const x0 = part === 'tail' ? model.tail.x : 0, z0 = part === 'tail' ? (model.tail.z || 0) : 0;
     const o = V.stationPoints(st, x0, z0)[0].le;
     const rot = part === 'wing' ? (S.incidence || 0) * RAD : 0;
