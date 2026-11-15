@@ -344,20 +344,19 @@ function key(f) {
   const k = $id('p3key');
   if (layer === 'form' && !showBands) { k.hidden = true; return; }
   const st = wkStates.find(q => q.key === wkKey);
-  const head = st ? `<b>${st.label}</b>${st.v ? ' · ' + Math.round(st.v * 3.6) + ' km/h' : ''} · Ca ${st.cl.toFixed(2)}` : '';
+  const head = st ? `<b>${st.label}</b>${st.v ? ' · ' + Math.round(st.v * 3.6) + ' km/h' : ''} · Ca ${st.cl.toFixed(2)}${st.clLin && st.clLin > st.cl + 0.01 ? ` <span title="Das Wirbelgitter rechnet linear weiter; mehr als Ca max je Streifen trägt der Flügel nicht">(ohne Abriss ${st.clLin.toFixed(2)})</span>` : ''}` : '';
   let leg = '';
   if (layer === 'cp') leg = `<span>Sog <span class="bar" style="background:linear-gradient(90deg,rgb(31,84,217),rgb(237,237,235) 60%,rgb(217,64,51))"></span> Druck</span><span>Cp ${CP_MIN.toLocaleString('de-CH')} … 0 … +${CP_MAX}</span>`;
   if (layer === 'bl') leg = STATE_TXT.map((t, i) => `<span><i style="background:${cssVar(STATE_COL[i])}"></i>${t}</span>`).join('');
   let stall = '';
-  // Wo der Abriss beginnt: erster Zustand (nach Ca geordnet) mit abgelösten Streifen
-  const onset = wkStates.filter(q => q.film).map(q => [q, frames.get(q.key)]).find(([, g]) => g && g.stall.first && g.stall.stalled >= 0.05);
+  // Wo der Abriss beginnt: aus der Modellrechnung (wie im Diagramm Auftriebsverteilung), beim Hochziehen
+  const sa = wkR && wkR.stallAt, where = eta => (eta < 0.5 ? 'innen' : eta > 0.75 ? 'aussen' : 'Mitte');
   if (f && layer !== 'form') {
     const s = f.stall;
-    if (s.first) {
-      const where = s.first.eta < 0.5 ? 'innen, gutmütig' : s.first.eta > 0.75 ? 'aussen, kritisch' : 'Mitte';
-      stall = ` · <span class="warn">Ablösung bei ${Math.round(s.first.eta * 100)} % Halbspannweite (${where}), ${Math.round(s.stalled * 100)} % des Flügels</span>`;
-    } else stall = ' · Strömung liegt an';
-    if (onset && onset[0].key !== wkKey) stall += ` · Abriss beginnt bei ${onset[0].label} (${Math.round(onset[1].stall.first.eta * 100)} % Halbspannweite)`;
+    if (s.first) stall = ` · <span class="warn">Abriss, Ca über Ca max bei ${Math.round(s.first.eta * 100)} % Halbspannweite (${where(s.first.eta)}), ${Math.round(s.stalled * 100)} % des Flügels</span>`;
+    else stall = ` · Strömung liegt an${Number.isFinite(s.maxRatio) && s.maxRatio > 0 ? ` (höchstens ${Math.round(s.maxRatio * 100)} % Ca max${s.top ? ' bei ' + Math.round(s.top.eta * 100) + ' %' : ''})` : ''}`;
+    if (!s.first && s.sep >= 0.05) stall += ` · Ablösung (Grenzschicht) an ${Math.round(s.sep * 100)} % der Streifen, noch kein Abriss`;
+    if (sa && sa.cl) stall += ` · Abriss beginnt bei Ca ${sa.cl.toFixed(2)}${sa.v ? ', ' + Math.round(sa.v * 3.6) + ' km/h' : ''} (${Math.round(sa.eta * 100)} % Halbspannweite, ${sa.rating})`;
   } else if (layer !== 'form') stall = ' · rechnet …';
   k.hidden = false;
   k.innerHTML = `<div>${head}${stall}</div>${leg ? '<div class="leg">' + leg + '</div>' : ''}`;

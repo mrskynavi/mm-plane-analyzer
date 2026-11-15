@@ -110,7 +110,9 @@ test('Modell: Abrissstelle und Bewertung, Schränkung schiebt den Abriss nach in
   m.wing.stations = [PR.station(0, 250, 0, { profileId: e.id }), PR.station(1200, 90, 60, { profileId: e.id })];
   const a = M.analyze(m, pj.profiles);
   assert.ok(a.stallAt.eta > 0.6 && a.stallAt.rating !== 'gutmütig', JSON.stringify(a.stallAt));
-  assert.ok(Math.abs(a.stallAt.ratio - a.stall) < 1e-12);
+  // Abrissbeginn beim Hochziehen: dort erreicht die Stelle ihr Ca max, beim Trimm liegt sie darunter
+  assert.ok(a.stallAt.cl > a.trim.CL && Math.abs(a.stallAt.ratio - 1) < 0.02, JSON.stringify([a.stallAt.cl, a.stallAt.ratio]));
+  assert.ok(a.stall < a.stallAt.ratio);
   // 4° Schränkung aussen: Abriss beginnt weiter innen und gutmütiger
   m.wing.stations[1].twist = -4;
   const b = M.analyze(m, pj.profiles);
@@ -167,4 +169,18 @@ test('Modell: Endleistendicke in mm, je Station relativ zur Tiefe, Standard 0,7 
   const at = (r, cl) => r.table.find(t => Math.abs(t.cl - cl) < 1e-9);
   for (const cl of [0.2, 0.5]) assert.ok(at(thick, cl).cdw > at(sharp, cl).cdw * 1.02 && at(thick, cl).sink > at(sharp, cl).sink, `Ca ${cl}`);
   assert.strictEqual(M.withTe(m, 0).wing.stations[3].te, undefined);
+});
+
+test('Modell: ein schmaler Randstreifen mit kleiner Re allein ist noch kein Abriss', () => {
+  const pj = PR.createProject();
+  const e = PR.addProfile(pj, { datText: LIB.e374 }), h = PR.addProfile(pj, { datText: LIB.ht14 });
+  const m = PR.createModel('Test', e.id, h.id);
+  m.wing.stations = [PR.station(0, 240, 0, { profileId: e.id }), PR.station(1100, 200, 10, { profileId: e.id }), PR.station(1400, 150, 25, { profileId: e.id }),
+    PR.station(1440, 60, 60, { profileId: e.id }), PR.station(1450, 25, 80, { profileId: e.id })];
+  const r = M.analyze(m, pj.profiles);
+  assert.ok(r.stallAt && r.stallAt.cl > 0.8, JSON.stringify(r.stallAt && [r.stallAt.cl, r.stallAt.eta]));
+  assert.ok(r.stallAt.eta < 0.97, 'nicht die äusserste Spitze: ' + r.stallAt.eta);
+  // gemittelte Ausnutzung: Nachbarn im Fenster dämpfen den Ausreisser
+  const q = M.stallRatios([{ y: 0, cl: 1, clMax: 1.2, chord: 200, width: 50 }, { y: 1000, cl: 1, clMax: 1.2, chord: 200, width: 50 }, { y: 1020, cl: 0.8, clMax: 0.5, chord: 20, width: 10 }], 1050);
+  assert.ok(q[2].own > 1.5 && q[2].ratio < 1, JSON.stringify(q));
 });

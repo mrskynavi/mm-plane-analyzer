@@ -238,6 +238,37 @@
     return { ...top, outer, rating };
   }
 
+  // Ausnutzung Ca/Ca max je Flügelstreifen, über ±3 % der Halbspannweite gemittelt (Auftrieb / möglicher Auftrieb):
+  // ein einzelner schmaler Randstreifen mit kleiner Re ist noch kein Abriss, erst ein Stück Flügel, das sein
+  // Ca max erreicht. Streifen ohne Ca max fallen weg. Gilt für Diagramm, Polarenende und 3D-Ansicht gleich.
+  function stallRatios(strips, half) {
+    const ok = strips.filter(q => Number.isFinite(q.clMax) && q.clMax > 0 && Number.isFinite(q.cl));
+    const win = 0.03 * half;
+    return ok.map(q => {
+      let n = 0, d = 0;
+      for (const p of ok) if (Math.abs(p.y - q.y) <= Math.max(win, 0.51 * (q.width || 0))) { const w = (p.chord || 1) * (p.width || 1); n += p.cl * w; d += p.clMax * w; }
+      return { ...q, ratio: n / d, own: q.cl / q.clMax };
+    });
+  }
+
+  // Zwischen zwei Tabellenzeilen (a bei Ca ca, b bei Ca cb) das Gesamt-Ca suchen, bei dem das erste Stück Flügel
+  // sein Ca max erreicht. Endet die Tabelle vorher (Polare zu Ende, Profilwiderstand eines Randstreifens über
+  // Ca max), wird bis 0,2 Ca über die letzte Zeile hinaus verlängert (reached false).
+  function onsetBetween(a, b, ca, cb, vb) {
+    const reached = b.some(q => q.ratio >= 1), same = a && a.length === b.length;
+    let t = 1;
+    if (same && cb > ca) {
+      const ts = b.map((q, i) => (q.ratio > a[i].ratio ? (1 - a[i].ratio) / (q.ratio - a[i].ratio) : Infinity));
+      t = Math.min(Math.max(0, Math.min(...ts)), reached ? 1 : 0.2 / (cb - ca));
+    }
+    const strips = b.map((q, i) => {
+      const p = same ? a[i] : q, f = same ? t : 1;
+      return { y: q.y, cl: p.cl + (q.cl - p.cl) * f, clMax: p.clMax + (q.clMax - p.clMax) * f, ratio: p.ratio + (q.ratio - p.ratio) * f };
+    });
+    const cl = same ? ca + (cb - ca) * t : cb;
+    return { cl, v: vb * Math.sqrt(cb / cl), strips, reached: reached || strips.some(q => q.ratio >= 0.999) };
+  }
+
   // Hauptrechnung. Gibt alles zurück, was die Oberfläche zeigt.
   function analyze(model, profiles, { ny = 30, nx = 8, nyTail = 10, nxTail = 5, nCrit = 9 } = {}) {
     model = resolveTe(model);
@@ -313,7 +344,7 @@
       }
       return NaN;
     };
-    const strips = trim.strips.filter(s => s.surf === 0).map(s => ({ y: s.y, cl: s.cl, clMax: clMaxAt(s.y), chord: s.chord }));
+    const strips = trim.strips.filter(s => s.surf === 0).map(s => ({ y: s.y, cl: s.cl, clMax: clMaxAt(s.y), chord: s.chord, width: s.width }));
     const tailStrips = trim.strips.filter(s => s.surf === 1).map(s => ({ y: s.y, cl: s.cl, chord: s.chord }));
     // flächengewichtete Profilwerte für die Handrechnung
     let sw = 0, a0 = 0, c0 = 0;
@@ -339,6 +370,9 @@
       return [a, i];
     };
     const table = [];
+    // Abrissbeginn beim Hochziehen: Ca/Ca max je Flügelstreifen über die Tabelle verfolgen; der Streifen,
+    // der als erster Ca max erreicht, ist die Abrissstelle (zwischen zwei Zeilen linear eingeschoben)
+    let prevRat = null, onset = null;
     const finA = F.finArea(model, tail.area), lowRe = F.lowReDrag(model);
     const finCd0 = re => { const q = T.stations[0] && tailPolar(T.stations[0], profiles, re, nCrit); const c = q && cdOf(q, 0); return Number.isFinite(c) ? c : null; };
     for (let k = 2; k <= 28; k++) {
@@ -347,7 +381,8 @@
       const r = run(al, iT);
       const v = Math.sqrt(2 * model.mass / 1000 * G / (RHO * wing.area / 1e6 * cl));
       const sw = r.strips.filter(q => q.surf === 0), st = r.strips.filter(q => q.surf === 1);
-      const over = sw.some(q => Number.isFinite(clMaxAt(q.y)) && q.cl > clMaxAt(q.y));
+      const rat = stallRatios(sw.map(q => ({ y: q.y, cl: q.cl, clMax: clMaxAt(q.y), chord: q.chord, width: q.width })), wing.projSpan / 2);
+      const over = rat.some(q => q.ratio > 1);
       const reT = v * tail.mac / 1000 / NU;
       const tpols = T.stations.map(q => tailPolar(q, profiles, reT, nCrit));
       const cdi = V.trefftz(r.strips, wing.area);
@@ -356,6 +391,8 @@
       const x = F.withExtras(model, wing.area, { cdi, cdw, cdt, cdf, cdv }, al), cd = x.cd, E = cl / cd;
       if (lowRe) x.base += profileDrag(sw, W.stations, seg, wing.area) - cdw; // „ohne Zuschläge“ auch ohne Blasenzuschlag
       const stall = over || !Number.isFinite(cdw); // Ca einer Station über ihrem Ca max
+      if (!onset && rat.length && (stall || k === 28)) onset = onsetBetween(prevRat, rat, prevRat ? table[table.length - 1].cl : cl, cl, v);
+      prevRat = rat;
       // Leitwerk ohne Last: α und Einstellung so, dass Ca erreicht und Leitwerksauftrieb 0
       let a0n = 0, i0n = 0, rn = r0;
       for (let k = 0; k < 3; k++) {
@@ -378,11 +415,15 @@
     const best = ok.reduce((m, t) => (!m || t.E > m.E ? t : m), null), minSink = ok.reduce((m, t) => (!m || t.sink < m.sink ? t : m), null);
 
     const tailVolume = tail.area * tailEffOf(T.stations) * ((tail.xMac + tail.mac / 4) - xCG) / (wing.area * wing.mac);
-    const stall = strips.filter(s => Number.isFinite(s.clMax)).reduce((m, s) => Math.max(m, s.cl / s.clMax), 0);
+    const stall = stallRatios(strips, wing.projSpan / 2).reduce((m, s) => Math.max(m, s.ratio), 0);
     // Wo beginnt der Abriss? Streifen mit der höchsten Ausnutzung Ca/Ca max und Bewertung nach seiner Lage:
     // innen (bis 50 % der Halbspannweite) gutmütig, aussen ab 75 % kritisch. Liegt aussen fast dieselbe
     // Ausnutzung an wie am höchsten Punkt innen (weniger als 3 Punkte Abstand), gilt es als neutral.
-    const stallAt = stallLocation(strips.filter(s => Number.isFinite(s.clMax) && s.clMax > 0).map(s => ({ y: s.y, ratio: s.cl / s.clMax, eta: s.y / (wing.projSpan / 2) })));
+    // Wo beginnt der Abriss? Beim Hochziehen (onset), sonst ersatzweise beim Trimm.
+    const half = wing.projSpan / 2;
+    const stallAt = onset
+      ? { ...stallLocation(onset.strips.map(s => ({ y: s.y, ratio: s.ratio, eta: s.y / half }))), cl: onset.cl, v: onset.v, strips: onset.strips, reached: onset.reached }
+      : stallLocation(stallRatios(strips, half).map(s => ({ y: s.y, ratio: s.ratio, eta: s.y / half })));
     const zone = trimZone({ CL, stall, table, best, minSink, byEwd });
     return {
       wing, tail, xNP, xCG, sigma, CLalpha: cA * 180 / Math.PI,
@@ -396,6 +437,7 @@
         surf: r0.strips.map(q => q.surf), y: r0.strips.map(q => q.y), z: r0.strips.map(q => q.z), chord: r0.strips.map(q => q.chord), width: r0.strips.map(q => q.width),
         c0: r0.strips.map(q => q.cl), ca: ra.strips.map((q, i) => q.cl - r0.strips[i].cl), ci: ri.strips.map((q, i) => q.cl - r0.strips[i].cl),
         CL0: r0.CL, CLa: cA, CLi: cI,
+        clMax: r0.strips.map(q => (q.surf === 0 ? clMaxAt(q.y) : NaN)), half: wing.projSpan / 2,
       },
     };
   }
@@ -440,7 +482,7 @@
     return tau > 0.05 ? (ref - ewd) / tau : null;
   }
 
-  const api = { analyze, resolveTe, withTe, BUILD, BUILD_TYPES, COVERS, COVER_K, buildOf, buildEffect, teMm, TE_MM, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
+  const api = { analyze, resolveTe, withTe, BUILD, BUILD_TYPES, COVERS, COVER_K, buildOf, buildEffect, teMm, TE_MM, trimZone, handMethod, tailPolar, stationGeometry, stationPolar, stationProfile, withFlap, fuselageMoment, profileDrag, cdOf, tailEffOf, stallLocation, stallRatios, elevatorOf, elevatorTau, elevatorDeflection, RHO, NU, G };
   if (isNode) module.exports = api;
   else (root.MMPA = root.MMPA || {}).modell = api;
 })(typeof self !== 'undefined' ? self : this);
