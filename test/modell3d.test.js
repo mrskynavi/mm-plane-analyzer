@@ -58,3 +58,17 @@ test('3D: Einstellwinkel hebt die Nase', () => {
   const z = inc => { m.wing.incidence = inc; const p = D3.build(m, project.profiles).parts[0].positions; let te = 0; for (let i = 0; i < p.length; i += 3) if (Math.abs(p[i + 1]) < 1e-6 && p[i] > 240) te = p[i + 2]; return te; };
   assert.ok(z(3) < z(0) - 10);
 });
+
+test('Randbogen gerade: Flügel endet an der letzten Station', () => {
+  const PR = require('../web/core/projekt.js'), BIB = require('../web/core/bibliothek.js'), FX = require('../web/core/fusion.js');
+  const project = PR.createProject();
+  const e = PR.addProfile(project, { datText: BIB.e374 }), h = PR.addProfile(project, { datText: BIB.ht14 });
+  const m = PR.createModel('Test', e.id, h.id);
+  const st = m.wing.stations, yEnd = st[st.length - 1].y;
+  st[st.length - 1].chord = 0.3 * st[0].chord;
+  const rund = FX.sections(m, project.profiles, 'wing', { all: true, n: 24, passes: 1 });
+  m.wing.tipShape = 'gerade';
+  const ger = FX.sections(m, project.profiles, 'wing', { all: true, n: 24, passes: 1 });
+  require('node:assert').ok(rund.tip && !ger.tip);
+  require('node:assert').ok(Math.max(...ger.sections.map(s => s.y)) <= yEnd - st[0].y + 1e-6);
+});
