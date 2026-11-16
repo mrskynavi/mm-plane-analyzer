@@ -72,3 +72,17 @@ test('Randbogen gerade: Flügel endet an der letzten Station', () => {
   require('node:assert').ok(rund.tip && !ger.tip);
   require('node:assert').ok(Math.max(...ger.sections.map(s => s.y)) <= yEnd - st[0].y + 1e-6);
 });
+
+test('Randbogen gerade auch am Höhenleitwerk', () => {
+  const PR = require('../web/core/projekt.js'), BIB = require('../web/core/bibliothek.js'), FX = require('../web/core/fusion.js');
+  const project = PR.createProject();
+  const e = PR.addProfile(project, { datText: BIB.e374 }), h = PR.addProfile(project, { datText: BIB.ht14 });
+  const m = PR.createModel('Test', e.id, h.id);
+  const st = m.tail.stations;
+  st[st.length - 1].chord = 0.3 * st[0].chord;
+  const rund = FX.sections(m, project.profiles, 'tail', { all: true, n: 24, passes: 1 });
+  m.tail.tipShape = 'gerade';
+  const ger = FX.sections(m, project.profiles, 'tail', { all: true, n: 24, passes: 1 });
+  require('node:assert').ok(rund.tip && !ger.tip);
+  require('node:assert').equal(m.wing.tipShape, undefined);
+});
