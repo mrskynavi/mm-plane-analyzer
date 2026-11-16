@@ -53,6 +53,12 @@
     return fh;
   }
 
+  // Datei im Ordner löschen (fehlt sie schon, ist das auch recht)
+  async function removeInDir(dir, name) {
+    try { await dir.removeEntry(name); }
+    catch (e) { if (e && e.name !== 'NotFoundError') throw e; }
+  }
+
   // Projektdateien im Ordner, neueste zuerst
   async function listDir(dir) {
     const out = [];
@@ -63,7 +69,7 @@
     return out.sort((a, b) => b.modified - a.modified);
   }
 
-  const api = { EXT, supported, fileName, isProjectFile, loadDir, saveDir, clearDir, permission, pickDir, writeFile, writeInDir, listDir };
+  const api = { EXT, supported, fileName, isProjectFile, loadDir, saveDir, clearDir, permission, pickDir, writeFile, writeInDir, removeInDir, listDir };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).ordner = api;
 })(typeof self !== 'undefined' ? self : this);

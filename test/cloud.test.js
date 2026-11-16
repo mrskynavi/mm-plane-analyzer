@@ -22,6 +22,11 @@ function fakeGitHub() {
         return res(200, { path, sha: f.sha, content: f.big ? '' : CL.toB64(f.text) });
       }
       const b = JSON.parse(o.body), cur = files.get(path);
+      if (o.method === 'DELETE') {
+        if (!cur) return res(404, { message: 'Not Found' });
+        if (b.sha !== cur.sha) return res(409, { message: 'does not match' });
+        files.delete(path); return res(200, { commit: {} });
+      }
       if (cur && !b.sha) return res(422, { message: 'Invalid request.\n\n"sha" wasn\'t supplied.' });
       if (cur && b.sha !== cur.sha) return res(409, { message: 'is at abc but expected def' });
       const text = CL.fromB64(b.content), sha = await CL.blobSha(text);
@@ -98,4 +103,17 @@ test('Fehlermeldungen', async () => {
   const off = CL.client({ repo: 'me/x', token: 't' }, async () => { throw new TypeError('Failed to fetch'); });
   await assert.rejects(off.list(), e => e.kind === 'offline');
   assert.throws(() => CL.client({ repo: 'x', token: 't' }), e => e.kind === 'config');
+});
+
+test('Projekt auf GitHub löschen', async () => {
+  const gh = fakeGitHub();
+  const c = CL.client({ repo: 'me/daten', token: 'tok' }, gh.fetchFn);
+  const sha = await c.put('projekte/Alt.mmpa.json', 'alt', null);
+  await c.put('projekte/Neu.mmpa.json', 'neu', null);
+  await assert.rejects(c.remove('projekte/Alt.mmpa.json', 'falsch'), e => e.kind === 'conflict');
+  await c.remove('projekte/Alt.mmpa.json', sha);
+  assert.strictEqual(gh.calls.at(-1).method, 'DELETE');
+  assert.strictEqual(gh.calls.at(-1).body.message, 'Alt gelöscht');
+  assert.deepStrictEqual((await c.list()).map(f => f.name), ['Neu']);
+  await c.remove('projekte/Alt.mmpa.json', sha); // schon weg: kein Fehler
 });

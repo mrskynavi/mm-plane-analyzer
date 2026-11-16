@@ -174,8 +174,16 @@
     return idb('readwrite', async st => { const s = await req(st.get(id)); if (s) st.put({ ...s, ...fields }); });
   }
   function remove(id) { return idb('readwrite', st => { st.delete(id); }); }
+  // Alle Stände eines Projekts (beim Löschen des Projekts); gibt die Anzahl zurück
+  function removeProject(project) {
+    let n = 0;
+    return idb('readwrite', async st => {
+      const keys = await req(st.index('project').getAllKeys(project));
+      n = keys.length; for (const k of keys) st.delete(k);
+    }).then(() => n);
+  }
 
-  const api = { createHistory, changedPaths, label, describe, prune, list, get, add, update, remove };
+  const api = { createHistory, changedPaths, label, describe, prune, list, get, add, update, remove, removeProject };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).verlauf = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -19,12 +19,12 @@
 <script src="core/modell.js?v=73"></script>
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
-<script src="core/ordner.js"></script>
-<script src="core/cloud.js"></script>
+<script src="core/ordner.js?v=76"></script>
+<script src="core/cloud.js?v=76"></script>
 <script src="core/frage.js"></script>
 <script src="core/dreiseiten.js"></script>
 <script src="core/fusion.js"></script>
-<script src="core/verlauf.js"></script>
+<script src="core/verlauf.js?v=76"></script>
 <script src="core/sfw.js"></script>
 <script src="core/modell3d.js?v=71"></script>
 <script src="core/druckbild.js?v=72"></script>
@@ -235,6 +235,11 @@ dialog h2{margin-bottom:12px}
 .filelist{display:grid;gap:6px;max-height:50vh;overflow:auto;margin-bottom:14px}
 .filelist .libitem{grid-template-columns:1fr auto;align-items:baseline;gap:10px}
 .filelist .libitem b{overflow-wrap:anywhere}
+.filelist .frow{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:stretch}
+.filelist .fdel{min-width:40px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--muted);cursor:pointer;font-size:1.1rem;line-height:1}
+.filelist .fdel:hover,.filelist .fdel:focus-visible{color:var(--bad);border-color:var(--bad);outline:none}
+.filelist .fopen{display:grid;place-items:center;min-width:40px;color:var(--muted);font-size:.75rem}
+.btn.bad{background:var(--bad);border-color:var(--bad);color:#fff}
 .dropover{position:fixed;inset:0;z-index:100;display:none;place-items:center;background:color-mix(in srgb,var(--accent) 18%,transparent);border:3px dashed var(--accent);pointer-events:none}
 .dropover span{font:600 1.4rem var(--display);color:var(--accent);background:var(--panel);padding:10px 18px;border-radius:8px}
 .dropover.over{display:grid}
@@ -974,6 +979,13 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
   <div class="setform"><div class="row end"><button type="button" class="btn ghost" id="openOther">Andere Datei …</button><button type="button" class="btn ghost" id="openClose">Schliessen</button></div></div>
 </dialog>
 
+<dialog id="delDlg">
+  <h2>Projekt löschen</h2>
+  <p id="delText" style="max-width:34em"></p>
+  <label class="histall" style="margin:10px 0 14px"><input type="checkbox" id="delLocal"> Auch Zwischenstände (Verlauf) und importierte 3D-Dateien dieses Projekts auf diesem Gerät löschen</label>
+  <div class="setform"><div class="row end"><button type="button" class="btn ghost" id="delNo">Abbrechen</button><button type="button" class="btn bad" id="delYes">Löschen</button></div></div>
+</dialog>
+
 <dialog id="histDlg" class="histdlg">
   <h2>Verlauf</h2>
   <p class="hint" style="margin-bottom:12px">Mit ↶ und ↷ (oder Strg+Z) gehst Du Schritt für Schritt zurück und wieder vor. Dazu merkt sich die App beim Arbeiten alle 10 Minuten einen Zwischenstand und vor grossen Schritten wie Zurückholen, Optimierer-Übernahme oder Projektwechsel. Eigene Stände mit Namen bleiben immer erhalten. Die Zwischenstände liegen nur in diesem Browser auf diesem Gerät.</p>
@@ -1147,6 +1159,59 @@ function autoSave() {
 function openProjectText(text) {
   project = PR.parse(text); ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`);
 }
+// ---------- Projekt löschen (Liste in „Projekt öffnen“) ----------
+// Eine Zeile: Projekt öffnen + Löschknopf. Das offene Projekt lässt sich nicht löschen,
+// sonst legt das automatische Speichern es gleich wieder an.
+function openRow(i, name, info, open) {
+  return `<div class="frow"><button type="button" class="libitem" data-i="${i}"><b>${esc(name)}</b>${info}</button>${open
+    ? '<span class="fopen" title="Das offene Projekt lässt sich nicht löschen. Zuerst ein anderes öffnen oder ein neues anlegen.">offen</span>'
+    : `<button type="button" class="fdel" data-del="${i}" title="Projekt löschen" aria-label="${esc(name)} löschen">×</button>`}</div>`;
+}
+// Rückfrage; gibt null (abgebrochen) oder { local } zurück
+function askDelete(name, where) {
+  return new Promise(resolve => {
+    const dlg = $('delDlg');
+    $('delText').textContent = `„${name}“ ${where} wirklich löschen? Das offene Projekt bleibt unberührt.`;
+    $('delLocal').checked = false;
+    let res = null;
+    $('delYes').onclick = () => { res = { local: $('delLocal').checked }; dlg.close(); };
+    $('delNo').onclick = () => dlg.close();
+    dlg.onclose = () => resolve(res);
+    dlg.showModal();
+  });
+}
+// Daten dieses Projekts auf diesem Gerät: Verlauf (nach Projektname) und importierte 3D-Dateien (nach Modell-Id).
+// Modelle, die auch im offenen Projekt stecken, behalten ihre 3D-Dateien.
+async function purgeLocal(name, text) {
+  let nHist = 0, n3d = 0, pj = null;
+  try { pj = JSON.parse(text); } catch { /* egal */ }
+  // Der Verlauf hängt am Namen im Projekt; der Dateiname kann davon abweichen
+  for (const n of new Set([pj && pj.name, name].filter(Boolean))) {
+    if (n === project.name) continue;
+    try { nHist += await window.MMPA.verlauf.removeProject(n); } catch { /* egal */ }
+  }
+  let ids = ((pj && pj.models) || []).map(m => m && m.id).filter(Boolean);
+  const keep = new Set(project.models.map(m => m.id));
+  ids = ids.filter(id => !keep.has(id));
+  if (ids.length && window.indexedDB) {
+    n3d = await new Promise(resolve => {
+      const rq = indexedDB.open('mmpa-3d', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('files', { keyPath: 'id' }).createIndex('model', 'model');
+      rq.onerror = () => resolve(0);
+      rq.onsuccess = () => {
+        const db = rq.result, tx = db.transaction('files', 'readwrite'), st = tx.objectStore('files');
+        let n = 0;
+        ids.forEach(id => { const r = st.index('model').getAllKeys(id); r.onsuccess = () => { r.result.forEach(k => { st.delete(k); n++; }); }; });
+        tx.oncomplete = () => { db.close(); resolve(n); };
+        tx.onerror = tx.onabort = () => { db.close(); resolve(0); };
+      };
+    });
+  }
+  return { nHist, n3d };
+}
+const purgeMsg = r => r ? [r.nHist ? `${r.nHist} ${r.nHist === 1 ? 'Zwischenstand' : 'Zwischenstände'}` : '', r.n3d ? `${r.n3d} ${r.n3d === 1 ? '3D-Datei' : '3D-Dateien'}` : ''].filter(Boolean).join(' und ') : '';
+window.MMPAdel = { openRow, askDelete, purgeLocal, purgeMsg };
+
 $('saveBtn').onclick = () => saveProject();
 $('openBtn').onclick = async () => {
   if (!dir.handle || !await dirReady(true)) { $('projFile').click(); return; }
@@ -1154,10 +1219,27 @@ $('openBtn').onclick = async () => {
   try { files = await DIR.listDir(dir.handle); } catch (e) { toast(e.message); $('projFile').click(); return; }
   $('openDir').textContent = `Ordner ${dir.handle.name}`;
   const when = t => new Date(t).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' });
-  $('openList').innerHTML = files.length
-    ? files.map((f, i) => `<button type="button" class="libitem" data-i="${i}"><b>${esc(f.name.replace(/\.mmpa\.json$|\.json$|\.mmpa$/i, ''))}</b>${when(f.modified)}</button>`).join('')
-    : '<p class="hint">Im Ordner liegt noch kein Projekt. Mit „Speichern“ legst Du das aktuelle hier ab.</p>';
+  const mine = DIR.fileName(project.name);
+  const render = () => {
+    $('openList').innerHTML = files.length
+      ? files.map((f, i) => openRow(i, f.name.replace(/\.mmpa\.json$|\.json$|\.mmpa$/i, ''), when(f.modified), f.name === mine)).join('')
+      : '<p class="hint">Im Ordner liegt noch kein Projekt. Mit „Speichern“ legst Du das aktuelle hier ab.</p>';
+  };
+  render();
   $('openList').onclick = async e => {
+    const d = e.target.closest('[data-del]');
+    if (d) {
+      const f = files[+d.dataset.del], name = f.name.replace(/\.mmpa\.json$|\.json$|\.mmpa$/i, '');
+      const ok = await askDelete(name, `im Ordner ${dir.handle.name}`); if (!ok) return;
+      try {
+        const text = ok.local ? await (await f.handle.getFile()).text() : '';
+        await DIR.removeInDir(dir.handle, f.name);
+        const r = ok.local ? await purgeLocal(name, text) : null;
+        files = files.filter(x => x !== f); render();
+        toast(`${name} gelöscht${purgeMsg(r) ? ` (dazu ${purgeMsg(r)} auf diesem Gerät)` : ''}`);
+      } catch (err) { toast(`Löschen ging nicht: ${err.message}`); }
+      return;
+    }
     const b = e.target.closest('.libitem'); if (!b) return;
     try { openProjectText(await (await files[+b.dataset.i].handle.getFile()).text()); $('openDlg').close(); }
     catch (err) { toast(err.message); }
@@ -3417,7 +3499,7 @@ renderAll();
 </script>
 <script src="frage-ui.js"></script>
 <script src="dreiseiten-ui.js"></script>
-<script src="cloud-ui.js"></script>
+<script src="cloud-ui.js?v=76"></script>
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
 <script src="festigkeit-ui.js?v=75"></script>

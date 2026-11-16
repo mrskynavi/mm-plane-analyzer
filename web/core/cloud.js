@@ -118,6 +118,12 @@
         const r = await call('PUT', `/repos/${repo}/contents/${encPath(path)}`, body);
         return r.content.sha;
       },
+      // Löschen; sha = Stand aus der Liste. Fehlt die Datei schon, ist das auch recht.
+      // Auf GitHub bleibt sie in der Versionsgeschichte des Repos zurückholbar.
+      async remove(path, sha, message) {
+        try { await call('DELETE', `/repos/${repo}/contents/${encPath(path)}`, { message: message || `${nameOf(path)} gelöscht`, sha }); }
+        catch (e) { if (e.kind !== 'missing') throw e; }
+      },
     };
   }
 
