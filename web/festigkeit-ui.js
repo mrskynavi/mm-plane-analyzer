@@ -104,10 +104,10 @@
     <label class="field"><span>Faser</span><select data-k="layer.${i}.angle"><option value="0"${+l.angle === 0 ? ' selected' : ''}>0/90°</option><option value="45"${+l.angle === 45 ? ' selected' : ''}>±45°</option></select></label>
     ${seg('Bereich', 'layer.' + i + '.zone', S.zoneOf(l), [['alles', 'ganze Schale'], ['dbox', 'D-Box'], ['hinten', 'hinter Holm']])}
     ${num('endet bei y', 'layer.' + i + '.y1', +l.y1 > 0 ? l.y1 : '', 'mm', 10, 'min="0" placeholder="Rand" title="Die Lage endet hier (Abstand von der Rumpfmitte). Leer = bis zum Rand."')}
-    <div class="field"><span>&nbsp;</span><button type="button" class="btn ghost sm" data-del="${i}">Lage löschen</button></div>
+    <div class="field"><span>&nbsp;</span><span class="row"><button type="button" class="btn ghost sm" data-up="${i}"${i === 0 ? ' disabled' : ''} title="eine Lage nach aussen" aria-label="Lage ${i + 1} nach aussen">↑</button><button type="button" class="btn ghost sm" data-down="${i}"${i === st.shell.layers.length - 1 ? ' disabled' : ''} title="eine Lage nach innen" aria-label="Lage ${i + 1} nach innen">↓</button><button type="button" class="btn ghost sm" data-del="${i}">Lage löschen</button></span></div>
   </div>`).join('')}
   <p class="hint">Bereich: ganz = um das ganze Profil, D-Box = Nase bis Holm, hinten = Holm bis Endleiste${st.shell.box === 'dbox' ? ' (beim Torsionskasten „D-Box bis Holm“ zählen Lagen hinten nicht)' : ''}. Für eine Abstufung von innen nach aussen gibst du bei den zusätzlichen Lagen ein, wo sie enden.</p>
-  <div class="btnrow"><button type="button" class="btn ghost" data-add>+ Lage</button></div>
+  <div class="btnrow"><button type="button" class="btn ghost" data-addout>+ Lage aussen</button><button type="button" class="btn ghost" data-add>+ Lage innen</button></div>
   <h3 class="sub">Verbinder</h3>
   ${st.joiners.map((j, i) => joinerForm(j, i, mats, st.joiners.length)).join('')}
   <div class="btnrow"><button type="button" class="btn ghost" data-jadd>+ Verbinder</button></div>
@@ -215,9 +215,15 @@
       const s = m[part].struct = m[part].struct || {}; s.joiners = cur; delete s.joiner;
       changed(true); return;
     }
-    if (b.dataset.add != null || b.dataset.del != null) {
+    const d = b.dataset;
+    if (d.add != null || d.addout != null || d.del != null || d.up != null || d.down != null) {
       const cur = S.structOf(m, part).shell.layers;
-      if (b.dataset.del != null) cur.splice(+b.dataset.del, 1); else cur.push({ mat: 'gfk-gewebe', g: 49, angle: 45 });
+      const swap = (i, j) => { if (i >= 0 && j >= 0 && i < cur.length && j < cur.length) [cur[i], cur[j]] = [cur[j], cur[i]]; };
+      if (d.del != null) cur.splice(+d.del, 1);
+      else if (d.up != null) swap(+d.up, +d.up - 1);
+      else if (d.down != null) swap(+d.down, +d.down + 1);
+      else if (d.addout != null) cur.unshift({ mat: 'gfk-gewebe', g: 49, angle: 45 });
+      else cur.push({ mat: 'gfk-gewebe', g: 49, angle: 45 });
       const s = m[part].struct = m[part].struct || {}; s.shell = { ...(s.shell || {}), layers: cur };
       changed(true); return;
     }
