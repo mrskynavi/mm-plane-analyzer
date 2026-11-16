@@ -139,10 +139,31 @@
     let files;
     try { files = await gh().list(); } catch (e) { fail(e); return origOpen(); }
     $('openDir').textContent = `GitHub ${CL.parseRepo(cfg().repo)}`;
-    $('openList').innerHTML = files.length
-      ? files.map((f, i) => `<button type="button" class="libitem" data-i="${i}"><b>${esc(f.name)}</b>${Math.round(f.size / 1024)} kB${f.name === project.name ? ' · offen' : ''}</button>`).join('')
-      : '<p class="hint">Auf GitHub liegt noch kein Projekt. Mit „Speichern“ legst du das aktuelle dort ab.</p>';
+    const D = window.MMPAdel;
+    const render = () => {
+      $('openList').innerHTML = files.length
+        ? files.map((f, i) => D.openRow(i, f.name, `${Math.round(f.size / 1024)} kB`, f.path === curPath())).join('')
+        : '<p class="hint">Auf GitHub liegt noch kein Projekt. Mit „Speichern“ legst du das aktuelle dort ab.</p>';
+    };
+    render();
     $('openList').onclick = async e => {
+      const d = e.target.closest('[data-del]');
+      if (d) {
+        const f = files[+d.dataset.del];
+        const ok = await D.askDelete(f.name, 'auf GitHub'); if (!ok) return;
+        try {
+          const r = ok.local ? await exclusive(() => gh().get(f.path)) : null;
+          await exclusive(() => gh().remove(f.path, r ? r.sha : f.sha));
+          const m = shas(); delete m[f.path]; store.set(K.shas, JSON.stringify(m));
+          const p = r ? await D.purgeLocal(f.name, r.text) : null;
+          files = files.filter(x => x !== f); render();
+          toast(`${f.name} auf GitHub gelöscht${D.purgeMsg(p) ? ` (dazu ${D.purgeMsg(p)} auf diesem Gerät)` : ''}. In der Versionsgeschichte des Repos bleibt es zurückholbar.`);
+        } catch (err) {
+          if (err.kind === 'conflict') toast('Ein anderes Gerät hat dieses Projekt inzwischen geändert. Liste neu öffnen und nochmals löschen.');
+          else toast(`Löschen ging nicht: ${err.message}`);
+        }
+        return;
+      }
       const b = e.target.closest('.libitem'); if (!b) return;
       const f = files[+b.dataset.i];
       // Erst den offenen Stand sichern, dann wechseln
