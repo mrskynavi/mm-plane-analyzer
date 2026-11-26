@@ -3,9 +3,9 @@
 // der zuletzt geladene Stand aus dem Zwischenspeicher. GitHub- und Claude-API gehen nie über den Speicher.
 // Neue Dateien in web/ hier in FILES eintragen (test/offline.test.js prüft das).
 'use strict';
-const CACHE = 'mmpa-app-1';
+const CACHE = 'mmpa-app-2';
 const FILES = [
-  './', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png',
+  './', 'index.html', 'manifest.webmanifest', 'favicon-32.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'maskable-512.png',
   'cloud-ui.js', 'drei-ui.js', 'dreiseiten-ui.js', 'festigkeit-ui.js', 'frage-ui.js', 'sfw-ui.js', 'verlauf-ui.js',
   'core/aeroelastik.js', 'core/bauteile3d.js', 'core/bibliothek.js', 'core/cloud.js', 'core/dreiseiten.js',
   'core/druckbild.js', 'core/excel.js', 'core/frage.js', 'core/fusion.js', 'core/import3d.js', 'core/kanal.js',
