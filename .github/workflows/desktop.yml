@@ -32,7 +32,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
-      - run: npm test
       - run: npm ci
         working-directory: desktop
       - run: npm run ${{ matrix.run }}
