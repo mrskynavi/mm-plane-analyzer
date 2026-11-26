@@ -65,6 +65,12 @@ Bausteine ohne DOM (Systemprompt, Preise, Anfrage, Stream-Leser, Markdown) in `w
 
 Die Polaren rechnet [NeuralFoil](https://github.com/peterdsharpe/NeuralFoil) (Peter Sharpe, MIT-Lizenz), hier nach JavaScript übertragen (`web/core/neuralfoil.js`). Das Netz ist auf XFOIL-Rechnungen trainiert, konvergiert immer und liefert eine Konfidenz pro Punkt. Die Tests vergleichen die JavaScript-Fassung mit dem Python-Original (Abweichung unter 1e-9). XFOIL selbst soll später über die Desktop-App dazukommen.
 
+## Offline und Desktop-App
+
+- **GitHub-Sync** (⚙ Einstellungen, `web/core/cloud.js`, `web/cloud-ui.js`): Projekte liegen in einem privaten Repo unter `projekte/`. Alle Projekte des Repos liegen zusätzlich auf dem Gerät (IndexedDB `mmpa-spiegel`), damit man ohne Verbindung jedes öffnen und bearbeiten kann. Je Projekt merkt sich das Gerät den zuletzt gesehenen Stand (sha); beim Wiederverbinden (Ereignis `online`), beim Start, beim Zurückwechseln und alle 5 Minuten gleicht `syncAll` jedes Projekt ab: nur hier geändert → hochladen, nur auf GitHub geändert → holen, anderswo gelöscht und hier unverändert → wegräumen. Wurde ein Projekt hier und anderswo geändert, fragt die App: meinen behalten, den von GitHub laden oder beide behalten (der eigene Stand kommt als „Name (Stand dieses Geräts TT.MM.JJJJ)“ daneben). Überschrieben wird nie ohne Rückfrage; auf GitHub bleibt jeder Stand in der Versionsgeschichte.
+- **Offline im Browser** (`web/sw.js`, `web/manifest.webmanifest`): Service Worker, zuerst Netz, ohne Verbindung der zuletzt geladene Stand. In Chrome/Edge als App installierbar (Symbol in der Adressleiste), auf dem iPad „Zum Home-Bildschirm“. Neue Dateien in `web/` in `FILES` von `sw.js` eintragen (`test/offline.test.js` prüft das). Chart.js liegt dafür lokal in `web/vendor/`.
+- **Desktop-App** (`desktop/`, Electron): Windows-Installer und macOS-App (universal) baut `.github/workflows/desktop.yml` und legt sie unter Releases → „Desktop-App“ ab. Die App zeigt `mmpa://app/`: jede Datei kommt mit Verbindung frisch von GitHub Pages und wird im Benutzerordner abgelegt, ohne Verbindung von dort, beim allerersten Start ohne Netz aus der mitgelieferten Kopie von `web/`. Die Adresse bleibt gleich, also auch Projekte, Einstellungen und Sync. Lokal starten: `cd desktop && npm install && npm start`. Nicht signiert: Windows „Weitere Informationen → Trotzdem ausführen“, macOS „Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen“.
+
 ## Aufbau
 
 ```

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0b6bcb"/>
+  <g fill="#fff">
+    <!-- Segler von oben: Flügel mit Trapez, Rumpf, Höhenleitwerk -->
+    <path d="M256 196 L470 226 Q484 230 478 242 L256 238 L34 242 Q28 230 42 226 Z"/>
+    <path d="M256 104 Q276 112 276 160 L264 420 Q256 428 248 420 L236 160 Q236 112 256 104 Z"/>
+    <path d="M256 384 L338 398 Q344 408 334 412 L256 410 L178 412 Q168 408 174 398 Z"/>
+  </g>
+</svg>

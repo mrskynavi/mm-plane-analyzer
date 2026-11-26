@@ -1,0 +1,76 @@
+{
+  "name": "mm-plane-analyzer-desktop",
+  "productName": "MM Plane Analyzer",
+  "version": "1.0.0",
+  "description": "MM Plane Analyzer als Desktop-App (offline nutzbar)",
+  "author": "Christoph Mächler",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.3.1",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "ch.maechlermodelle.planeanalyzer",
+    "productName": "MM Plane Analyzer",
+    "artifactName": "MM-Plane-Analyzer-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "pfad.js",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../web",
+        "to": "web"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "MM Plane Analyzer"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "identity": "-"
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mrskynavi/mm-plane-analyzer.git"
+  }
+}
