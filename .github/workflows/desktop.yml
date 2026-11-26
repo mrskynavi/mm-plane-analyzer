@@ -12,7 +12,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: desktop
+  group: desktop-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build:
