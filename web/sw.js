@@ -11,7 +11,7 @@ const FILES = [
   'core/druckbild.js', 'core/excel.js', 'core/frage.js', 'core/fusion.js', 'core/import3d.js', 'core/kanal.js',
   'core/messpolare.js', 'core/modell-worker.js', 'core/modell.js', 'core/modell3d.js', 'core/nachlauf.js',
   'core/neuralfoil.js', 'core/nf-gewichte.js', 'core/ordner.js', 'core/polare.js', 'core/profil.js',
-  'core/projekt.js', 'core/rumpf.js', 'core/sfw.js', 'core/strak-worker.js', 'core/strak.js', 'core/struktur.js',
+  'core/projekt.js', 'core/rumpf.js', 'core/sfw.js', 'core/skalieren.js', 'core/strak-worker.js', 'core/strak.js', 'core/struktur.js',
   'core/verlauf.js', 'core/vlm.js',
   'vendor/OrbitControls.js', 'vendor/three.module.min.js', 'vendor/chart.umd.min.js',
   'vendor/occt/occt-import-js.js', 'vendor/occt/step-worker.js',
