@@ -1,10 +1,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MM Plane Analyzer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0b6bcb">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <script>try{ const t=localStorage.getItem('mmpa.theme'); if (t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(e){}</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="vendor/chart.umd.min.js"></script>
 <script>window.MMPA_BUILD = '75'; // bei jeder Änderung an den Rechenkernen erhöhen (Worker und Seite müssen zusammenpassen)</script>
 <script src="core/profil.js"></script>
 <script src="core/nf-gewichte.js"></script>
@@ -20,7 +24,7 @@
 <script src="core/excel.js"></script>
 <script src="core/strak.js"></script>
 <script src="core/ordner.js?v=76"></script>
-<script src="core/cloud.js?v=76"></script>
+<script src="core/cloud.js?v=78"></script>
 <script src="core/frage.js"></script>
 <script src="core/dreiseiten.js"></script>
 <script src="core/fusion.js"></script>
@@ -232,6 +236,7 @@ dialog h2{margin-bottom:12px}
 .dirname{font:500 .9rem var(--mono);overflow-wrap:anywhere}
 .cloudstate{border:0;background:none;color:var(--muted, inherit);font:500 1rem system-ui,sans-serif;padding:4px 2px;cursor:pointer;white-space:nowrap}
 .cloudstate[data-state="error"],.cloudstate[data-state="conflict"]{color:#d0552b}
+.cloudstate[data-state="offline"]{font-size:.8rem;opacity:.75}
 .filelist{display:grid;gap:6px;max-height:50vh;overflow:auto;margin-bottom:14px}
 .filelist .libitem{grid-template-columns:1fr auto;align-items:baseline;gap:10px}
 .filelist .libitem b{overflow-wrap:anywhere}
@@ -999,7 +1004,7 @@ body.asking .askpop button,body.asking .askpop select{cursor:pointer!important}
 <dialog id="cloudDlg">
   <h2>Zwei Stände</h2>
   <p id="cloudDlgText" style="max-width:34em"></p>
-  <div class="setform"><div class="row end"><button type="button" class="btn ghost" id="cloudLater">Später</button><button type="button" class="btn ghost" id="cloudKeep">Meinen behalten</button><button type="button" class="btn" id="cloudTake">Den von GitHub laden</button></div></div>
+  <div class="setform"><div class="row end"><button type="button" class="btn ghost" id="cloudLater">Später</button><button type="button" class="btn ghost" id="cloudKeep">Meinen behalten</button><button type="button" class="btn ghost" id="cloudBoth" title="Deinen Stand unter neuem Namen daneben ablegen und den von GitHub laden">Beide behalten</button><button type="button" class="btn" id="cloudTake">Den von GitHub laden</button></div></div>
 </dialog>
 
 <dialog id="settingsDlg">
@@ -1157,7 +1162,9 @@ function autoSave() {
   }, 1500);
 }
 function openProjectText(text) {
-  project = PR.parse(text); ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`);
+  const pj = PR.parse(text);
+  if (window.cloudBeforeSwitch) window.cloudBeforeSwitch();
+  project = pj; ui.varOff.clear(); persist(); renderAll(); toast(`${project.name} geöffnet`);
 }
 // ---------- Projekt löschen (Liste in „Projekt öffnen“) ----------
 // Eine Zeile: Projekt öffnen + Löschknopf. Das offene Projekt lässt sich nicht löschen,
@@ -1320,7 +1327,7 @@ $('setTheme').onclick = e => {
 $('setName').oninput = () => { project.name = $('setName').value || 'Projekt'; $('projName').textContent = project.name; persist(); };
 $('setClose').onclick = () => $('settingsDlg').close();
 $('settingsDlg').addEventListener('close', autoSave);
-$('newProj').onclick = () => { project = defaultProject(); ui.varOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
+$('newProj').onclick = () => { if (window.cloudBeforeSwitch) window.cloudBeforeSwitch(); project = defaultProject(); ui.varOff.clear(); persist(); renderAll(); $('settingsDlg').close(); };
 // Farben hängen am Thema: Diagramme neu aufbauen
 function retheme() { for (const id in charts) { charts[id].destroy(); delete charts[id]; } showTab(ui.tab); }
 new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
@@ -3499,9 +3506,18 @@ renderAll();
 </script>
 <script src="frage-ui.js"></script>
 <script src="dreiseiten-ui.js"></script>
-<script src="cloud-ui.js?v=76"></script>
+<script src="cloud-ui.js?v=78"></script>
 <script src="verlauf-ui.js"></script>
 <script src="sfw-ui.js"></script>
 <script src="festigkeit-ui.js?v=75"></script>
 <script type="module" src="drei-ui.js?v=72"></script>
+<script>
+// Offline: die App selbst kommt aus dem Zwischenspeicher des Service Workers (sw.js), wenn keine Verbindung da ist.
+// In der Desktop-App (Electron) übernimmt das die App selbst (desktop/main.js).
+if ('serviceWorker' in navigator && !/Electron/.test(navigator.userAgent) && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js')
+    .then(r => { if (navigator.onLine) setTimeout(() => (r.active || r.waiting || r.installing)?.postMessage('auffrischen'), 8000); })
+    .catch(() => {}));
+}
+</script>
 

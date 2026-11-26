@@ -1,0 +1,80 @@
+# Desktop-App (Windows und macOS) bauen und unter Releases → „Desktop-App“ ablegen.
+# Läuft, wenn sich desktop/ ändert (im PR nur bauen, ohne Release), oder von Hand (Actions → Desktop-App → Run workflow).
+# Die App holt sich die Oberfläche bei jeder Verbindung frisch von GitHub Pages; ein neuer Build
+# ist nur nötig, wenn sich die Hülle (desktop/) ändert.
+name: Desktop-App
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: desktop
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            run: dist:win
+          - os: macos-latest
+            run: dist:mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm test
+      - run: npm ci
+        working-directory: desktop
+      - run: npm run ${{ matrix.run }}
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+          if-no-files-found: error
+  release:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Release „Desktop-App“ anlegen oder auffrischen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la out
+          cat > notes.md <<'NOTES'
+          MM Plane Analyzer als App für Windows und macOS, auch ohne Internet nutzbar.
+
+          **Windows:** `MM-Plane-Analyzer-win-x64.exe` laden und ausführen. Windows warnt, weil die App nicht signiert ist: „Weitere Informationen“ → „Trotzdem ausführen“.
+
+          **macOS:** `MM-Plane-Analyzer-mac-universal.dmg` öffnen und die App in „Programme“ ziehen. Beim ersten Start meldet macOS, dass es den Entwickler nicht prüfen kann: Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“.
+
+          Die Oberfläche kommt bei jeder Verbindung frisch von GitHub Pages, Neuerungen sind also ohne Neuinstallation da. Ohne Verbindung startet der zuletzt geladene Stand.
+          NOTES
+          sed -i 's/^          //' notes.md
+          if gh release view desktop >/dev/null 2>&1; then
+            gh release edit desktop --title "Desktop-App" --notes-file notes.md --latest
+          else
+            gh release create desktop --title "Desktop-App" --notes-file notes.md --target "${{ github.sha }}" --latest
+          fi
+          gh release upload desktop out/* --clobber

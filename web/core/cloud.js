@@ -138,7 +138,70 @@
     return Array.from(h, b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  const api = { API, FOLDER, EXT, fileName, pathOf, nameOf, parseRepo, toB64, fromB64, client, blobSha, SyncError };
+
+  // ---------- Abgleich aller Projekte (Offline-Betrieb) ----------
+  // Jedes Projekt hat drei Stände: lokal (Text auf diesem Gerät), Basis (sha, den dieses Gerät zuletzt
+  // auf GitHub gesehen hat) und GitHub. Daraus folgt, was zu tun ist; nur wenn beide Seiten seit der
+  // Basis geändert wurden, ist es ein Konflikt, den der Mensch entscheidet.
+  //   mine   = Blob-sha des lokalen Texts (null: lokal nicht vorhanden)
+  //   base   = zuletzt gesehener sha (null: nie gesehen)
+  //   remote = sha auf GitHub (null: dort nicht vorhanden)
+  function plan(mine, base, remote) {
+    if (!mine && !remote) return 'none';
+    if (!mine) return 'down';
+    if (!remote) return base && mine === base ? 'removeLocal' : 'up';
+    if (mine === remote) return 'same';
+    if (base && base === remote) return 'up';
+    if (base && base === mine) return 'down';
+    return 'conflict';
+  }
+
+  // Alle Projekte abgleichen. local: { all(), put({path,text}), del(path) } (async),
+  // bases: { get(path), set(path, sha), del(path) }, skip: Pfade, die anderswo abgeglichen werden
+  // (das offene Projekt). Gibt { down, up, removed, conflicts: [{ path, text, remote }] } zurück.
+  async function syncAll(gh, local, bases, skip) {
+    const out = { down: [], up: [], removed: [], conflicts: [] };
+    const remote = new Map((await gh.list()).map(f => [f.path, f]));
+    const mine = new Map((await local.all()).map(x => [x.path, x]));
+    const paths = [...new Set([...remote.keys(), ...mine.keys()])].sort();
+    const skipSet = new Set(skip || []);
+    for (const path of paths) {
+      if (skipSet.has(path)) continue;
+      const r = remote.get(path), l = mine.get(path);
+      const ms = l ? await blobSha(l.text) : null;
+      const what = plan(ms, bases.get(path), r ? r.sha : null);
+      try {
+        if (what === 'same') bases.set(path, r.sha);
+        else if (what === 'down') {
+          const g = await gh.get(path);
+          if (!g) continue;
+          await local.put({ path, text: g.text });
+          bases.set(path, g.sha);
+          out.down.push(path);
+        } else if (what === 'up') {
+          bases.set(path, await gh.put(path, l.text, r ? r.sha : null, `${nameOf(path)} gespeichert (abgeglichen)`));
+          out.up.push(path);
+        } else if (what === 'removeLocal') {
+          await local.del(path);
+          bases.del(path);
+          out.removed.push(path);
+        } else if (what === 'conflict') out.conflicts.push({ path, text: l.text, remote: r.sha });
+      } catch (e) {
+        // Inzwischen von einem anderen Gerät geändert: wie ein Konflikt behandeln
+        if (e.kind === 'conflict') out.conflicts.push({ path, text: l ? l.text : '', remote: r ? r.sha : null });
+        else throw e;
+      }
+    }
+    return out;
+  }
+
+  // Name für „beide behalten“: der eigene Stand bekommt einen neuen Namen
+  function copyName(name, when) {
+    const d = (when || new Date()).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `${String(name || 'Projekt').trim()} (Stand dieses Geräts ${d})`;
+  }
+
+  const api = { API, FOLDER, EXT, fileName, pathOf, nameOf, parseRepo, toB64, fromB64, client, blobSha, SyncError, plan, syncAll, copyName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.MMPA = root.MMPA || {}).cloud = api;
 })(typeof self !== 'undefined' ? self : this);
