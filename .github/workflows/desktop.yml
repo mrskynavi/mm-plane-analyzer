@@ -1,11 +1,10 @@
 # Desktop-App (Windows und macOS) bauen und unter Releases → „Desktop-App“ ablegen.
-# Läuft, wenn sich desktop/ ändert (im PR nur bauen, ohne Release), oder von Hand (Actions → Desktop-App → Run workflow).
+# Läuft, wenn sich desktop/ ändert (auf anderen Zweigen nur bauen, ohne Release), oder von Hand (Actions → Desktop-App → Run workflow).
 # Die App holt sich die Oberfläche bei jeder Verbindung frisch von GitHub Pages; ein neuer Build
 # ist nur nötig, wenn sich die Hülle (desktop/) ändert.
 name: Desktop-App
 on:
   push:
-    branches: [main]
     paths: ['desktop/**', '.github/workflows/desktop.yml']
   pull_request:
     paths: ['desktop/**', '.github/workflows/desktop.yml']
@@ -49,7 +48,7 @@ jobs:
           if-no-files-found: error
   release:
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
